@@ -27,6 +27,8 @@ The reference implementation is the single C header
 - `zig/` - Zig port (`hayahash` module, Zig 0.16)
 - `java/` - Java port (Maven module `io.github.thevilledev:hayahash`,
   Java 17+)
+- `js/` - JavaScript/TypeScript port for npm (`hayahash` package): the
+  reference header compiled to WebAssembly, plus a pure-JS fallback
 - `tests/` - C quality and benchmark harnesses; ChibiHash v1/v2
   reference sources are vendored there so the comparisons are
   self-contained
@@ -39,8 +41,8 @@ The reference implementation is the single C header
 Each port lives in its own top-level directory and is verified against
 the reference implementation via the SMHasher3 verification value and
 the shared known-answer vectors (see `rust/tests/kat.rs`,
-`go/kat_test.go`, `zig/tests/kat.zig`, and the Java `KatTest` under
-`java/src/test`).
+`go/kat_test.go`, `zig/tests/kat.zig`, the Java `KatTest` under
+`java/src/test`, and `js/test/hayahash.test.mjs`).
 
 ## Usage
 
@@ -80,6 +82,16 @@ Java - the Maven module lives in [`java/`](java/):
 import io.github.thevilledev.hayahash.Hayahash;
 
 long h = Hayahash.hash64(buf, seed);
+```
+
+JavaScript/TypeScript - the npm package lives in [`js/`](js/); the
+fast path is `hayahash.h` itself, compiled to a ~1.5 KB WebAssembly
+module, with a pure-JS fallback:
+
+```js
+import { hayahash64 } from "hayahash";
+
+const h = hayahash64(buf, seed); // unsigned 64-bit bigint
 ```
 
 ## Design
@@ -135,10 +147,12 @@ Each fix is documented in the header where it lives.
   criterion over input and seed bits, plus exact-collision tests over
   23 structured key sets, including reproductions of the SMHasher3
   keysets that broke earlier iterations. All clean.
-- The Rust, Go, Zig, and Java ports are bit-exact against the C
-  reference:
+- The Rust, Go, Zig, Java, and JavaScript ports are bit-exact against
+  the C reference:
   each port's test suite checks the SMHasher3 verification value and a
   shared table of known-answer vectors generated from `hayahash.h`.
+  (The JavaScript package checks both of its engines: the wasm build
+  of the reference header and the pure-JS fallback.)
 - The absorb sequence is injective by construction (first-difference
   induction), and all tail injections are bijective.
 

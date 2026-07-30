@@ -134,3 +134,34 @@ jobs:
       - name: Test
         run: mvn --batch-mode --no-transfer-progress test
         working-directory: java
+
+  js:
+    name: JavaScript
+    runs-on: avrea-ubuntu-latest-2-vcpu
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+
+      - name: Install Node.js
+        uses: actions/setup-node@v7
+        with:
+          node-version: 24
+          cache: npm
+          cache-dependency-path: js/package-lock.json
+
+      - name: Install dependencies
+        run: npm ci
+        working-directory: js
+
+      - name: Check committed wasm embed is current
+        run: |
+          npm run build:embed
+          git diff --exit-code -- src/wasm-module.ts
+        working-directory: js
+
+      - name: Test
+        run: npm test
+        working-directory: js

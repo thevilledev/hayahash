@@ -1,0 +1,52 @@
+{
+	"name": "hayahash",
+	"version": "0.1.0",
+	"description": "hayahash64, a small, fast, portable 64-bit hash function: the reference C header compiled to WebAssembly, with a pure-JS fallback",
+	"keywords": [
+		"hash",
+		"hayahash",
+		"fast-hash",
+		"non-cryptographic",
+		"wasm",
+		"webassembly"
+	],
+	"license": "Unlicense",
+	"author": "Ville Vesilehto <ville@vesilehto.fi>",
+	"homepage": "https://github.com/thevilledev/hayahash",
+	"repository": {
+		"type": "git",
+		"url": "git+https://github.com/thevilledev/hayahash.git",
+		"directory": "js"
+	},
+	"bugs": "https://github.com/thevilledev/hayahash/issues",
+	"type": "module",
+	"exports": {
+		".": {
+			"types": "./dist/index.d.ts",
+			"default": "./dist/index.js"
+		},
+		"./hayahash.wasm": "./wasm/hayahash.wasm"
+	},
+	"main": "./dist/index.js",
+	"types": "./dist/index.d.ts",
+	"sideEffects": false,
+	"files": [
+		"dist",
+		"wasm/hayahash.wasm"
+	],
+	"engines": {
+		"node": ">=18"
+	},
+	"scripts": {
+		"build": "tsc -p tsconfig.json",
+		"build:embed": "node scripts/embed.mjs",
+		"build:wasm": "wasm/build.sh",
+		"prepack": "npm run build",
+		"pretest": "npm run build",
+		"test": "node --test",
+		"bench": "npm run build && node bench/bench.mjs"
+	},
+	"devDependencies": {
+		"typescript": "^5.9.0"
+	}
+}
