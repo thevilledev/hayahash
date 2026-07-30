@@ -14,7 +14,7 @@ concurrency:
 jobs:
   c:
     name: C (${{ matrix.compiler }})
-    runs-on: ubuntu-latest
+    runs-on: avrea-ubuntu-latest-2-vcpu
     strategy:
       fail-fast: false
       matrix:
@@ -38,7 +38,7 @@ jobs:
 
   rust:
     name: Rust
-    runs-on: ubuntu-latest
+    runs-on: avrea-ubuntu-latest-2-vcpu
 
     steps:
       - name: Check out repository
@@ -69,7 +69,7 @@ jobs:
 
   go:
     name: Go
-    runs-on: ubuntu-latest
+    runs-on: avrea-ubuntu-latest-2-vcpu
 
     steps:
       - name: Check out repository
@@ -94,7 +94,7 @@ jobs:
 
   zig:
     name: Zig
-    runs-on: ubuntu-latest
+    runs-on: avrea-ubuntu-latest-2-vcpu
 
     steps:
       - name: Check out repository
@@ -116,7 +116,7 @@ jobs:
 
   java:
     name: Java
-    runs-on: ubuntu-latest
+    runs-on: avrea-ubuntu-latest-2-vcpu
 
     steps:
       - name: Check out repository
