@@ -66,3 +66,28 @@ jobs:
 
       - name: Test
         run: cargo test --manifest-path rust/Cargo.toml --all-targets
+
+  go:
+    name: Go
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v6
+        with:
+          persist-credentials: false
+
+      - name: Install Go
+        uses: actions/setup-go@v7
+        with:
+          go-version: stable
+
+      - name: Check formatting
+        run: |
+          test -z "$(gofmt -l go)" || { gofmt -d go; exit 1; }
+
+      - name: Lint
+        run: go vet -C go ./...
+
+      - name: Test
+        run: go test -C go ./...
