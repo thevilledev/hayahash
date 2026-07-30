@@ -187,9 +187,10 @@ jobs:
     name: Publish to Maven Central
     needs: check
     # Flip the repository variable PUBLISH_MAVEN to 'true' once the
-    # Central namespace is verified and the MAVEN_CENTRAL_USERNAME,
-    # MAVEN_CENTRAL_PASSWORD, MAVEN_GPG_PRIVATE_KEY, and
-    # MAVEN_GPG_PASSPHRASE secrets are configured.
+    # Central namespace is verified, the MAVEN_GPG_KEY_FINGERPRINT
+    # variable is set, and the MAVEN_CENTRAL_USERNAME,
+    # MAVEN_CENTRAL_PASSWORD, MAVEN_GPG_KEY, and MAVEN_GPG_PASSPHRASE
+    # secrets are configured.
     if: vars.PUBLISH_MAVEN == 'true'
     runs-on: avrea-ubuntu-latest-2-vcpu
 
@@ -199,6 +200,9 @@ jobs:
         with:
           persist-credentials: false
 
+      # No gpg-private-key input: the release profile signs with the
+      # plugin's BouncyCastle signer, which reads the key from the
+      # environment instead of a keyring.
       - name: Install Java
         uses: actions/setup-java@v5
         with:
@@ -208,8 +212,27 @@ jobs:
           server-id: central
           server-username: MAVEN_CENTRAL_USERNAME
           server-password: MAVEN_CENTRAL_PASSWORD
-          gpg-private-key: ${{ secrets.MAVEN_GPG_PRIVATE_KEY }}
-          gpg-passphrase: MAVEN_GPG_PASSPHRASE
+
+      # Central rejects a deployment whose signatures reference a key
+      # it cannot find, after the upload. Failing here instead keeps
+      # a forgotten key upload from burning a version number.
+      - name: Verify the signing key is on a public keyserver
+        env:
+          FINGERPRINT: ${{ vars.MAVEN_GPG_KEY_FINGERPRINT }}
+        run: |
+          if [ -z "$FINGERPRINT" ]; then
+            echo "::error::repository variable MAVEN_GPG_KEY_FINGERPRINT is not set"
+            exit 1
+          fi
+          for server in keyserver.ubuntu.com keys.openpgp.org; do
+            if curl -fsS "https://${server}/pks/lookup?op=get&search=0x${FINGERPRINT}" |
+                grep -q "BEGIN PGP PUBLIC KEY BLOCK"; then
+              echo "public key found on ${server}"
+              exit 0
+            fi
+          done
+          echo "::error::public key ${FINGERPRINT} is not published to a keyserver Central checks"
+          exit 1
 
       - name: Deploy
         run: mvn --batch-mode --no-transfer-progress -Prelease deploy
@@ -217,4 +240,6 @@ jobs:
         env:
           MAVEN_CENTRAL_USERNAME: ${{ secrets.MAVEN_CENTRAL_USERNAME }}
           MAVEN_CENTRAL_PASSWORD: ${{ secrets.MAVEN_CENTRAL_PASSWORD }}
+          MAVEN_GPG_KEY: ${{ secrets.MAVEN_GPG_KEY }}
+          MAVEN_GPG_KEY_FINGERPRINT: ${{ vars.MAVEN_GPG_KEY_FINGERPRINT }}
           MAVEN_GPG_PASSPHRASE: ${{ secrets.MAVEN_GPG_PASSPHRASE }}

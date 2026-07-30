@@ -138,11 +138,17 @@
               </execution>
             </executions>
             <configuration>
-              <!-- Non-interactive signing in CI. -->
-              <gpgArguments>
-                <arg>--pinentry-mode</arg>
-                <arg>loopback</arg>
-              </gpgArguments>
+              <!-- Pure-Java signer: it takes the key from the
+                   MAVEN_GPG_KEY environment variable (fingerprint
+                   from MAVEN_GPG_KEY_FINGERPRINT, passphrase from
+                   MAVEN_GPG_PASSPHRASE) and cannot read a local
+                   keyring at all. Release artifacts are therefore
+                   signed with a dedicated release key, and the
+                   commit-signing key in ~/.gnupg is unreachable
+                   from this build even by accident. It also needs
+                   no gpg binary or agent, so batch signing works
+                   without pinentry workarounds. -->
+              <signer>bc</signer>
             </configuration>
           </plugin>
         </plugins>
