@@ -2,7 +2,7 @@
 
 An experimental successor to [ChibiHash](https://github.com/N-R-K/ChibiHash)
 v1/v2: a small, portable 64-bit hash function that passes the full
-[SMHasher3](https://gitlab.com/fwojcik/smhasher3) suite (188/188) and is
+[SMHasher3](https://gitlab.com/fwojcik/smhasher3) suite and is
 faster than both ChibiHash versions at every input size, while keeping
 ChibiHash's portability rules (no SIMD, no 128-bit multiply, no
 hardware-specific instructions, no UB, endianness-independent output).
@@ -22,9 +22,7 @@ The reference implementation is the single C header
   self-contained
 
 Ports to additional languages are meant to live in their own top-level
-directories (`go/`, `zig/`, ...), each verified against the reference
-implementation via the SMHasher3 verification value and the shared
-known-answer vectors (see `rust/tests/kat.rs`).
+directories.
 
 ## Usage
 
@@ -78,10 +76,14 @@ Four ideas, explained in detail at the top of the header:
 
 Getting the details right was the hard part: SMHasher3 found five
 distinct structural collision classes in earlier iterations of this
-design (a GF(2) nullspace in a staggered-load absorb, seed-copy erasure
-by aligned key bits - twice, top-window carry-luck ladders, and a fold
-rotation resonating with the absorb rotation). Each fix is documented
-in the header where it lives.
+design:
+
+- a GF(2) nullspace in a staggered-load absorb
+- seed-copy erasure by aligned key bits - twice
+- top-window carry-luck ladders, and
+- a fold rotation resonating with the absorb rotation
+
+Each fix is documented in the header where it lives.
 
 ## Quality
 
@@ -151,8 +153,7 @@ SMHasher3's own speed tests on the same machine agree:
 
 Experimental prototype. The algorithm, constants, and digest values may
 still change; do not use hayahash yet anywhere hashes are persisted.
-An SMHasher3 plugin (`hashes/hayahash.cpp`) is maintained on a local
-branch of smhasher3 for running the full suite.
+An SMHasher3 plugin (`hashes/hayahash.cpp`) is being worked on.
 
 ## License
 
