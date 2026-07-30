@@ -9,12 +9,22 @@
 // All hashes are called through noinline wrappers with identical
 // signatures so no candidate benefits from cross-call inlining.
 
+// glibc hides clock_gettime()/CLOCK_MONOTONIC_RAW under strict -std=c11
+// unless a feature-test macro asks for them.
+#ifndef _DEFAULT_SOURCE
+#define _DEFAULT_SOURCE
+#endif
+
 #include <stdint.h>
 #include <stddef.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 #include <time.h>
+
+#ifndef CLOCK_MONOTONIC_RAW
+#define CLOCK_MONOTONIC_RAW CLOCK_MONOTONIC
+#endif
 
 #include "hayahash.h"
 #include "chibihash_v2.c"
