@@ -1,0 +1,220 @@
+name: Release
+
+# One annotated tag (vX.Y.Z) releases every port: npm and crates.io
+# via trusted publishing, the Go module via a derived go/vX.Y.Z tag,
+# Zig and C via GitHub release assets, and (once enabled) Maven
+# Central. Versions are kept in lockstep across all ports; the check
+# job refuses to release if any manifest disagrees with the tag.
+
+on:
+  push:
+    tags: ["v*.*.*"]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  check:
+    name: Version consistency
+    runs-on: avrea-ubuntu-latest-2-vcpu
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+
+      - name: Verify every manifest matches the tag
+        run: |
+          tag="${GITHUB_REF_NAME#v}"
+          fail=0
+          check() {
+            if [ "$2" != "$tag" ]; then
+              echo "::error::$1 is at version '$2' but the tag says '$tag'"
+              fail=1
+            fi
+          }
+          check js/package.json \
+            "$(jq -r .version js/package.json)"
+          check rust/Cargo.toml \
+            "$(sed -n 's/^version = "\(.*\)"$/\1/p' rust/Cargo.toml)"
+          check zig/build.zig.zon \
+            "$(sed -n 's/^[[:space:]]*\.version = "\(.*\)",$/\1/p' zig/build.zig.zon)"
+          # The first <version> element in the pom is the project version.
+          check java/pom.xml \
+            "$(sed -n 's:.*<version>\(.*\)</version>.*:\1:p' java/pom.xml | head -n1)"
+          exit "$fail"
+
+  npm:
+    name: Publish to npm
+    needs: check
+    # npm trusted publishing only works on GitHub-hosted runners.
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      id-token: write
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+
+      - name: Install Node.js
+        uses: actions/setup-node@v7
+        with:
+          node-version: 24
+          registry-url: https://registry.npmjs.org
+
+      # Trusted publishing requires npm >= 11.5.1.
+      - name: Update npm
+        run: npm install -g npm@latest
+
+      - name: Install dependencies
+        run: npm ci
+        working-directory: js
+
+      - name: Test
+        run: npm test
+        working-directory: js
+
+      - name: Publish
+        run: npm publish
+        working-directory: js
+
+  crates:
+    name: Publish to crates.io
+    needs: check
+    # crates.io trusted publishing, like npm's, is designed for
+    # GitHub-hosted runners.
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      id-token: write
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+
+      - name: Install Rust
+        run: |
+          rustup toolchain install stable --profile minimal
+          rustup default stable
+
+      - name: Test
+        run: cargo test --manifest-path rust/Cargo.toml
+
+      - name: Authenticate with crates.io
+        id: auth
+        uses: rust-lang/crates-io-auth-action@v1
+
+      - name: Publish
+        run: cargo publish --manifest-path rust/Cargo.toml
+        env:
+          CARGO_REGISTRY_TOKEN: ${{ steps.auth.outputs.token }}
+
+  go-tag:
+    name: Tag Go module
+    needs: check
+    runs-on: avrea-ubuntu-latest-2-vcpu
+    permissions:
+      contents: write
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v7
+        with:
+          # This job pushes the derived tag back to the repository.
+          persist-credentials: true
+
+      # A Go module in a subdirectory is only versioned by tags
+      # prefixed with that subdirectory: go/vX.Y.Z.
+      - name: Push derived go/ tag
+        run: |
+          if git ls-remote --exit-code --tags origin "refs/tags/go/${GITHUB_REF_NAME}" >/dev/null; then
+            echo "go/${GITHUB_REF_NAME} already exists"
+          else
+            git tag "go/${GITHUB_REF_NAME}" HEAD
+            git push origin "refs/tags/go/${GITHUB_REF_NAME}"
+          fi
+
+      # Fetching the version once makes the module proxy mirror it
+      # permanently and triggers pkg.go.dev indexing; it also fails
+      # loudly if the module does not resolve.
+      - name: Warm the Go module proxy
+        run: |
+          curl -fsS --retry 5 --retry-delay 15 \
+            "https://proxy.golang.org/github.com/thevilledev/hayahash/go/@v/${GITHUB_REF_NAME}.info"
+
+  github-release:
+    name: GitHub release
+    needs: check
+    runs-on: avrea-ubuntu-latest-2-vcpu
+    permissions:
+      contents: write
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+
+      # The zig tarball exists because `zig fetch` cannot address a
+      # subdirectory inside a repository archive; the header is a
+      # courtesy for C users.
+      - name: Create release with assets
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          version="${GITHUB_REF_NAME#v}"
+          git archive --format=tar.gz --prefix="hayahash-zig-${version}/" \
+            -o "hayahash-zig-${version}.tar.gz" "${GITHUB_REF_NAME}:zig"
+          if gh release view "$GITHUB_REF_NAME" >/dev/null 2>&1; then
+            echo "release ${GITHUB_REF_NAME} already exists"
+          else
+            gh release create "$GITHUB_REF_NAME" --verify-tag \
+              --title "hayahash ${GITHUB_REF_NAME}" --generate-notes \
+              hayahash.h "hayahash-zig-${version}.tar.gz"
+          fi
+
+  maven:
+    name: Publish to Maven Central
+    needs: check
+    # Flip the repository variable PUBLISH_MAVEN to 'true' once the
+    # Central namespace is verified and the MAVEN_CENTRAL_USERNAME,
+    # MAVEN_CENTRAL_PASSWORD, MAVEN_GPG_PRIVATE_KEY, and
+    # MAVEN_GPG_PASSPHRASE secrets are configured.
+    if: vars.PUBLISH_MAVEN == 'true'
+    runs-on: avrea-ubuntu-latest-2-vcpu
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+
+      - name: Install Java
+        uses: actions/setup-java@v5
+        with:
+          distribution: temurin
+          java-version: 17
+          cache: maven
+          server-id: central
+          server-username: MAVEN_CENTRAL_USERNAME
+          server-password: MAVEN_CENTRAL_PASSWORD
+          gpg-private-key: ${{ secrets.MAVEN_GPG_PRIVATE_KEY }}
+          gpg-passphrase: MAVEN_GPG_PASSPHRASE
+
+      - name: Deploy
+        run: mvn --batch-mode --no-transfer-progress -Prelease deploy
+        working-directory: java
+        env:
+          MAVEN_CENTRAL_USERNAME: ${{ secrets.MAVEN_CENTRAL_USERNAME }}
+          MAVEN_CENTRAL_PASSWORD: ${{ secrets.MAVEN_CENTRAL_PASSWORD }}
+          MAVEN_GPG_PASSPHRASE: ${{ secrets.MAVEN_GPG_PASSPHRASE }}
