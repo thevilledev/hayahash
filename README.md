@@ -1,5 +1,8 @@
 # hayahash64
 
+[![CI](https://img.shields.io/github/actions/workflow/status/thevilledev/hayahash/ci.yml?branch=main&logo=githubactions&logoColor=white&label=CI)](https://github.com/thevilledev/hayahash/actions/workflows/ci.yml)
+[![license](https://img.shields.io/github/license/thevilledev/hayahash?logo=unlicense&logoColor=white&label=license)](LICENSE)
+
 [![C header](https://img.shields.io/github/v/release/thevilledev/hayahash?logo=c&logoColor=white&label=C%20header)](hayahash.h)
 [![crates.io](https://img.shields.io/crates/v/hayahash?logo=rust&logoColor=white&label=crates.io)](https://crates.io/crates/hayahash)
 [![pkg.go.dev](https://img.shields.io/github/v/release/thevilledev/hayahash?logo=go&logoColor=white&label=pkg.go.dev)](https://pkg.go.dev/github.com/thevilledev/hayahash/go)
@@ -7,20 +10,23 @@
 [![Maven Central](https://img.shields.io/maven-central/v/io.github.thevilledev/hayahash?logo=openjdk&logoColor=white&label=maven%20central)](https://central.sonatype.com/artifact/io.github.thevilledev/hayahash)
 [![npm](https://img.shields.io/npm/v/hayahash?logo=npm&logoColor=white&label=npm)](https://www.npmjs.com/package/hayahash)
 
-An experimental successor to [ChibiHash](https://github.com/N-R-K/ChibiHash)
-v1/v2: a small 64-bit hash function that passes the full
-[SMHasher3](https://gitlab.com/fwojcik/smhasher3) suite. Its claim is
-**fastest in its portability class**, not fastest overall: no SIMD, no
-64x64-to-128-bit multiply, no per-architecture code, no UB, and
-endianness-independent output.
+A small 64-bit hash function that passes the full
+[SMHasher3](https://gitlab.com/fwojcik/smhasher3) suite while staying
+strictly portable: no SIMD, no 64x64-to-128-bit multiply, no
+per-architecture code, no UB, and endianness-independent output.
 
-That makes hayahash a candidate for wasm, JVM, and portable C targets
-where only ordinary 64-bit multiplication is available. On native
-x86-64 or ARM64, where a wide multiply is available, `rapidhash v3` is
-decisively faster and is the better choice unless this portability is
-required.
+That suits wasm, JVM, and portable C targets where only ordinary
+64-bit multiplication is available. On native x86-64 or ARM64, where a
+wide multiply is available, `rapidhash v3` is decisively faster and is
+the better choice unless that portability matters to you.
 
-*Haya* (速) is Japanese for "fast" - a nod to ChibiHash's naming.
+[ChibiHash](https://github.com/N-R-K/ChibiHash) sets out to do a
+similar thing, which makes it the most useful baseline to measure
+against, and the comparisons below use it that way. hayahash is its
+own design rather than a fork of it; where it does borrow a specific
+trick, the header says so.
+
+*Haya* (速) is Japanese for "fast".
 
 The reference implementation is the single C header
 [`hayahash.h`](hayahash.h) at the repository root.
@@ -105,11 +111,11 @@ const h = hayahash64(buf, seed); // unsigned 64-bit bigint
 
 Four ideas, explained in detail at the top of the header:
 
-1. **A short bulk dependency chain.** ChibiHash v2's bulk loop carries a
-   ~5-cycle `add -> mul -> xor` chain per 8-byte stripe across 4 lanes.
-   hayahash uses 8 independent lanes over 64-byte blocks with nothing
-   longer than `add -> mul` (~4 cycles) on the loop-carried path, and no
-   cross-lane ALU work on that path.
+1. **A short bulk dependency chain.** The bulk loop runs 8 independent
+   lanes over 64-byte blocks with nothing longer than `add -> mul`
+   (~4 cycles) on the loop-carried path, and no cross-lane ALU work
+   there. For scale, ChibiHash v2 carries a ~5-cycle
+   `add -> mul -> xor` chain per 8-byte stripe across 4 lanes.
 2. **A chained, injective absorb.** Each lane absorbs
    `t = w + rotl(w_prev, 27)`, where `w_prev` is the previous stripe.
    At the first stripe where two inputs differ, `w_prev` is still
@@ -204,7 +210,7 @@ Small-input throughput (ns/hash, independent hashes, lower is better):
 | 128 | 11.9         | 9.2          | **8.8**  |
 
 v1's 8/16-byte latency wins come from special-cased paths that are also
-part of why it fails smhasher3; among the two functions that pass,
+part of why it fails SMHasher3; among the two functions that pass,
 hayahash is fastest at every size, and the bulk rate is ~1.4x
 ChibiHash v2.
 
@@ -240,18 +246,18 @@ The results fall into distinct instruction classes:
   in bulk, 9.3 versus 7.3 B/cy.
 - **Portable 64-bit scalar:** among hashes for which we found evidence
   that meet all of hayahash's constraints and pass the complete suite,
-  hayahash is fastest on both axes. It improves on the previous class
-  leader, ChibiHash v2, by about 7% on small keys and 1.4x in bulk.
-  Other ordinary-multiply candidates either fail the suite or are
-  substantially slower.
+  hayahash is fastest on both axes. The next fastest of them,
+  ChibiHash v2, is about 7% behind on small keys and 1.4x behind in
+  bulk. Other ordinary-multiply candidates either fail the suite or
+  are substantially slower.
 
-In short: hayahash is the fastest fully portable 64-bit hash we found
-that passes the complete SMHasher3 suite. This is a deliberately scoped
-claim, not a universal record. The measurements above are from one
-Apple M1; hayahash does not yet have x86 measurements, although
-SMHasher3's upstream x86 tables suggest the same class ordering. The
-search is also bounded by the roughly 250 hashes tracked by SMHasher3,
-not every hash implementation in existence.
+Taken together: within that portable scalar class, hayahash is the
+fastest hash we found that passes the complete SMHasher3 suite. This is
+a deliberately scoped claim, not a universal record. The measurements
+above are from one Apple M1; hayahash does not yet have x86
+measurements, although SMHasher3's upstream x86 tables suggest the same
+class ordering. The search is also bounded by the roughly 250 hashes
+tracked by SMHasher3, not every hash implementation in existence.
 
 ## Status
 

@@ -1,12 +1,14 @@
 // hayahash64 - small, fast, portable 64-bit hash function.
 //
-// Successor experiment to ChibiHash v1/v2, built around four ideas:
+// An experiment in how fast a strictly portable 64-bit hash can be,
+// built around four ideas:
 //
 //  1. The bulk loop should be latency-bound on nothing longer than
-//     add -> mul (~4 cycles). ChibiHash v2's cross-lane add makes its
-//     loop-carried chain ~5 cycles per 8-byte stripe over 4 lanes.
-//     hayahash uses 8 independent lanes over 64-byte blocks instead,
-//     with no cross-lane ALU work on the loop-carried path.
+//     add -> mul (~4 cycles), so hayahash uses 8 independent lanes
+//     over 64-byte blocks with no cross-lane ALU work on the
+//     loop-carried path. For scale, ChibiHash v2's cross-lane add
+//     makes its loop-carried chain ~5 cycles per 8-byte stripe over
+//     4 lanes.
 //  2. Each lane absorbs t = w + rotl(w_prev, 27), where w_prev is the
 //     previous stripe (chained across lanes, blocks, and the bulk/mid
 //     loop boundary). This gives two guarantees:
@@ -46,17 +48,17 @@
 //     derived from `s` and shifted copies of the multiplier K, so no
 //     big per-lane constants are materialized (a hidden cost of wide
 //     states: 4 instructions per 64-bit literal on AArch64). This
-//     keeps v2's full-state seeding property and makes the overlapping
-//     tail reads collision-safe across lengths by construction.
+//     gives full-state seeding and makes the overlapping tail reads
+//     collision-safe across lengths by construction.
 //  4. Tails read overlapping words from the end of the input
-//     (wyhash-style, refined from v2), so there is no byte-at-a-time
-//     loop for any length. Inputs of at most 16 bytes take a
-//     dedicated path: two independent multiplies (one per loaded
-//     word, so neither word ever sits unmultiplied next to a linear
-//     seed term) merged into a strong bijective finalizer.
+//     (wyhash-style), so there is no byte-at-a-time loop for any
+//     length. Inputs of at most 16 bytes take a dedicated path: two
+//     independent multiplies (one per loaded word, so neither word
+//     ever sits unmultiplied next to a linear seed term) merged into
+//     a strong bijective finalizer.
 //
-// Portability rules kept from ChibiHash: no SIMD, no 128-bit multiply,
-// no hardware-specific instructions, no UB, endianness-independent.
+// Portability rules: no SIMD, no 128-bit multiply, no
+// hardware-specific instructions, no UB, endianness-independent.
 //
 // This is free and unencumbered software released into the public domain.
 // For more information, please refer to <https://unlicense.org/>
