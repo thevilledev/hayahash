@@ -1,0 +1,62 @@
+#!/bin/sh
+# Set the release version in every port manifest at once.
+#
+# All ports share one version, so that a given version denotes the
+# same algorithm everywhere. The release workflow refuses to publish
+# when any manifest disagrees with the tag, and bumping them by hand
+# is easy to get half-right; use this instead.
+#
+# Usage: scripts/bump-version.sh 0.2.0
+set -eu
+
+if [ $# -ne 1 ]; then
+	echo "usage: $0 <version>" >&2
+	exit 1
+fi
+version=$1
+
+# Guard against a leading "v" or a partial version reaching a manifest.
+case $version in
+*[!0-9.]* | *..* | . | ..)
+	echo "error: '$version' is not a bare X.Y.Z version" >&2
+	exit 1
+	;;
+[0-9]*.[0-9]*.[0-9]*) ;;
+*)
+	echo "error: '$version' is not a bare X.Y.Z version" >&2
+	exit 1
+	;;
+esac
+
+cd "$(dirname "$0")/.."
+
+# sed -i is not portable between BSD and GNU; write and move instead.
+edit() {
+	file=$1
+	shift
+	tmp="${file}.bump.tmp"
+	sed "$@" "$file" >"$tmp"
+	mv "$tmp" "$file"
+}
+
+# Updates package.json and package-lock.json together.
+(cd js && npm version "$version" --no-git-tag-version --allow-same-version >/dev/null)
+
+# Only the package's own version sits at the start of a line; the
+# dependency versions live inside inline tables.
+edit rust/Cargo.toml -e "s/^version = \".*\"/version = \"${version}\"/"
+# Keep Cargo.lock's record of the package version in step.
+(cd rust && cargo update --offline --workspace >/dev/null 2>&1)
+
+edit zig/build.zig.zon \
+	-e "s/^\\([[:space:]]*\\)\\.version = \".*\",/\\1.version = \"${version}\",/"
+
+# The first <version> element is the project's; later ones belong to
+# dependencies and plugins.
+edit java/pom.xml \
+	-e "1,/<version>/s|<version>.*</version>|<version>${version}</version>|"
+
+printf 'js:   %s\n' "$(sed -n 's/.*"version": "\(.*\)".*/\1/p' js/package.json | head -n1)"
+printf 'rust: %s\n' "$(sed -n 's/^version = "\(.*\)"$/\1/p' rust/Cargo.toml)"
+printf 'zig:  %s\n' "$(sed -n 's/^[[:space:]]*\.version = "\(.*\)",$/\1/p' zig/build.zig.zon)"
+printf 'java: %s\n' "$(sed -n 's:.*<version>\(.*\)</version>.*:\1:p' java/pom.xml | head -n1)"
