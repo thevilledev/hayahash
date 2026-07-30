@@ -1,0 +1,7 @@
+# C harness binaries
+tests/bench
+tests/quality
+
+# Rust
+rust/target/
+rust/Cargo.lock
