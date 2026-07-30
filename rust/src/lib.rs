@@ -10,12 +10,30 @@
 //! assert_eq!(h, hayahash::hayahash64(b"hello world", 0));
 //! ```
 //!
+//! With the `std` feature (on by default) or the `hashbrown` feature,
+//! the crate also provides `HayaHasher` - a `Hasher`/`BuildHasher`
+//! implementation - and the `HayaHashMap`/`HayaHashSet` aliases, so
+//! hayahash64 can be plugged straight into `HashMap`/`HashSet`. With
+//! default features disabled the crate stays dependency-free and
+//! allocation-free and exposes just [`hayahash64`].
+//!
 //! This is free and unencumbered software released into the public
 //! domain. For more information, please refer to <https://unlicense.org/>
 
 #![no_std]
 #![forbid(unsafe_code)]
 #![warn(missing_docs)]
+
+#[cfg(any(feature = "std", feature = "hashbrown"))]
+extern crate alloc;
+#[cfg(all(feature = "std", not(feature = "hashbrown")))]
+extern crate std;
+
+#[cfg(any(feature = "std", feature = "hashbrown"))]
+mod hasher;
+
+#[cfg(any(feature = "std", feature = "hashbrown"))]
+pub use hasher::{HayaHashMap, HayaHashSet, HayaHasher};
 
 /// Multiplier: 2^64 / golden ratio, odd.
 const K: u64 = 0x9E37_79B9_7F4A_7C15;
