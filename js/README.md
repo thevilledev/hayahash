@@ -117,8 +117,7 @@ npm run build:wasm   # zig cc + regenerate src/wasm-module.ts
 
 Same as the parent repository: experimental prototype. The algorithm,
 constants, and digest values may still change; do not use hayahash yet
-anywhere hashes are persisted. The package is not yet published to the
-npm registry.
+anywhere hashes are persisted.
 
 ## License
 

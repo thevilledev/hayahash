@@ -6,6 +6,7 @@ license = "Unlicense"
 authors = ["Ville Vesilehto <ville@vesilehto.fi>"]
 description = "Rust implementation of the hayahash64 hash function"
 repository = "https://github.com/thevilledev/hayahash"
+readme = "../README.md"
 keywords = ["hash", "hayahash", "fast-hash", "non-cryptographic"]
 categories = ["algorithms", "no-std"]
 
