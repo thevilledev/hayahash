@@ -1,11 +1,17 @@
 # hayahash64
 
 An experimental successor to [ChibiHash](https://github.com/N-R-K/ChibiHash)
-v1/v2: a small, portable 64-bit hash function that passes the full
-[SMHasher3](https://gitlab.com/fwojcik/smhasher3) suite and is
-faster than both ChibiHash versions at every input size, while keeping
-ChibiHash's portability rules (no SIMD, no 128-bit multiply, no
-hardware-specific instructions, no UB, endianness-independent output).
+v1/v2: a small 64-bit hash function that passes the full
+[SMHasher3](https://gitlab.com/fwojcik/smhasher3) suite. Its claim is
+**fastest in its portability class**, not fastest overall: no SIMD, no
+64x64-to-128-bit multiply, no per-architecture code, no UB, and
+endianness-independent output.
+
+That makes hayahash a candidate for wasm, JVM, and portable C targets
+where only ordinary 64-bit multiplication is available. On native
+x86-64 or ARM64, where a wide multiply is available, `rapidhash v3` is
+decisively faster and is the better choice unless this portability is
+required.
 
 *Haya* (速) is Japanese for "fast" - a nod to ChibiHash's naming.
 
@@ -133,6 +139,8 @@ Each fix is documented in the header where it lives.
 
 ## Performance
 
+### ChibiHash comparison
+
 Measured on an Apple M1 (P-core, ~3.2 GHz), Apple clang -O3
 `-mcpu=native`, against the C reference implementations of ChibiHash
 v1/v2 vendored in `tests/` (`make -C tests run-bench`):
@@ -174,12 +182,50 @@ part of why it fails smhasher3; among the two functions that pass,
 hayahash is fastest at every size, and the bulk rate is ~1.4x
 ChibiHash v2.
 
-SMHasher3's own speed tests on the same machine agree:
+### SMHasher3 shootout
 
-|                       | ChibiHash v2 | hayahash64 |
-|-----------------------|-------------:|-----------:|
-| bulk (bytes/cycle)    | 6.19         | **9.64**   |
-| 1-31 byte keys (avg)  | 36.3 cy/hash | **31.4**   |
+The following averages come from back-to-back SMHasher3 speed tests on
+the same Apple M1. Small-key results average the 1-31-byte tests (lower
+is better); bulk results are bytes per cycle (higher is better).
+Full-suite results combine our runs with SMHasher3's published results.
+
+| hash | small keys (cy/hash) | bulk (B/cy) | full suite | peak-performance requirement |
+|---|---:|---:|---|---|
+| rapidhash v3 | **20.7** | **15.4** | pass | 64x64-to-128-bit multiply |
+| wyhash v4.2 | 21.0 | 9.2 | fail (15 tests) | 64x64-to-128-bit multiply |
+| a5hash | 21.9 | 3.2 | pass | 64x64-to-128-bit multiply |
+| komihash | 24.2 | 7.6 | pass | 64x64-to-128-bit multiply |
+| XXH3-64 | 24.7 | 7.3 | fail (27 tests) | SIMD for peak bulk speed |
+| **hayahash64** | 32.6 | 9.3 | pass | ordinary 64x64-to-64-bit multiply |
+| ChibiHash v2 | 35.1 | 6.6 | pass | ordinary 64x64-to-64-bit multiply |
+| mx3.v3 | 43.9 | 4.2 | fail (36 tests) | ordinary 64x64-to-64-bit multiply |
+| SpookyHash2-64 | 50.9 | 4.2 | fail (6 tests) | ordinary 64-bit operations |
+
+The results fall into distinct instruction classes:
+
+- **Wide multiply:** rapidhash v3 passes the full suite and is about
+  1.6x faster than hayahash on small keys and 1.65x faster in bulk.
+  This is the honest recommendation when a native 128-bit multiply
+  result is available. That instruction is exactly what hayahash's
+  portability rules exclude.
+- **SIMD or hardware acceleration:** faster x86 results exist; for
+  example, upstream reports about 19.6 B/cy for gxhash, although it
+  fails 24 tests. On this M1, hayahash nevertheless beats NEON XXH3-64
+  in bulk, 9.3 versus 7.3 B/cy.
+- **Portable 64-bit scalar:** among hashes for which we found evidence
+  that meet all of hayahash's constraints and pass the complete suite,
+  hayahash is fastest on both axes. It improves on the previous class
+  leader, ChibiHash v2, by about 7% on small keys and 1.4x in bulk.
+  Other ordinary-multiply candidates either fail the suite or are
+  substantially slower.
+
+In short: hayahash is the fastest fully portable 64-bit hash we found
+that passes the complete SMHasher3 suite. This is a deliberately scoped
+claim, not a universal record. The measurements above are from one
+Apple M1; hayahash does not yet have x86 measurements, although
+SMHasher3's upstream x86 tables suggest the same class ordering. The
+search is also bounded by the roughly 250 hashes tracked by SMHasher3,
+not every hash implementation in existence.
 
 ## Status
 
