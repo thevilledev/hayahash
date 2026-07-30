@@ -1,0 +1,44 @@
+name: Wasm bench
+
+# On-demand only: Actions tab -> "Wasm bench" -> "Run workflow".
+# Verifies the wasm build is bit-exact against native, then runs the
+# baseline-wasm shootout (hayahash vs chibihash v2, rapidhash v3,
+# XXH3-64, XXH64) under Node/V8. Results land in the job log.
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  wasm:
+    name: Wasm KAT + shootout
+    # Larger plan than regular CI: benchmark timings want headroom
+    # from runner background activity.
+    runs-on: avrea-ubuntu-latest-8-vcpu
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+
+      - name: Install Zig
+        uses: mlugg/setup-zig@v2
+        with:
+          version: 0.16.0
+
+      - name: Install Node
+        uses: actions/setup-node@v7
+        with:
+          node-version: 24
+
+      - name: Verify wasm build is bit-exact against native
+        run: make -C tests/wasm run-kat
+
+      - name: Run wasm shootout
+        run: make -C tests/wasm run-bench

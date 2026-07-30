@@ -30,6 +30,11 @@ The reference implementation is the single C header
 - `tests/` - C quality and benchmark harnesses; ChibiHash v1/v2
   reference sources are vendored there so the comparisons are
   self-contained
+- `tests/wasm/` - baseline-wasm32 shootout and wasm-vs-native
+  bit-exactness check (zig cc + Node); run on demand in CI via the
+  "Wasm bench" workflow, or locally with `make -C tests/wasm run-kat
+  run-bench`. Competitor headers (rapidhash, xxHash) are fetched
+  pinned to exact upstream commits at build time
 
 Each port lives in its own top-level directory and is verified against
 the reference implementation via the SMHasher3 verification value and

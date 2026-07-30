@@ -2,6 +2,14 @@
 tests/bench
 tests/quality
 
+# Wasm harness: build outputs and fetched competitor headers
+tests/wasm/bench.wasm
+tests/wasm/kat_native
+tests/wasm/kat_native.txt
+tests/wasm/kat_wasm.txt
+tests/wasm/rapidhash.h
+tests/wasm/xxhash.h
+
 # Rust
 rust/target/
 rust/Cargo.lock
