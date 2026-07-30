@@ -15,6 +15,13 @@ updates:
     cooldown:
       default-days: 7
 
+  - package-ecosystem: maven
+    directory: /java
+    schedule:
+      interval: weekly
+    cooldown:
+      default-days: 7
+
   - package-ecosystem: github-actions
     directory: /
     schedule:

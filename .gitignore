@@ -9,3 +9,6 @@ rust/Cargo.lock
 # Zig
 zig/.zig-cache/
 zig/zig-out/
+
+# Java
+java/target/
