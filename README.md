@@ -18,6 +18,7 @@ The reference implementation is the single C header
   domain)
 - `rust/` - Rust port (`hayahash` crate, `no_std` compatible)
 - `go/` - Go port (`github.com/thevilledev/hayahash/go` module)
+- `zig/` - Zig port (`hayahash` module, Zig 0.16)
 - `tests/` - C quality and benchmark harnesses; ChibiHash v1/v2
   reference sources are vendored there so the comparisons are
   self-contained
@@ -25,7 +26,7 @@ The reference implementation is the single C header
 Each port lives in its own top-level directory and is verified against
 the reference implementation via the SMHasher3 verification value and
 the shared known-answer vectors (see `rust/tests/kat.rs`,
-`go/kat_test.go`).
+`go/kat_test.go`, `zig/tests/kat.zig`).
 
 ## Usage
 
@@ -49,6 +50,14 @@ Go - the module lives in [`go/`](go/):
 import hayahash "github.com/thevilledev/hayahash/go"
 
 h := hayahash.Hash64(buf, seed)
+```
+
+Zig - the package lives in [`zig/`](zig/):
+
+```zig
+const hayahash = @import("hayahash");
+
+const h = hayahash.hayahash64(buf, seed);
 ```
 
 ## Design
@@ -104,8 +113,8 @@ Each fix is documented in the header where it lives.
   criterion over input and seed bits, plus exact-collision tests over
   23 structured key sets, including reproductions of the SMHasher3
   keysets that broke earlier iterations. All clean.
-- The Rust and Go ports are bit-exact against the C reference: each
-  port's test suite checks the SMHasher3 verification value and a
+- The Rust, Go, and Zig ports are bit-exact against the C reference:
+  each port's test suite checks the SMHasher3 verification value and a
   shared table of known-answer vectors generated from `hayahash.h`.
 - The absorb sequence is injective by construction (first-difference
   induction), and all tail injections are bijective.

@@ -5,3 +5,7 @@ tests/quality
 # Rust
 rust/target/
 rust/Cargo.lock
+
+# Zig
+zig/.zig-cache/
+zig/zig-out/
