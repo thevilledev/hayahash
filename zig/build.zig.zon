@@ -1,6 +1,6 @@
 .{
     .name = .hayahash,
-    .version = "0.1.0",
+    .version = "0.2.0",
     .fingerprint = 0x336e9c66ffff515c, // Changing this has security and trust implications.
     .minimum_zig_version = "0.16.0",
     .paths = .{
