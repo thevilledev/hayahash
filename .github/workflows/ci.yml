@@ -1,0 +1,68 @@
+name: CI
+
+on:
+  push:
+  pull_request:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  c:
+    name: C (${{ matrix.compiler }})
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        compiler:
+          - gcc
+          - clang
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v6
+        with:
+          persist-credentials: false
+
+      - name: Build and run quality checks
+        run: >-
+          make -C tests
+          CC="${{ matrix.compiler }}"
+          ARCH=
+          CFLAGS="-O2 -std=c11 -Wall -Wextra -Werror"
+          run-quality
+
+  rust:
+    name: Rust
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v6
+        with:
+          persist-credentials: false
+
+      - name: Install Rust
+        run: |
+          rustup toolchain install stable \
+            --profile minimal \
+            --component clippy,rustfmt
+          rustup default stable
+
+      - name: Check formatting
+        run: cargo fmt --manifest-path rust/Cargo.toml -- --check
+
+      - name: Lint
+        run: >-
+          cargo clippy
+          --manifest-path rust/Cargo.toml
+          --all-targets
+          --
+          -D warnings
+
+      - name: Test
+        run: cargo test --manifest-path rust/Cargo.toml --all-targets
