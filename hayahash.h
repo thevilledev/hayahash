@@ -134,6 +134,22 @@ static inline uint64_t hayahash64_internal_rotl(uint64_t x, int n)
 #define HAYAHASH64_INTERNAL_COMPILER_GUARD(v) ((void)0)
 #endif
 
+// The bulk (>= 320 byte) path lives in its own non-inlined function:
+// its unrolled loop wants more registers than the short paths can
+// afford. Inlined into hayahash64, those spills become unconditional
+// prologue stores that serialize back-to-back short hashes through
+// the same stack slots (measured ~2x small-key throughput loss).
+// `unused` keeps -Wunused-function quiet in translation units that
+// include the header without calling hayahash64 (the function is
+// plain static, not static inline, so it is not exempt by default).
+#if defined(__GNUC__) || defined(__clang__)
+#define HAYAHASH64_INTERNAL_NOINLINE __attribute__((noinline, unused))
+#elif defined(_MSC_VER)
+#define HAYAHASH64_INTERNAL_NOINLINE __declspec(noinline)
+#else
+#define HAYAHASH64_INTERNAL_NOINLINE
+#endif
+
 static inline uint64_t hayahash64_internal_rotl_product(uint64_t x, int n)
 {
 	HAYAHASH64_INTERNAL_COMPILER_GUARD(x);
@@ -198,6 +214,141 @@ static inline uint64_t hayahash64_internal_injp(const uint8_t *p)
 // boundary changes the digest and can invalidate that structural bound.
 enum { hayahash64_internal_bulk_min = 320 };
 
+// One 64-byte bulk block over the eight lanes h0..h7 plus the
+// per-block raw-word checkpoint into h0. The checkpoint stops the
+// known 64-stripe rotation-orbit ladder from hiding its difference
+// until it returns to the same lane; AArch64 emits MADD for it.
+// A macro (expanded twice below) so the bulk loop can be unrolled
+// two blocks deep without spelling the stripes three times.
+#define HAYAHASH64_INTERNAL_BULK_BLOCK(q) \
+	do { \
+		w = hayahash64_internal_load64le((q) +  0); \
+		h0 = (h0 ^ (w + hayahash64_internal_rotl(wp, 27))) * K; \
+		wp = w; \
+		w = hayahash64_internal_load64le((q) +  8); \
+		h1 = (h1 ^ (w + hayahash64_internal_rotl(wp, 27))) * K; \
+		wp = w; \
+		w = hayahash64_internal_load64le((q) + 16); \
+		h2 = (h2 ^ (w + hayahash64_internal_rotl(wp, 27))) * K; \
+		wp = w; \
+		w = hayahash64_internal_load64le((q) + 24); \
+		h3 = (h3 ^ (w + hayahash64_internal_rotl(wp, 27))) * K; \
+		wp = w; \
+		w = hayahash64_internal_load64le((q) + 32); \
+		h4 = (h4 ^ (w + hayahash64_internal_rotl(wp, 27))) * K; \
+		wp = w; \
+		w = hayahash64_internal_load64le((q) + 40); \
+		h5 = (h5 ^ (w + hayahash64_internal_rotl(wp, 27))) * K; \
+		wp = w; \
+		w = hayahash64_internal_load64le((q) + 48); \
+		h6 = (h6 ^ (w + hayahash64_internal_rotl(wp, 27))) * K; \
+		wp = w; \
+		w = hayahash64_internal_load64le((q) + 56); \
+		h7 = (h7 ^ (w + hayahash64_internal_rotl(wp, 27))) * K; \
+		wp = w; \
+		h0 += wp; \
+	} while (0)
+
+// Long-input path, len >= hayahash64_internal_bulk_min. Bit-identical
+// to running the former inline bulk loop plus the shared mid/tail
+// code: the loop is merely unrolled two blocks deep (same block
+// sequence), and the mid loop can run at most once here (l < 64
+// after the bulk loop), so it is spelled as an if. The signature
+// mirrors hayahash64 on purpose, s premix included: the call then
+// compiles to a zero-move tail call, leaving the caller's register
+// allocation completely unconstrained. Passing the premixed s
+// instead pinned it to an argument register and cost a measured
+// 2..5% on 17..160-byte keys (mangled caller address arithmetic or
+// per-key entry register shuffling); recomputing it here is two
+// instructions amortized over at least 320 bytes.
+static HAYAHASH64_INTERNAL_NOINLINE uint64_t
+hayahash64_internal_long(const void *keyIn, ptrdiff_t len, uint64_t seed)
+{
+	const uint8_t *p = (const uint8_t *)keyIn;
+	ptrdiff_t l = len;
+	uint64_t K = HAYAHASH64_INTERNAL_K;
+#if defined(__aarch64__) && (defined(__GNUC__) || defined(__clang__))
+	HAYAHASH64_INTERNAL_COMPILER_GUARD(K);
+#endif
+	uint64_t s = seed ^ ((uint64_t)len * K);
+	uint64_t h0 = s ^ K;
+	uint64_t h1 = hayahash64_internal_rotl(s, 17) + (K << 21);
+	uint64_t h2 = hayahash64_internal_rotl(s, 34) ^ (K >> 13);
+	uint64_t h3 = hayahash64_internal_rotl(s, 51) + (K << 42);
+	uint64_t h4 = s + (K >> 27);
+	uint64_t h5 = hayahash64_internal_rotl(s, 13) ^ (K << 9);
+	uint64_t h6 = hayahash64_internal_rotl(s, 26) + (K >> 40);
+	uint64_t h7 = hayahash64_internal_rotl(s, 39) ^ (K << 30);
+	uint64_t w, wp = 0;
+
+#if defined(__aarch64__)
+	// Two blocks per iteration halves loop-control and pointer
+	// maintenance per block (measured +4..5% bulk on Apple M1);
+	// entry guarantees l >= 320 so the first do-while test is safe.
+	// AArch64's 31 registers hold the wider schedule without spills.
+	do {
+		HAYAHASH64_INTERNAL_BULK_BLOCK(p);
+		HAYAHASH64_INTERNAL_BULK_BLOCK(p + 64);
+		p += 128; l -= 128;
+	} while (l >= 128);
+	if (l >= 64) {
+		HAYAHASH64_INTERNAL_BULK_BLOCK(p);
+		p += 64; l -= 64;
+	}
+#else
+	// On x86-64 the two-block unroll overflows the 15 usable
+	// registers and spills inside the loop (measured -7% bulk under
+	// Rosetta); one block per iteration keeps the loop spill-free.
+	do {
+		HAYAHASH64_INTERNAL_BULK_BLOCK(p);
+		p += 64; l -= 64;
+	} while (l >= 64);
+#endif
+	// Fold the upper lanes in with xor + multiply: xor merges
+	// of multiply spreads can only cancel by carry-pattern
+	// luck, never exactly (unlike an additive fold).
+	h0 = (h0 ^ hayahash64_internal_rotl_product(h4, 11)) * K;
+	h1 = (h1 ^ hayahash64_internal_rotl_product(h5, 19)) * K;
+	h2 = (h2 ^ hayahash64_internal_rotl_product(h6, 31)) * K;
+	h3 = (h3 ^ hayahash64_internal_rotl_product(h7, 47)) * K;
+
+	// 0..63 bytes left: at most one mid round; wp chains in from
+	// the bulk loop.
+	if (l >= 32) {
+		w = hayahash64_internal_load64le(p +  0);
+		h0 = (h0 ^ (w + hayahash64_internal_rotl(wp, 27))) * K;
+		wp = w;
+		w = hayahash64_internal_load64le(p +  8);
+		h1 = (h1 ^ (w + hayahash64_internal_rotl(wp, 27))) * K;
+		wp = w;
+		w = hayahash64_internal_load64le(p + 16);
+		h2 = (h2 ^ (w + hayahash64_internal_rotl(wp, 27))) * K;
+		wp = w;
+		w = hayahash64_internal_load64le(p + 24);
+		h3 = (h3 ^ (w + hayahash64_internal_rotl(wp, 27))) * K;
+		wp = w;
+		p += 32; l -= 32;
+	}
+
+	// Absorb the final stripe's dangling rotated copy; see the wall
+	// comment in hayahash64.
+	h0 += hayahash64_internal_rotl(wp, 27);
+
+	if (l > 16) {
+		h0 = (h0 + hayahash64_internal_injp(p + 0)) * K;
+		h1 = (h1 + hayahash64_internal_injp(p + 8)) * K;
+	}
+	if (l > 0) {
+		h2 = (h2 + hayahash64_internal_injp(p + l - 16)) * K;
+		h3 = (h3 + hayahash64_internal_injp(p + l -  8)) * K;
+	}
+
+	uint64_t t0 = (h0 ^ hayahash64_internal_rotl(h1, 13)) * K;
+	uint64_t t1 = (h2 ^ hayahash64_internal_rotl(h3, 33)) * K;
+	uint64_t x = s ^ t0 ^ hayahash64_internal_rotl_product(t1, 29);
+	return hayahash64_internal_long_fmix(x, K);
+}
+
 // `len` must be non-negative, and `keyIn` must point to at least `len`
 // readable bytes (it may be null when len is zero).
 static inline uint64_t
@@ -240,6 +391,9 @@ hayahash64(const void *keyIn, ptrdiff_t len, uint64_t seed)
 		return hayahash64_internal_fmix(hayahash64_internal_rotl_product(x, 27) ^ y);
 	}
 
+	if (l >= hayahash64_internal_bulk_min)
+		return hayahash64_internal_long(keyIn, len, seed);
+
 #if defined(__aarch64__) && (defined(__GNUC__) || defined(__clang__))
 	HAYAHASH64_INTERNAL_COMPILER_GUARD(K);
 #endif
@@ -249,54 +403,9 @@ hayahash64(const void *keyIn, ptrdiff_t len, uint64_t seed)
 	uint64_t h3 = hayahash64_internal_rotl(s, 51) + (K << 42);
 	uint64_t w, wp = 0;
 
-	if (l >= hayahash64_internal_bulk_min) {
-		uint64_t h4 = s + (K >> 27);
-		uint64_t h5 = hayahash64_internal_rotl(s, 13) ^ (K << 9);
-		uint64_t h6 = hayahash64_internal_rotl(s, 26) + (K >> 40);
-		uint64_t h7 = hayahash64_internal_rotl(s, 39) ^ (K << 30);
-		do {
-			w = hayahash64_internal_load64le(p +  0);
-			h0 = (h0 ^ (w + hayahash64_internal_rotl(wp, 27))) * K;
-			wp = w;
-			w = hayahash64_internal_load64le(p +  8);
-			h1 = (h1 ^ (w + hayahash64_internal_rotl(wp, 27))) * K;
-			wp = w;
-			w = hayahash64_internal_load64le(p + 16);
-			h2 = (h2 ^ (w + hayahash64_internal_rotl(wp, 27))) * K;
-			wp = w;
-			w = hayahash64_internal_load64le(p + 24);
-			h3 = (h3 ^ (w + hayahash64_internal_rotl(wp, 27))) * K;
-			wp = w;
-			w = hayahash64_internal_load64le(p + 32);
-			h4 = (h4 ^ (w + hayahash64_internal_rotl(wp, 27))) * K;
-			wp = w;
-			w = hayahash64_internal_load64le(p + 40);
-			h5 = (h5 ^ (w + hayahash64_internal_rotl(wp, 27))) * K;
-			wp = w;
-			w = hayahash64_internal_load64le(p + 48);
-			h6 = (h6 ^ (w + hayahash64_internal_rotl(wp, 27))) * K;
-			wp = w;
-			w = hayahash64_internal_load64le(p + 56);
-			h7 = (h7 ^ (w + hayahash64_internal_rotl(wp, 27))) * K;
-			wp = w;
-			// Checkpoint the raw-word chain once per block. This stops
-			// the known 64-stripe ladder from hiding its difference until
-			// it returns to the same lane; AArch64 emits MADD here.
-			h0 += wp;
-			p += 64; l -= 64;
-		} while (l >= 64);
-		// Fold the upper lanes in with xor + multiply: xor merges
-		// of multiply spreads can only cancel by carry-pattern
-		// luck, never exactly (unlike an additive fold).
-		h0 = (h0 ^ hayahash64_internal_rotl_product(h4, 11)) * K;
-		h1 = (h1 ^ hayahash64_internal_rotl_product(h5, 19)) * K;
-		h2 = (h2 ^ hayahash64_internal_rotl_product(h6, 31)) * K;
-		h3 = (h3 ^ hayahash64_internal_rotl_product(h7, 47)) * K;
-	}
-
 #if defined(__aarch64__)
 	// Straight-line spelling of the generic 17..31-byte tail below.
-	else if (l < 32) {
+	if (l < 32) {
 		h0 = (h0 + hayahash64_internal_injp(p + 0)) * K;
 		h1 = (h1 + hayahash64_internal_injp(p + 8)) * K;
 		h2 = (h2 + hayahash64_internal_injp(p + l - 16)) * K;
@@ -311,7 +420,8 @@ hayahash64(const void *keyIn, ptrdiff_t len, uint64_t seed)
 #endif
 
 	// Mid loop: same absorb as the bulk loop, 4 lanes over 32-byte
-	// blocks; wp chains in from the bulk loop.
+	// blocks. Only 17..319-byte inputs reach it; longer ones took
+	// the hayahash64_internal_long call above.
 	for (; l >= 32; l -= 32, p += 32) {
 		w = hayahash64_internal_load64le(p +  0);
 		h0 = (h0 ^ (w + hayahash64_internal_rotl(wp, 27))) * K;
@@ -335,15 +445,18 @@ hayahash64(const void *keyIn, ptrdiff_t len, uint64_t seed)
 	// the copy would have landed in anyway.
 	h0 += hayahash64_internal_rotl(wp, 27);
 
-	// 0..31 bytes left.
+	// 0..31 bytes left. When more than 16 remain, h0/h1 take the
+	// next whole 16 bytes and the last-16 absorbs below cover the
+	// rest. Both branches test the untouched post-loop l (l > 16
+	// implies l - 16 > 0), so p and l need no updates and p + l - 16
+	// stays one loop-invariant end-of-input address.
 	if (l > 16) {
 		h0 = (h0 + hayahash64_internal_injp(p + 0)) * K;
 		h1 = (h1 + hayahash64_internal_injp(p + 8)) * K;
-		p += 16; l -= 16;
 	}
-	// 0..16 bytes left; total length > 16, so reading the last 16
-	// input bytes (overlapping already-hashed data) is always valid.
-	// Length is already folded into every lane via `s`.
+	// Reading the last 16 input bytes (overlapping already-hashed
+	// data) is always valid here since total length > 16. Length is
+	// already folded into every lane via `s`.
 	if (l > 0) {
 		h2 = (h2 + hayahash64_internal_injp(p + l - 16)) * K;
 		h3 = (h3 + hayahash64_internal_injp(p + l -  8)) * K;
