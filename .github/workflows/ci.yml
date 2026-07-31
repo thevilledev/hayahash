@@ -36,6 +36,42 @@ jobs:
           CFLAGS="-O2 -std=c11 -Wall -Wextra -Werror"
           run-quality
 
+  # MSVC x64 takes the compact dispatch and the one-block bulk loop;
+  # this job pins its digests to the committed KAT and runs the
+  # quality harness. Timing on shared runners is too noisy to gate,
+  # so MSVC performance measurement stays a documented open item.
+  msvc:
+    name: C (MSVC x64)
+    runs-on: windows-latest
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Build and run conformance checks
+        shell: cmd
+        run: |
+          for /f "usebackq tokens=*" %%i in (`"%ProgramFiles(x86)%\Microsoft Visual Studio\Installer\vswhere.exe" -latest -property installationPath`) do call "%%i\VC\Auxiliary\Build\vcvars64.bat"
+          if errorlevel 1 exit /b 1
+          cl /nologo /std:c11 /O2 /W4 /I. /DKAT_HAYA_ONLY tests\wasm\kat_native.c /Fe:kat_msvc.exe || exit /b 1
+          kat_msvc.exe > kat_msvc.txt || exit /b 1
+          cl /nologo /std:c11 /O2 /W4 /I. tests\quality.c tests\chibihash_v1.c /Fe:quality.exe || exit /b 1
+          quality.exe haya || exit /b 1
+
+      - name: Check MSVC digests match the committed KAT
+        shell: pwsh
+        run: |
+          $expected = (Get-Content tests/wasm/kat_native.txt) -match '^haya '
+          $actual = Get-Content kat_msvc.txt
+          if (($expected -join "`n") -ne ($actual -join "`n")) {
+            Write-Host "MSVC x64 digests differ from the committed KAT:"
+            Compare-Object $expected $actual -SyncWindow 0 | Format-Table
+            exit 1
+          }
+          Write-Host "MSVC x64 digests match the committed KAT."
+
   rust:
     name: Rust
     runs-on: avrea-ubuntu-latest-2-vcpu
