@@ -152,6 +152,22 @@ static inline uint64_t hayahash64_internal_rotl(uint64_t x, int n)
 #define HAYAHASH64_INTERNAL_NOINLINE
 #endif
 
+// Dispatch shape for 17..319-byte keys: straight-line length tiers,
+// plus 64-byte mid-loop rounds so the 192..319-byte keys left in the
+// loop recover the tier dispatch compares. Wins 5..15% independent-
+// hash throughput with flat chained latency on AArch64/Apple M1
+// (clang) and on x86-64 Zen 5 under GCC 16. x86-64 clang is excluded
+// from the same shapes, measured on the same Zen 5: it assigns the
+// enlarged monolithic function callee-saved registers, which costs
+// 6% on 17..31-byte keys (tiers) and collapses chained latency by
+// 26..48% (mid rounds; the save/restore traffic lands on the seed
+// dependency chain of back-to-back hashes).
+#if defined(__aarch64__) || (defined(__x86_64__) && !defined(__clang__))
+#define HAYAHASH64_INTERNAL_TIERS 1
+#else
+#define HAYAHASH64_INTERNAL_TIERS 0
+#endif
+
 static inline uint64_t hayahash64_internal_rotl_product(uint64_t x, int n)
 {
 	HAYAHASH64_INTERNAL_COMPILER_GUARD(x);
@@ -445,7 +461,7 @@ hayahash64(const void *keyIn, ptrdiff_t len, uint64_t seed)
 	}
 #endif
 
-#if defined(__aarch64__)
+#if HAYAHASH64_INTERNAL_TIERS
 	// Straight-line spelling of the generic 17..31-byte tail below.
 	if (l < 32) {
 		h0 = (h0 + hayahash64_internal_injp(p + 0)) * K;
@@ -625,7 +641,7 @@ hayahash64(const void *keyIn, ptrdiff_t len, uint64_t seed)
 	// Mid loop: same absorb as the bulk loop, 4 lanes over 32-byte
 	// blocks. Only 17..319-byte inputs reach it; longer ones took
 	// the hayahash64_internal_long call above.
-#if defined(__aarch64__)
+#if HAYAHASH64_INTERNAL_TIERS
 	// Only 192..319-byte keys get here (the tiers above return for
 	// anything shorter), so run two rounds per iteration with at
 	// most one single round left over; same absorb sequence, half
