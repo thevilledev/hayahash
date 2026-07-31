@@ -296,11 +296,14 @@ hayahash64_internal_long(const void *keyIn, ptrdiff_t len, uint64_t seed)
 	uint64_t h7 = hayahash64_internal_rotl(s, 39) ^ (K << 30);
 	uint64_t w, wp = 0;
 
-#if defined(__aarch64__)
+#if defined(__aarch64__) || defined(__x86_64__)
 	// Two blocks per iteration halves loop-control and pointer
-	// maintenance per block (measured +4..5% bulk on Apple M1);
-	// entry guarantees l >= 320 so the first do-while test is safe.
-	// AArch64's 31 registers hold the wider schedule without spills.
+	// maintenance per block; entry guarantees l >= 320 so the first
+	// do-while test is safe. Measured +4..5% bulk on Apple M1 and
+	// +4..10% (GCC 16) to +10..48% (clang 21) on Zen 5, where fewer
+	// loop exits also let independent hashes overlap much deeper.
+	// Rosetta 2 predicted an x86-64 spill penalty that native
+	// silicon does not reproduce.
 	do {
 		HAYAHASH64_INTERNAL_BULK_BLOCK(p);
 		HAYAHASH64_INTERNAL_BULK_BLOCK(p + 64);
@@ -311,9 +314,7 @@ hayahash64_internal_long(const void *keyIn, ptrdiff_t len, uint64_t seed)
 		p += 64; l -= 64;
 	}
 #else
-	// On x86-64 the two-block unroll overflows the 15 usable
-	// registers and spills inside the loop (measured -7% bulk under
-	// Rosetta); one block per iteration keeps the loop spill-free.
+	// Untested targets keep one block per iteration.
 	do {
 		HAYAHASH64_INTERNAL_BULK_BLOCK(p);
 		p += 64; l -= 64;
