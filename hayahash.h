@@ -258,6 +258,22 @@ hayahash64(const void *keyIn, ptrdiff_t len, uint64_t seed)
 		h3 = (h3 ^ hayahash64__rotl_product(h7, 47)) * K;
 	}
 
+#if defined(__aarch64__)
+	// Straight-line spelling of the generic 17..31-byte tail below.
+	else if (l < 32) {
+		h0 = (h0 + hayahash64__injp(p + 0)) * K;
+		h1 = (h1 + hayahash64__injp(p + 8)) * K;
+		h2 = (h2 + hayahash64__injp(p + l - 16)) * K;
+		h3 = (h3 + hayahash64__injp(p + l - 8)) * K;
+		uint64_t t0 =
+			(h0 ^ hayahash64__rotl_product(h1, 13)) * K;
+		uint64_t t1 =
+			(h2 ^ hayahash64__rotl_product(h3, 33)) * K;
+		return hayahash64__fmix(
+			s ^ t0 ^ hayahash64__rotl_product(t1, 29));
+	}
+#endif
+
 	// Mid loop: same absorb as the bulk loop, 4 lanes over 32-byte
 	// blocks; wp chains in from the bulk loop.
 	for (; l >= 32; l -= 32, p += 32) {
