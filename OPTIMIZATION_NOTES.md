@@ -184,6 +184,12 @@ so another tier would mostly add I-cache footprint.
   gained 3..7%, but 17..31-byte and 128..319-byte keys lost 1..3%.
   Mixed results from an emulation proxy did not justify committing;
   revisit with native x86-64 hardware and per-tier gating.
+- **Unrolling the x86-64 mid loop:** the same 64-byte rounds that the
+  AArch64 mid loop runs gained 1..5% on 80..319-byte keys under
+  Rosetta but cost up to 9% of 17..63-byte independent throughput.
+  Without tiers the monolithic function serves every short key, and
+  the doubled loop body perturbs its layout. Same emulation caveat:
+  worth re-testing on native silicon together with the tiers.
 - **An inline two-block unroll:** the first attempt kept the unrolled
   loop inline and lost up to half of small-key throughput to
   callee-saved register traffic; see the outlining note above for the
@@ -245,9 +251,9 @@ second pass documented above, with the unroll kept AArch64-only after
 the predicted x86-64 spills materialized.
 
 1. **Native x86-64 measurement.** The outlining gains and the rejected
-   x86-64 tier experiment both rest on Rosetta 2 numbers. Re-run the
-   A/B gates on real x86-64 silicon; per-tier gating (only 32..127
-   bytes) looked plausible even under Rosetta.
+   x86-64 tier and mid-loop-unroll experiments all rest on Rosetta 2
+   numbers. Re-run the A/B gates on real x86-64 silicon; per-tier
+   gating (only 32..127 bytes) looked plausible even under Rosetta.
 2. **A 192..255-byte tier.** The 128..191 tier landed (see above);
    extending the chain another band would trade a further dispatch
    compare on 256..319 plus I-cache footprint against loop control
