@@ -107,6 +107,20 @@ static inline uint64_t hayahash64__rotl(uint64_t x, int n)
 	return (x << n) | (x >> (-n & 63));
 }
 
+// Keep an already-computed product opaque so Clang does not distribute
+// a following rotate into two independent multiplies.
+#if defined(__GNUC__) || defined(__clang__)
+#define HAYAHASH64__COMPILER_GUARD(v) __asm__("" : "+r" (v))
+#else
+#define HAYAHASH64__COMPILER_GUARD(v) ((void)0)
+#endif
+
+static inline uint64_t hayahash64__rotl_product(uint64_t x, int n)
+{
+	HAYAHASH64__COMPILER_GUARD(x);
+	return hayahash64__rotl(x, n);
+}
+
 // Multiplier: 2^64 / golden ratio, odd.
 #define HAYAHASH64__K  UINT64_C(0x9E3779B97F4A7C15)
 // moremur finalizer constants (Pelle Evensen); M1 doubles as the
@@ -134,11 +148,15 @@ static inline uint64_t hayahash64__fmix(uint64_t x)
 // unreachable key patterns.
 static inline uint64_t hayahash64__inj(uint64_t w)
 {
-	return w ^ hayahash64__rotl(w, 21) ^ hayahash64__rotl(w, 41);
+	uint64_t x = w ^ hayahash64__rotl(w, 21);
+	HAYAHASH64__COMPILER_GUARD(x);
+	return x ^ hayahash64__rotl(w, 41);
 }
 static inline uint64_t hayahash64__inj2(uint64_t w)
 {
-	return w ^ hayahash64__rotl(w, 11) ^ hayahash64__rotl(w, 50);
+	uint64_t x = w ^ hayahash64__rotl(w, 11);
+	HAYAHASH64__COMPILER_GUARD(x);
+	return x ^ hayahash64__rotl(w, 50);
 }
 static inline uint64_t hayahash64__injp(const uint8_t *p)
 {
@@ -155,7 +173,7 @@ hayahash64(const void *keyIn, ptrdiff_t len, uint64_t seed)
 {
 	const uint8_t *p = (const uint8_t *)keyIn;
 	ptrdiff_t l = len;
-	const uint64_t K = HAYAHASH64__K;
+	uint64_t K = HAYAHASH64__K;
 	// Seed & length premix; feeds every path so length extension and
 	// overlapping tail reads can never collide across lengths.
 	uint64_t s = seed ^ ((uint64_t)len * K);
@@ -187,9 +205,12 @@ hayahash64(const void *keyIn, ptrdiff_t len, uint64_t seed)
 		uint64_t x = (hayahash64__inj(a) ^ s ^ K) * K;
 		uint64_t y = (hayahash64__inj2(b) ^ hayahash64__rotl(s, 23) ^
 		              (K >> 19)) * HAYAHASH64__M1;
-		return hayahash64__fmix(hayahash64__rotl(x, 27) ^ y);
+		return hayahash64__fmix(hayahash64__rotl_product(x, 27) ^ y);
 	}
 
+#if defined(__aarch64__) && (defined(__GNUC__) || defined(__clang__))
+	HAYAHASH64__COMPILER_GUARD(K);
+#endif
 	uint64_t h0 = s ^ K;
 	uint64_t h1 = hayahash64__rotl(s, 17) + (K << 21);
 	uint64_t h2 = hayahash64__rotl(s, 34) ^ (K >> 13);
@@ -231,10 +252,10 @@ hayahash64(const void *keyIn, ptrdiff_t len, uint64_t seed)
 		// Fold the upper lanes in with xor + multiply: xor merges
 		// of multiply spreads can only cancel by carry-pattern
 		// luck, never exactly (unlike an additive fold).
-		h0 = (h0 ^ hayahash64__rotl(h4, 11)) * K;
-		h1 = (h1 ^ hayahash64__rotl(h5, 19)) * K;
-		h2 = (h2 ^ hayahash64__rotl(h6, 31)) * K;
-		h3 = (h3 ^ hayahash64__rotl(h7, 47)) * K;
+		h0 = (h0 ^ hayahash64__rotl_product(h4, 11)) * K;
+		h1 = (h1 ^ hayahash64__rotl_product(h5, 19)) * K;
+		h2 = (h2 ^ hayahash64__rotl_product(h6, 31)) * K;
+		h3 = (h3 ^ hayahash64__rotl_product(h7, 47)) * K;
 	}
 
 	// Mid loop: same absorb as the bulk loop, 4 lanes over 32-byte
@@ -282,7 +303,8 @@ hayahash64(const void *keyIn, ptrdiff_t len, uint64_t seed)
 	// exactly in the fold and could xor-cancel with carry luck.
 	uint64_t t0 = (h0 ^ hayahash64__rotl(h1, 13)) * K;
 	uint64_t t1 = (h2 ^ hayahash64__rotl(h3, 33)) * K;
-	return hayahash64__fmix(s ^ t0 ^ hayahash64__rotl(t1, 29));
+	return hayahash64__fmix(s ^ t0 ^
+		hayahash64__rotl_product(t1, 29));
 }
 
 #endif // HAYAHASH_H
