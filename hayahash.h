@@ -137,6 +137,17 @@ static inline uint64_t hayahash64__fmix(uint64_t x)
 	return x;
 }
 
+// The long path has already passed every input byte through a
+// multiply and a non-linear lane merge. One multiply is enough for
+// its final avalanche; reusing K also avoids a new 64-bit literal.
+static inline uint64_t hayahash64__long_fmix(uint64_t x, uint64_t K)
+{
+	x ^= x >> 37;
+	x *= K;
+	x ^= x >> 32;
+	return x;
+}
+
 // Bijective stripe injections (any odd number of rotation terms is
 // invertible over GF(2)). The short path uses a second injection with
 // different rotation amounts for its b word: if both words used the
@@ -269,8 +280,8 @@ hayahash64(const void *keyIn, ptrdiff_t len, uint64_t seed)
 			(h0 ^ hayahash64__rotl_product(h1, 13)) * K;
 		uint64_t t1 =
 			(h2 ^ hayahash64__rotl_product(h3, 33)) * K;
-		return hayahash64__fmix(
-			s ^ t0 ^ hayahash64__rotl_product(t1, 29));
+		return hayahash64__long_fmix(
+			s ^ t0 ^ hayahash64__rotl_product(t1, 29), K);
 	}
 #endif
 
@@ -319,8 +330,8 @@ hayahash64(const void *keyIn, ptrdiff_t len, uint64_t seed)
 	// exactly in the fold and could xor-cancel with carry luck.
 	uint64_t t0 = (h0 ^ hayahash64__rotl(h1, 13)) * K;
 	uint64_t t1 = (h2 ^ hayahash64__rotl(h3, 33)) * K;
-	return hayahash64__fmix(s ^ t0 ^
-		hayahash64__rotl_product(t1, 29));
+	uint64_t x = s ^ t0 ^ hayahash64__rotl_product(t1, 29);
+	return hayahash64__long_fmix(x, K);
 }
 
 #endif // HAYAHASH_H

@@ -51,6 +51,16 @@ function fmix(x: bigint): bigint {
 	return x;
 }
 
+// The long path has already mixed every input byte through a
+// multiply and a non-linear lane merge, so its final avalanche needs
+// only one serial multiply. Reusing K also avoids another constant.
+function fmixLong(x: bigint): bigint {
+	x ^= x >> 37n;
+	x = (x * K) & MASK64;
+	x ^= x >> 32n;
+	return x;
+}
+
 // Bijective stripe injections; see hayahash.h for why the short path
 // needs a second one with different rotation amounts.
 function inj(w: bigint): bigint {
@@ -183,5 +193,5 @@ export function hashPure(data: Uint8Array, seed: bigint): bigint {
 
 	const t0 = ((h0 ^ rotl(h1, 13n)) * K) & MASK64;
 	const t1 = ((h2 ^ rotl(h3, 33n)) * K) & MASK64;
-	return fmix(s ^ t0 ^ rotl(t1, 29n));
+	return fmixLong(s ^ t0 ^ rotl(t1, 29n));
 }

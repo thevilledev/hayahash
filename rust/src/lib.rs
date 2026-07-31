@@ -66,6 +66,14 @@ fn fmix(mut x: u64) -> u64 {
     x ^ (x >> 27)
 }
 
+/// One-multiply avalanche for the already-mixed long path.
+#[inline(always)]
+fn long_avalanche(mut x: u64) -> u64 {
+    x ^= x >> 37;
+    x = x.wrapping_mul(K);
+    x ^ (x >> 32)
+}
+
 /// Bijective stripe injections (any odd number of rotation terms is
 /// invertible over GF(2)). The short path uses a second injection with
 /// different rotation amounts for its `b` word so the two multiply
@@ -200,5 +208,5 @@ pub fn hayahash64(key: &[u8], seed: u64) -> u64 {
 
     let t0 = (h0 ^ h1.rotate_left(13)).wrapping_mul(K);
     let t1 = (h2 ^ h3.rotate_left(33)).wrapping_mul(K);
-    fmix(s ^ t0 ^ t1.rotate_left(29))
+    long_avalanche(s ^ t0 ^ t1.rotate_left(29))
 }

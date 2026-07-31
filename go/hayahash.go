@@ -50,6 +50,14 @@ func fmix(x uint64) uint64 {
 	return x ^ x>>27
 }
 
+// longAvalanche is the one-multiply finalizer for the already-mixed
+// long path.
+func longAvalanche(x uint64) uint64 {
+	x ^= x >> 37
+	x *= k
+	return x ^ x>>32
+}
+
 // inj and inj2 are bijective stripe injections (any odd number of
 // rotation terms is invertible over GF(2)). The short path uses a
 // second injection with different rotation amounts for its b word so
@@ -173,5 +181,5 @@ func Hash64(key []byte, seed uint64) uint64 {
 
 	t0 := (h0 ^ bits.RotateLeft64(h1, 13)) * k
 	t1 := (h2 ^ bits.RotateLeft64(h3, 33)) * k
-	return fmix(s ^ t0 ^ bits.RotateLeft64(t1, 29))
+	return longAvalanche(s ^ t0 ^ bits.RotateLeft64(t1, 29))
 }

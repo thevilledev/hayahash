@@ -218,7 +218,12 @@ public final class Hayahash {
 
         long t0 = (h0 ^ Long.rotateLeft(h1, 13)) * K;
         long t1 = (h2 ^ Long.rotateLeft(h3, 33)) * K;
-        return fmix(s ^ t0 ^ Long.rotateLeft(t1, 29));
+        long x = s ^ t0 ^ Long.rotateLeft(t1, 29);
+        // The long path has already mixed every byte through a
+        // multiply; one final multiply is enough to avalanche lanes.
+        x ^= x >>> 37;
+        x *= K;
+        return x ^ (x >>> 32);
     }
 
     // moremur finalizer (Pelle Evensen).

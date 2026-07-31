@@ -163,7 +163,12 @@ pub fn hayahash64(key: []const u8, seed: u64) u64 {
 
     const t0 = (h0 ^ rotl(h1, 13)) *% K;
     const t1 = (h2 ^ rotl(h3, 33)) *% K;
-    return fmix(s ^ t0 ^ rotl(t1, 29));
+    var x = s ^ t0 ^ rotl(t1, 29);
+    // The long path has already mixed every byte through a multiply;
+    // one final multiply is enough to avalanche the merged lanes.
+    x ^= x >> 37;
+    x *%= K;
+    return x ^ (x >> 32);
 }
 
 test hayahash64 {
