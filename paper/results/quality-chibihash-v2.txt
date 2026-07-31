@@ -1,0 +1,44 @@
+snapshot: cf9690f67100225feb30fdb1cce7c5a2200ea32d
+command: ./tests/quality v2
+host: Apple M1 MacBook Air, Darwin arm64
+date: 2026-07-31
+expected exit status: 1; the harness is being used as a control
+
+== quality: v2 ==
+-- SAC input bits (worst |bias|, trials=4000) --
+  len    4: 0.0300  (warn)
+  len    7: 0.0330  (warn)
+  len    9: 0.0307  (warn)
+  len   13: 0.0310  (warn)
+  len   15: 0.0327  (warn)
+  len   16: 0.0323  (warn)
+  len   17: 0.0317  (warn)
+  len   20: 0.0320  (warn)
+  len   24: 0.0337  (warn)
+  len   25: 0.0318  (warn)
+  len   31: 0.0302  (warn)
+  len   33: 0.0338  (warn)
+  len   40: 0.0338  (warn)
+  len   48: 0.0355  (warn)
+  len   63: 0.0317  (warn)
+  len   64: 0.0323  (warn)
+  len   65: 0.0357  (warn)
+  len   80: 0.0343  (warn)
+  len  127: 0.0337  (warn)
+  len  128: 0.0327  (warn)
+  len  192: 0.0300  (warn)
+  len  256: 0.0335  (warn)
+  len  512: 0.0305  (warn)
+  len 1024: 0.0300  (warn)
+  worst overall: 0.0357 @ len 65
+-- SAC seed bits (worst |bias|, trials=4000) --
+  len    4: 0.0308  (warn)
+  len    8: 0.0323  (warn)
+  len   12: 0.0300  (warn)
+  len   64: 0.0300  (warn)
+  len  100: 0.0343  (warn)
+  worst overall: 0.0343 @ len 100
+-- collisions --
+  rotation-orbit-64 len/n    512: 512 collisions  FAIL
+  24 collision sets, all clean: NO
+== v2: FAILED ==

@@ -1,0 +1,59 @@
+snapshot: cf9690f67100225feb30fdb1cce7c5a2200ea32d
+date: 2026-07-31
+
+The following current-snapshot checks were run while preparing the draft.
+
+C reference
+  compiler: Apple clang 21.0.0
+  command: make -C tests CC=clang ARCH= CFLAGS="-O2 -std=c11 -Wall -Wextra -Werror" run-quality
+  result: PASS; 24 structured collision sets clean
+
+Paper reference check
+  command: make -C paper check-reference
+  result: PASS; 17 vectors and direct-interface self-test value F3C4A9B4
+
+Rust
+  toolchain: rustc/cargo 1.97.1
+  commands:
+    cargo fmt --manifest-path rust/Cargo.toml -- --check
+    cargo clippy --manifest-path rust/Cargo.toml --all-targets -- -D warnings
+    cargo test --manifest-path rust/Cargo.toml --all-targets
+  result: PASS; 10 tests
+
+Go
+  toolchain: Go 1.26.5
+  commands:
+    gofmt check
+    go vet -C go ./...
+    go test -C go ./...
+  result: PASS; package tests and example
+
+Zig
+  toolchain: Zig 0.16.0
+  commands:
+    zig fmt --check zig
+    cd zig; zig build test --summary all
+  result: PASS; 3 tests
+
+Java
+  toolchain: Maven 3.9.16, OpenJDK 26, compiler release 17
+  command: cd java; mvn --batch-mode --no-transfer-progress test
+  result: PASS; 5 JUnit tests
+
+JavaScript
+  toolchain: Node 26.5.0, locked TypeScript 5.9.3
+  commands:
+    cd js; npm ci
+    cd js; npm test
+  result: PASS; 11 tests, including wasm-backed and pure-JS vectors
+
+Native/WebAssembly comparison
+  command: make -C tests/wasm run-kat
+  result: PASS; native and wasm outputs matched at 14 lengths for all 5
+          functions in the harness
+
+Limits:
+  - These are local results, not remote CI records.
+  - The latest six commits in the snapshot were not yet present on origin/main.
+  - The M1 host does not provide a native GCC build of the new x86 paths.
+

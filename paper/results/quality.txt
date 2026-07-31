@@ -1,0 +1,44 @@
+snapshot: cf9690f67100225feb30fdb1cce7c5a2200ea32d
+command: make -C tests CC=clang ARCH= CFLAGS="-O2 -std=c11 -Wall -Wextra -Werror" run-quality
+host: Apple arm64 development host
+compiler: Apple clang 21.0.0
+date: 2026-07-31
+
+== quality: haya ==
+-- SAC input bits (worst |bias|, trials=4000) --
+  len    4: 0.0330  (warn)
+  len    5: 0.0305  (warn)
+  len    9: 0.0353  (warn)
+  len   11: 0.0318  (warn)
+  len   15: 0.0315  (warn)
+  len   16: 0.0353  (warn)
+  len   17: 0.0320  (warn)
+  len   20: 0.0328  (warn)
+  len   24: 0.0323  (warn)
+  len   25: 0.0315  (warn)
+  len   31: 0.0340  (warn)
+  len   32: 0.0320  (warn)
+  len   33: 0.0347  (warn)
+  len   40: 0.0403  (warn)
+  len   48: 0.0300  (warn)
+  len   63: 0.0312  (warn)
+  len   65: 0.0330  (warn)
+  len   80: 0.0330  (warn)
+  len   96: 0.0325  (warn)
+  len  128: 0.0340  (warn)
+  len  255: 0.0315  (warn)
+  len  256: 0.0328  (warn)
+  len  512: 0.0302  (warn)
+  len 1024: 0.0300  (warn)
+  worst overall: 0.0403 @ len 40
+-- SAC seed bits (worst |bias|, trials=4000) --
+  len    1: 0.0330  (warn)
+  len    4: 0.0312  (warn)
+  len   64: 0.0330  (warn)
+  len  128: 0.0305  (warn)
+  len  256: 0.0338  (warn)
+  len 1024: 0.0325  (warn)
+  worst overall: 0.0338 @ len 256
+-- collisions --
+  24 collision sets, all clean: yes
+== haya: PASSED ==

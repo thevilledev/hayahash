@@ -20,3 +20,6 @@ zig/zig-out/
 
 # Java
 java/target/
+
+# Paper build outputs
+output/

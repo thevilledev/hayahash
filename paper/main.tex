@@ -1,0 +1,701 @@
+\documentclass[10pt,a4paper]{article}
+
+\usepackage[T1]{fontenc}
+\usepackage{amsmath}
+\usepackage{array}
+\usepackage{booktabs}
+\usepackage{geometry}
+\usepackage{listings}
+\usepackage{longtable}
+\usepackage{microtype}
+\usepackage{url}
+\usepackage[hidelinks]{hyperref}
+
+\input{snapshot}
+
+\geometry{margin=27mm}
+\setlength{\parindent}{0pt}
+\setlength{\parskip}{0.55em}
+\setlength{\emergencystretch}{2em}
+\lstset{
+  basicstyle=\ttfamily\small,
+  columns=fullflexible,
+  keepspaces=true,
+  showstringspaces=false,
+  aboveskip=0.6em,
+  belowskip=0.6em
+}
+
+\newcommand{\rotl}{\operatorname{rotl}}
+\newcommand{\load}{\operatorname{load64le}}
+\newcommand{\inj}{\operatorname{inj}}
+\newcommand{\injb}{\operatorname{inj2}}
+\newcolumntype{L}[1]{>{\raggedright\arraybackslash}p{#1}}
+
+\title{Hayahash64: A Portable Scalar 64-bit Non-Cryptographic Hash}
+\author{Ville Vesilehto}
+\date{Working draft, \SnapshotDate}
+
+\begin{document}
+
+\maketitle
+
+\begin{abstract}
+Hayahash64 is an experimental, seeded, non-cryptographic hash function.
+It is designed for targets that have ordinary 64-bit multiplication but
+do not provide a cheap 128-bit product or useful SIMD.  The function uses a
+short-input path for at most 16 bytes, four interleaved lanes for medium
+inputs, and eight lanes for inputs of at least 320 bytes.  Adjacent input
+words are linked by an add-and-rotate transform.  Long blocks also include a
+raw-word checkpoint added after a constructed collision was found in an
+earlier version.  This paper specifies the current development snapshot,
+explains which parts have proofs and which do not, and records the available
+quality and performance evidence.  The current snapshot passes the local
+quality harness and is faster than ChibiHash v2 at most measured sizes on the
+two recorded systems.  There is no current, archived SMHasher3 result, no
+proof for the complete construction, and no cryptographic security claim.
+\end{abstract}
+
+\section{Status and scope}
+
+This is a living paper for a working algorithm.  The normative artifact for
+this draft is the C header at Git commit
+\texttt{\SnapshotCommit} \cite{vesilehto2026hayahash}.
+The SHA-256 digest of that header is
+\texttt{\SnapshotHeaderSha}.
+Both values are defined once, in the register file
+\path{paper/snapshot.tex}; an algorithm change updates the register, the
+evaluation records, and this text as one reviewable change.
+
+The paper describes the current snapshot only.  Earlier iterations appear
+where they explain a design decision, and the project's other historical
+artifacts are not audited here.  Sections marked TBD are deliberate
+placeholders: each states what evidence or analysis must exist before it
+can be filled in.
+
+Hayahash64 maps a byte string and a 64-bit seed to a 64-bit result.  The
+intended uses are hash tables, checksums internal to a process, and similar
+non-adversarial tasks.  It is not intended for passwords, signatures,
+message authentication, untrusted hash-table keys, or any use that requires
+collision or preimage resistance.  The seed is an input, not a secret-key
+security mechanism.
+
+The design constraints are:
+
+\begin{itemize}
+\item unsigned 64-bit scalar arithmetic;
+\item ordinary multiplication modulo \(2^{64}\), without the high product;
+\item no required SIMD or architecture-specific instruction extension;
+\item alignment-safe reads and a result independent of host byte order; and
+\item one reference mapping across supported implementations.
+\end{itemize}
+
+The C source contains architecture- and compiler-specific scheduling choices.
+These choices use the same operations and are intended to preserve the
+digest.  The portability claim therefore concerns required primitives and
+output, not identical source code on every target.
+
+\section{Related work and comparison class}
+
+Fast non-cryptographic hashes make different choices about their required
+instructions and their guarantees.  MurmurHash3 and xxHash are widely used
+examples of scalar designs \cite{appleby2011murmurhash3,collet2023xxhashspec}.
+wyhash and rapidhash use the folded result of a widening multiplication as a
+central primitive \cite{wang2021wyhash,nicoshev2025rapidhash}.  HighwayHash
+uses vector multiply and permute operations and also studies keyed security
+\cite{alakuijala2016highwayhash}.  HalftimeHash takes a coding-oriented
+approach to long inputs without requiring a widening 64-bit product
+\cite{apple2021halftimehash}.
+
+ChibiHash v2 is the closest baseline used here because it has the same narrow
+implementation class: a small, portable, scalar 64-bit function using the low
+half of ordinary multiplication \cite{nrk2024chibihash}.  This makes it a more
+direct comparison than functions whose peak implementation requires a
+widening product or SIMD.  The comparison does not imply that ChibiHash is
+the only member of the class.
+
+Empirical test suites and mathematical guarantees are separate evidence.
+SMHasher and SMHasher3 test distribution, collisions on generated key sets,
+and performance \cite{appleby2016smhasher,wojcik2022smhasher3}.  A clean run
+does not prove collision resistance or rank the overall quality of two
+functions.  By contrast, a construction such as PolymurHash states an
+almost-universality bound under an explicit model \cite{peters2023polymurhash}.
+Hayahash64 currently has no comparable bound.
+
+\section{Contract and notation}
+
+All state values are unsigned 64-bit words.  Addition, multiplication, and
+left shift discard bits above bit 63.  Right shift is logical.  The expression
+\(\rotl(x,r)\) rotates a word left by \(r\) bits.  \(\load(B,p)\) reads eight
+bytes starting at offset \(p\), with the first byte as the least significant
+byte.  A corresponding four-byte load is zero-extended.
+
+The constants are:
+
+\begin{align*}
+K   &= \mathtt{9E3779B97F4A7C15}_{16},\\
+M_1 &= \mathtt{3C79AC492BA7B653}_{16},\\
+M_2 &= \mathtt{1C69B3F74AC4AE35}_{16}.
+\end{align*}
+
+All three constants are odd.  The input length \(n\) must be non-negative,
+and the caller must provide \(n\) readable bytes.  A null pointer is permitted
+only when \(n=0\).  The total length is used before any bytes are absorbed, so
+the construction does not provide a natural constant-memory streaming API.
+
+Two linear word injections are used:
+
+\begin{align*}
+\inj(w)  &= w \oplus \rotl(w,21) \oplus \rotl(w,41),\\
+\injb(w) &= w \oplus \rotl(w,11) \oplus \rotl(w,50).
+\end{align*}
+
+The short-input finalizer is the \texttt{moremur} map
+\cite{evensen2018moremur}:
+
+\begin{lstlisting}
+fmix(x):
+    x ^= x >> 27
+    x *= M1
+    x ^= x >> 33
+    x *= M2
+    x ^= x >> 27
+    return x
+\end{lstlisting}
+
+The long-input finalizer is:
+
+\begin{lstlisting}
+long_fmix(x):
+    x ^= x >> 37
+    x *= K
+    x ^= x >> 32
+    return x
+\end{lstlisting}
+
+\section{Algorithm}
+
+\subsection{Length and seed premix}
+
+Every path starts with
+\[
+    s = \mathit{seed} \oplus (nK).
+\]
+This puts the length and seed into the initial state.  It also distinguishes
+lengths when tail reads overlap bytes that were already processed.
+
+\subsection{Inputs of at most 16 bytes}
+
+Two words \(a\) and \(b\) are formed without reading outside the input:
+
+\begin{lstlisting}
+if n >= 8:
+    a = load64le(B, 0)
+    b = load64le(B, n - 8)
+else if n >= 4:
+    a = load32le(B, 0)
+    b = load32le(B, n - 4)
+else if n > 0:
+    a = B[0]
+    b = (B[n / 2] << 8) | (B[n - 1] << 16)
+else:
+    a = 0
+    b = 0
+\end{lstlisting}
+
+The two terms use different injections and multipliers:
+
+\begin{align*}
+x &= (\inj(a) \oplus s \oplus K)K,\\
+y &= (\injb(b) \oplus \rotl(s,23) \oplus (K \mathbin{\gg} 19))M_1.
+\end{align*}
+
+The result is
+\[
+    \operatorname{fmix}(\rotl(x,27) \oplus y).
+\]
+The head and end reads overlap for some lengths.  This is intentional.
+
+\subsection{Inputs longer than 16 bytes}
+
+The common four-lane state is:
+
+\begin{align*}
+h_0 &= s \oplus K,\\
+h_1 &= \rotl(s,17) + (K \mathbin{\ll} 21),\\
+h_2 &= \rotl(s,34) \oplus (K \mathbin{\gg} 13),\\
+h_3 &= \rotl(s,51) + (K \mathbin{\ll} 42).
+\end{align*}
+
+Let \(w_p\) be the previous raw input word, initially zero.  One stripe is
+absorbed into its assigned lane as follows:
+
+\begin{lstlisting}
+absorb(h, w):
+    h = (h ^ (w + rotl(wp, 27))) * K
+    wp = w
+\end{lstlisting}
+
+The addition inside the parentheses happens before the XOR with the lane.
+The previous word carries across lane boundaries and block boundaries.
+
+For \(17 \leq n < 320\), complete 32-byte blocks are processed in four lanes.
+Each block loads four consecutive words and assigns them to
+\(h_0,h_1,h_2,h_3\) in that order.
+
+For \(n \geq 320\), four more lanes are initialized:
+
+\begin{align*}
+h_4 &= s + (K \mathbin{\gg} 27),\\
+h_5 &= \rotl(s,13) \oplus (K \mathbin{\ll} 9),\\
+h_6 &= \rotl(s,26) + (K \mathbin{\gg} 40),\\
+h_7 &= \rotl(s,39) \oplus (K \mathbin{\ll} 30).
+\end{align*}
+
+Each complete 64-byte block assigns eight consecutive words to
+\(h_0,\ldots,h_7\).  After the eighth absorb, the raw eighth word is added to
+\(h_0\):
+\[
+    h_0 \mathrel{+}= w_p.
+\]
+This checkpoint is part of the digest.  After all complete 64-byte blocks,
+the upper lanes are folded into the lower lanes:
+
+\begin{align*}
+h_0 &\leftarrow (h_0 \oplus \rotl(h_4,11))K,\\
+h_1 &\leftarrow (h_1 \oplus \rotl(h_5,19))K,\\
+h_2 &\leftarrow (h_2 \oplus \rotl(h_6,31))K,\\
+h_3 &\leftarrow (h_3 \oplus \rotl(h_7,47))K.
+\end{align*}
+
+If at least 32 bytes remain, one four-lane block is then processed.  The
+previous-word chain continues from the last bulk word.
+
+\subsection{Wall, tail, and output}
+
+After the complete-block loops, the final previous word is observed once
+more:
+\[
+    h_0 \mathrel{+}= \rotl(w_p,27).
+\]
+This operation is called the wall in the implementation.  It is a no-op when
+no complete stripe was processed.
+
+Let \(p\) be the first unconsumed byte and \(r\) the remaining length.  After
+the optional four-lane block, \(0\leq r<32\) on both paths.  The tail is:
+
+\begin{lstlisting}
+if r > 16:
+    h0 = (h0 + inj(load64le(B, p + 0))) * K
+    h1 = (h1 + inj(load64le(B, p + 8))) * K
+
+if r > 0:
+    h2 = (h2 + inj(load64le(B, n - 16))) * K
+    h3 = (h3 + inj(load64le(B, n - 8))) * K
+\end{lstlisting}
+
+The last two reads always refer to the last 16 bytes of the complete input.
+They may overlap an earlier read.  At \(r=16\), only \(h_2\) and \(h_3\)
+receive tail words.
+
+The final fold is:
+
+\begin{align*}
+t_0 &= (h_0 \oplus \rotl(h_1,13))K,\\
+t_1 &= (h_2 \oplus \rotl(h_3,33))K,\\
+z   &= s \oplus t_0 \oplus \rotl(t_1,29).
+\end{align*}
+
+The returned value is \(\operatorname{long\_fmix}(z)\).
+
+The threshold of 320 bytes is an algorithm parameter.  An input of exactly
+320 bytes takes the eight-lane path and processes five complete bulk blocks.
+Moving the threshold can change the output.
+
+\section{Design rationale and limited analysis}
+\label{sec:rationale}
+
+\subsection{Parallel lanes}
+
+The bulk loop uses eight independent lane states so that a processor can
+overlap several multiplications.  Within a lane, the loop-carried state path
+is an XOR followed by a multiplication.  The rotation operates on a raw word
+that is already in a register.  Four lanes use less state for medium inputs,
+where eight-lane initialization and folding would be a larger fraction of the
+work.
+
+This is a scheduling rationale, not a portable cycle-count guarantee.
+Instruction latency, register allocation, and code layout vary by compiler
+and target.  The C implementation therefore uses output-equivalent
+specializations for selected compiler and architecture combinations.
+
+\subsection{Injective transformed stripe sequence}
+
+For a fixed initial \(w_{-1}\), define
+\[
+    t_i = w_i + \rotl(w_{i-1},27).
+\]
+The mapping from a word sequence \(w_0,\ldots,w_m\) to
+\(t_0,\ldots,t_m\) is injective.  Suppose two input sequences first differ at
+position \(j\).  Their words at \(j-1\) are equal, so their rotated terms at
+position \(j\) are equal.  Addition by the same word is a bijection modulo
+\(2^{64}\), so the two values of \(t_j\) differ.
+
+This lemma concerns the transformed input sequence only.  It does not prove
+that the lane recurrence, folds, or final 64-bit output are collision
+resistant.  The complete function necessarily has collisions because it maps
+arbitrarily long inputs to 64 bits.
+
+\subsection{Bijective word injections and finalizers}
+
+The maps \(\inj\) and \(\injb\) are linear over \(\mathrm{GF}(2)\).  A
+rotation-XOR map with three terms corresponds to a polynomial
+\(p(z)=1+z^a+z^b\) on 64 cyclic bit positions.  Over \(\mathrm{GF}(2)\),
+\(z^{64}-1=(z+1)^{64}\).  Since \(p(1)=1\), \(p\) has no factor \(z+1\)
+and is invertible modulo \(z^{64}-1\).  Both injections are therefore
+bijections on 64-bit words.
+
+Each XOR-right-shift step in the finalizers is also a bijection, and
+multiplication by an odd constant is invertible modulo \(2^{64}\).  Thus both
+finalizers are bijections.  These local properties prevent information loss
+inside the named maps; they are not a proof for the full hash.
+
+\subsection{Failure-driven changes}
+
+Several earlier designs passed ordinary avalanche checks but had constructed
+collisions.  Table~\ref{tab:failures} records the failure classes that shaped
+the current construction.  The exact historical artifacts are incomplete,
+so the table distinguishes mechanisms documented in the source from
+release-grade reproduced results.
+
+\small
+\begin{longtable}{@{}L{0.25\linewidth}L{0.30\linewidth}L{0.34\linewidth}@{}}
+\caption{Documented structural failures and current responses.}
+\label{tab:failures}
+\\
+\toprule
+Earlier form & Observed problem & Current response \\
+\midrule
+\endfirsthead
+\toprule
+Earlier form & Observed problem & Current response \\
+\midrule
+\endhead
+XOR of staggered word copies &
+GF(2)-linear nullspace across the absorb sequence &
+Chained addition of the previous rotated raw word; structured combination
+test retained. \\
+\addlinespace
+Same short-word injection on both sides &
+Sparse key changes could erase two related seed copies &
+Different injections and multipliers for \(a\) and \(b\); seed-block test
+retained. \\
+\addlinespace
+Rotation 21 and no final wall &
+Carry-matched difference ladders could terminate or leave the loop &
+Rotation 27 and a final raw-word wall. \\
+\addlinespace
+Fold rotation 37 &
+It re-aligned with the inverse of rotation 27 and allowed cancellation &
+Fold rotation 33. \\
+\addlinespace
+No bulk checkpoint &
+A 64-stripe rotation orbit produced deterministic 576-byte collisions &
+Add the eighth raw word to \(h_0\) after every bulk block; deterministic
+orbit regression retained. \\
+\bottomrule
+\end{longtable}
+\normalsize
+
+The checkpoint is a targeted response.  Bounded solver experiments reported
+in the development notes did not find the same family over several tested
+bounds; that is informal evidence, not a proof.  An archived, rerunnable
+differential search is part of the analysis work in
+Section~\ref{sec:analysis}.
+
+\section{Analysis goals (TBD)}
+\label{sec:analysis}
+
+This section is a placeholder.  It is reserved for analysis that does not
+yet exist, and it will be filled in only together with its artifacts.  The
+intended content, in decreasing order of value:
+
+\begin{itemize}
+\item an explicit model of the absorb recurrence and the folds, stated
+      precisely enough that a bound or a counterexample is checkable;
+\item either an almost-universality-style bound comparable in form to the
+      PolymurHash statement \cite{peters2023polymurhash}, or a documented
+      argument about why the construction does not admit one; and
+\item a rerunnable differential search over the absorb chain, with scripts,
+      solver versions, bounds, and outputs archived under
+      \path{paper/results}, replacing the informal searches mentioned in
+      Section~\ref{sec:rationale}.
+\end{itemize}
+
+\section{Evaluation}
+
+\subsection{Evidence policy}
+
+The paper directory contains a claim register, \path{paper/AUDIT.md}.  Each
+material statement is classified as code-derived, reproduced, archived,
+reported, or open.  A reported result is not promoted to a result for the
+current snapshot without the tested source, tool revision, command, host
+information, and raw output.  The register covers this paper's claims about
+the current snapshot; it does not audit historical project artifacts.  The
+policy's main consequence today is recorded in
+Section~\ref{sec:smhasher}: the current snapshot has no SMHasher3 result.
+
+\subsection{Local quality harness}
+
+The local C harness performs strict-avalanche measurements over input and seed
+bits and exact collision checks over structured key sets.  For long inputs it
+samples 192 input-bit positions.  Every avalanche cell uses 4,000 trials.  The
+harness warns when the largest absolute deviation from 0.5 exceeds 0.03 and
+fails above 0.045.  These thresholds are simple smoke-test thresholds and do
+not correct for all multiple comparisons.
+
+At the paper snapshot, the harness reported a worst input-bit bias of 0.0403
+at length 40 and a worst seed-bit bias of 0.0338 at length 256.  Neither
+crossed its failure threshold.  All 24 structured collision sets were clean.
+The sets include sequential, sparse, high-byte-only, zero-extension, repeated
+block, text, seed-block, combination, and rotation-orbit inputs.  The exact
+command and output are archived in
+\texttt{paper/results/quality.txt}.
+
+No collision observed in a finite test means only that the tested set was
+clean.  It does not establish a general collision bound.
+
+As a control, the same harness found 512 collisions in ChibiHash v2's
+rotation-orbit set while its other 23 sets remained clean.  This targeted
+result does not contradict ChibiHash's historical clean run in a broader
+suite: the orbit regression was added after that general-purpose run.  It
+shows why a statistical suite and construction-specific differential tests
+serve different roles.  The control output is archived in
+\path{paper/results/quality-chibihash-v2.txt}.
+
+\subsection{SMHasher3 (TBD)}
+\label{sec:smhasher}
+
+This subsection is a placeholder: there is no SMHasher3 result for the
+current snapshot.  A clean full run (188 of 188 tests, verification value
+\texttt{0x6B558D9D}) was reported for the earlier \texttt{v0.2.1} digest.
+The digest has changed since, so that result does not transfer and is not
+evidence about the function specified here.
+
+The subsection is filled in when the following artifacts are committed
+together: an SMHasher3 adapter for the current header, the exact SMHasher3
+commit it was built against, the complete raw output including warnings,
+the compiler and host description, and the resulting verification value.
+Until then, the only current verification value is the direct-interface
+self-test value \texttt{\SnapshotVerification} recomputed by
+\path{paper/tools/reference_check.c}.
+
+\subsection{Benchmark method}
+
+The repository benchmark compares the reference C implementations through
+non-inlined wrappers with the same signature.  It reports three views:
+
+\begin{itemize}
+\item bulk throughput in decimal GB/s;
+\item dependent latency, where each result becomes the next seed; and
+\item independent throughput, where hashes have independent seeds.
+\end{itemize}
+
+Within one process, each cell is the median of nine calibrated samples of
+approximately 40 ms.  Candidate order is rotated and periodically reversed.
+The M1 values below are the median of three idle process runs.  The Zen 5 log
+contains one process run and is therefore more provisional.  The benchmark
+does not retain every individual sample, so distribution estimates and
+confidence intervals cannot be reconstructed from the archived logs.
+
+The Apple run used an M1 performance core near 3.2 GHz and Apple Clang with
+\texttt{-O3 -mcpu=native}.  The x86-64 run used the Zen 5 core in an AMD
+Ryzen AI 9 HX PRO 370, pinned near 5.16 GHz with the performance governor,
+and GCC 16 with \texttt{-O3 -march=native}.  ChibiHash v2 was compiled from
+the vendored source in the same executable.  Tables~\ref{tab:bulk} and
+\ref{tab:small} transcribe selected cells from the archived complete logs.
+
+\begin{table}[ht]
+\centering
+\small
+\caption{Bulk throughput in GB/s. Higher is better.}
+\label{tab:bulk}
+\begin{tabular}{r rr rr}
+\toprule
+& \multicolumn{2}{c}{Apple M1} & \multicolumn{2}{c}{Zen 5} \\
+\cmidrule(lr){2-3}\cmidrule(lr){4-5}
+Bytes & ChibiHash v2 & Hayahash64 & ChibiHash v2 & Hayahash64 \\
+\midrule
+64      &  9.98 & 13.60 & 13.63 & 18.27 \\
+256     & 17.89 & 21.07 & 25.03 & 28.84 \\
+320     & 18.75 & 20.67 & 26.44 & 24.34 \\
+512     & 19.16 & 23.42 & 28.79 & 28.08 \\
+1024    & 19.57 & 26.11 & 30.90 & 31.34 \\
+1048576 & 18.84 & 29.03 & 31.45 & 35.38 \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+The selected bulk results show both the intended steady-state gain and a
+counterexample to any universal win claim.  Hayahash64 leads at the listed
+M1 sizes and at most listed Zen 5 sizes, but ChibiHash v2 leads at 320 and
+512 bytes on Zen 5.  This transition range pays the setup and fold cost of
+the eight-lane path.
+
+\begin{table}[ht]
+\centering
+\small
+\caption{Small-input time in ns/hash. Lower is better. ``Dep.'' chains the
+seed; ``ind.'' permits instruction-level overlap.}
+\label{tab:small}
+\begin{tabular}{rr rr rr rr}
+\toprule
+& & \multicolumn{2}{c}{M1 dep.} & \multicolumn{2}{c}{M1 ind.}
+  & \multicolumn{2}{c}{Zen 5 ind.} \\
+\cmidrule(lr){3-4}\cmidrule(lr){5-6}\cmidrule(lr){7-8}
+Bytes & & C2 & Haya & C2 & Haya & C2 & Haya \\
+\midrule
+16  &&  9.85 &  7.28 & 4.91 & 2.74 & 3.33 & 1.85 \\
+32  && 11.37 &  8.22 & 5.21 & 3.47 & 3.81 & 2.65 \\
+64  && 13.00 &  9.37 & 6.42 & 4.70 & 4.72 & 3.53 \\
+128 && 16.62 & 12.00 & 8.97 & 6.79 & 6.54 & 5.16 \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+These are measurements on two systems, not a general performance ordering.
+Functions based on a widening product can be faster when that product is
+cheap; they are outside this comparison table because they use a different
+primitive class.  The remaining coverage gaps are listed in
+Section~\ref{sec:platforms}.
+
+\subsection{Platform and workload coverage (TBD)}
+\label{sec:platforms}
+
+This subsection is a placeholder for measurements that do not exist yet.
+Each item becomes a record under \path{paper/results} when it is done:
+
+\begin{itemize}
+\item the WebAssembly comparison: the repository has a baseline-wasm32
+      shootout harness under \path{tests/wasm}, but no archived run
+      prepared to this paper's standard;
+\item x86-64 under Clang, which compiles a different dispatch shape than
+      the measured GCC build because the straight-line length tiers are
+      disabled there;
+\item MSVC, 32-bit targets, big-endian targets, and small in-order cores,
+      including the portable byte-assembly load path;
+\item cache and workload distributions beyond the fixed-size benchmark; and
+\item a benchmark harness revision that retains raw per-sample values and
+      an environment manifest, so distribution estimates do not rest on
+      process medians alone.
+\end{itemize}
+
+\section{Implementation and conformance}
+\label{sec:implementation}
+
+The reference implementation is a C99 single header.  It uses \texttt{memcpy}
+for unaligned native loads and byte swaps on known big-endian hosts.  If no
+byte-order macro is available, it assembles words byte by byte.  This avoids
+an alignment assumption and does not silently assume little-endian order.
+
+The source uses straight-line length tiers on selected targets, outlines the
+native bulk path to manage register pressure, unrolls two bulk blocks on
+AArch64 and x86-64, and keeps the WebAssembly bulk path inline.  These are
+implementation choices rather than separate algorithms.  A compact
+transcription is used in the Rust, Go, Zig, Java, and pure JavaScript ports;
+the WebAssembly fast path compiles the C header.
+
+The paper check program contains 17 known-answer vectors covering the short,
+medium, bulk, and boundary paths.  It also recomputes the direct-interface
+verification value.  At this snapshot, the Rust, Go, Zig, Java, WebAssembly,
+and pure JavaScript suites all passed their checked-in conformance vectors.
+The commands, tool versions, and result counts are archived in
+\path{paper/results/conformance.txt}.  A generator for a single
+machine-readable cross-language table is still missing, so the copied tables
+remain a maintenance risk.  The planned replacement (TBD) is one executable,
+machine-readable model of the algorithm that generates every language-port
+vector and the tables in this paper.
+
+\section{Limitations}
+
+Open tasks with defined completion criteria live in the TBD sections:
+analysis (Section~\ref{sec:analysis}), SMHasher3
+(Section~\ref{sec:smhasher}), platform coverage
+(Section~\ref{sec:platforms}), and the cross-language vector generator
+(Section~\ref{sec:implementation}).  The following limitations are standing
+properties of the design or of its stage, not tasks:
+
+\begin{itemize}
+\item The algorithm is experimental.  Constants, the threshold, and every
+      digest may change; nothing should persist hayahash values yet.
+\item There is no cryptographic security claim, keyed-security analysis, or
+      protection against adversarial hash-table inputs.
+\item The injective stripe lemma and bijective helper maps do not prove a
+      collision bound for the complete construction.
+\item The local quality harness is a deterministic smoke test with simple
+      thresholds, not a substitute for a broader statistical suite.
+\item The function is one-shot: the length is premixed into the initial
+      state, so adapters that expose a streaming interface must buffer the
+      full byte sequence or define a different construction.
+\end{itemize}
+
+\section{Reproducibility}
+
+From the repository root at the paper snapshot:
+
+\begin{lstlisting}
+make -C paper check-reference
+make -B -C tests CC=clang ARCH= \
+  CFLAGS="-O2 -std=c11 -Wall -Wextra -Werror" run-quality
+make -B -C tests CC=clang ARCH=-mcpu=native \
+  CFLAGS="-O3 -std=c11 -Wall -Wextra" run-bench
+make -C paper
+\end{lstlisting}
+
+The first command compiles the paper's reference check directly against
+\texttt{hayahash.h}.  The quality command rebuilds and runs the local harness.
+The forced rebuild is important because Make does not track changed compiler
+variables in an existing binary.  The benchmark command regenerates medians
+for the current host.  The final command builds this PDF with Tectonic.
+
+The paper's \path{AUDIT.md} maps claims to source, command, status, and
+update rule.  Raw outputs used in the tables are stored under
+\path{paper/results}.  The audited commit, header digest, and verification
+value are defined once in \path{paper/snapshot.tex}; the document reads
+them from there, and \texttt{make -C paper check-snapshot} verifies them
+against the checkout.  A paper update that changes the algorithm snapshot
+must update the register, the known-answer vectors, the quality output,
+and the performance results as one reviewable change.
+
+\section{Conclusion}
+
+Hayahash64 explores a narrow question: how fast a 64-bit non-cryptographic
+hash can be when it is limited to portable scalar operations and the low half
+of 64-bit multiplication.  Its main mechanisms are a two-term short path,
+four- and eight-lane long paths, a chained add-and-rotate word transform,
+overlapping whole-word tails, and a per-block raw-word checkpoint introduced
+after a structural failure.  The current local tests and two-system benchmark
+results justify continued work, but not security or universal quality claims.
+The paper is structured so that stronger claims can be added only when their
+artifacts are committed with the algorithm.
+
+\section*{Revision history}
+
+\begin{tabular}{@{}L{0.16\linewidth}L{0.18\linewidth}L{0.58\linewidth}@{}}
+\toprule
+Date & Paper snapshot & Change \\
+\midrule
+2026-07-31 & first draft & Exact specification, audit register, current local
+quality result, and archived M1/Zen 5 comparison. \\
+\addlinespace
+2026-07-31 & second draft & Restructured as a living document: snapshot
+register in \path{paper/snapshot.tex}, TBD sections for analysis goals,
+SMHasher3, and platform coverage, and historical bookkeeping trimmed from
+the main text. \\
+\bottomrule
+\end{tabular}
+
+\bibliographystyle{plain}
+\bibliography{references}
+
+\end{document}
