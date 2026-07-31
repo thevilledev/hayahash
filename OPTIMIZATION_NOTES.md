@@ -92,8 +92,9 @@ exhaustive comparison against the previous commit (all lengths 0..8192
 over five buffer patterns, several seeds and alignments, plus large spot
 sizes, verified on both AArch64 and x86-64) before any benchmark was
 read. Deltas below are medians of interleaved A/B runs on the same
-Apple M1 generation hardware as the first pass; x86-64 numbers are from
-Rosetta 2 and remain proxies until measured on native silicon.
+Apple M1 generation hardware as the first pass; x86-64 numbers in this
+section are from Rosetta 2. The third pass below re-measured them on
+native silicon and overturned several, so read them as historical.
 
 ### Outline the long-input path into a non-inlined function
 
@@ -124,14 +125,16 @@ for no measured benefit. `hayahash64` keeps the pre-split fall-through
 there (inline bulk loop into the shared mid loop and tail), which the
 native/wasm KAT harness confirms is bit-exact.
 
-### Unroll the bulk loop two blocks deep, AArch64 only
+### Unroll the bulk loop two blocks deep
 
 Inside the outlined function, processing two 64-byte blocks per
 iteration (same block sequence, checkpoint after each block) gained
-4..5% bulk throughput on the M1. On x86-64 the same unroll overflows
-the 15 usable registers and spills inside the loop, costing about 7%
-under Rosetta, so x86-64 keeps the one-block loop. The unroll is a code
-shape choice per architecture, not an algorithm change.
+4..5% bulk throughput on the M1. On x86-64 the unroll's live state
+exceeds the 15 usable registers on paper, and Rosetta measured a 7%
+bulk loss, so this pass shipped it AArch64-only. Native Zen 5 later
+reversed that call (see the third pass below); the unroll now covers
+x86-64 as well. It remains a code shape choice per architecture, not
+an algorithm change.
 
 ### Simplify the generic tail absorbs
 
@@ -182,19 +185,87 @@ so another tier would mostly add I-cache footprint.
   drop and both the mid and bulk layouts got worse.
 - **Enabling the tiers on x86-64:** under Rosetta, 32..127-byte keys
   gained 3..7%, but 17..31-byte and 128..319-byte keys lost 1..3%.
-  Mixed results from an emulation proxy did not justify committing;
-  revisit with native x86-64 hardware and per-tier gating.
+  Mixed results from an emulation proxy did not justify committing.
+  Superseded: the third pass measured native silicon and landed the
+  tiers for x86-64 GCC while keeping clang excluded.
 - **Unrolling the x86-64 mid loop:** the same 64-byte rounds that the
   AArch64 mid loop runs gained 1..5% on 80..319-byte keys under
   Rosetta but cost up to 9% of 17..63-byte independent throughput.
-  Without tiers the monolithic function serves every short key, and
-  the doubled loop body perturbs its layout. Same emulation caveat:
-  worth re-testing on native silicon together with the tiers.
+  Superseded: on native silicon the shape wins under GCC when the
+  tiers keep short keys out of the loop, and loses badly under any
+  measured clang; the third pass gates it accordingly.
 - **An inline two-block unroll:** the first attempt kept the unrolled
   loop inline and lost up to half of small-key throughput to
   callee-saved register traffic; see the outlining note above for the
   mechanism. Rejecting the inline shape, not the unroll, was the
   lesson.
+
+## Third pass: native x86-64 (Zen 5)
+
+The Rosetta-proxied x86-64 decisions were re-measured on an AMD Ryzen
+AI 9 HX PRO 370 (Zen 5, pinned to a 5.16 GHz classic core with the
+performance governor; A/B noise floor within 0.1%). GCC 16.1 with
+`-march=native` is the primary toolchain; clang 21 numbers come from
+a zig-cc musl cross build run on the same machine. Everything below
+kept the exhaustive bit-exactness gate from the second pass.
+
+The headline lesson: Rosetta 2 predicted the wrong sign for two of
+three experiments, and GCC and clang want different dispatch shapes
+on identical silicon. Per-compiler measurement is not optional here.
+
+### Validate the second pass, fix the lost bulk invariant
+
+The committed second pass held up natively for short keys (+2..7%
+independent-hash throughput across 17..192 bytes) but showed a
+1..3.5% regression from 320 bytes up that Rosetta never surfaced: the
+dispatch's `len >= 320` guarantee dies at the noinline boundary, so
+GCC kept a live remaining-length computation in the bulk loop exit
+and guarded the post-loop remainder with a cmov chain for a zero-trip
+case that cannot happen. Restating the invariant inside the outlined
+function with `__builtin_unreachable()` (`__assume` under MSVC)
+restored the fused pointer-compare exit: +2..5% on 320..1024-byte
+keys, M1 and wasm unchanged.
+
+### The two-block bulk unroll transfers to x86-64
+
+Native Zen 5 does not reproduce Rosetta's 7% penalty: the unroll
+gains 4..10% (GCC) and 10..48% (clang) on 320-byte-and-up keys, with
+chained latency flat for both. The clang upper end is a second-order
+effect worth naming: with half as many loop exits, the out-of-order
+window overlaps independent hashes much more deeply, so 320..1024-
+byte independent-hash throughput jumps far past the loop's
+steady-state rate. Now enabled for x86-64 alongside AArch64.
+
+### Tiers and mid rounds: GCC yes, clang no
+
+The full AArch64 dispatch shape (17..191 tiers plus 64-byte mid
+rounds) transfers cleanly to x86-64 GCC: +5..15% independent-hash
+throughput on 32..191-byte keys, +1% on 17..31, flat chained latency,
+at worst 1% taken from 192..319. Under clang 21 on the same machine
+the identical shapes fail in two distinct ways: the tiers alone cost
+6% on 17..31-byte keys and 1..4% on 192..319 (against 1..10% gains in
+between), and the mid rounds collapse chained latency by 26..48%
+across the board while independent-hash throughput doubles at some
+sizes. The mechanism is the familiar one from the outlining note:
+clang assigns the enlarged monolithic function callee-saved
+registers, and their unconditional save/restore traffic lands on the
+seed dependency chain of back-to-back hashes. GCC shrink-wraps the
+same shapes without touching the chain. A single
+`HAYAHASH64_INTERNAL_TIERS` gate now selects the wide dispatch for
+AArch64 and x86-64-non-clang, and the compact one for x86-64 clang
+(unmeasured targets also stay compact).
+
+### Reference numbers and an open transition band
+
+Against the vendored ChibiHash baselines on the same Zen 5 (GCC 16),
+hayahash leads at every size below 320 bytes (128-byte keys: 5.2 vs
+6.5 ns independent) and in sustained bulk (35.3 vs 31.2 GB/s at
+1 MiB). ChibiHash v2 leads by 2..8% only in the 320..512-byte
+transition band, where the eight-lane bulk loop is still amortizing
+its lane setup and fold; the band shrank with the invariant fix but
+did not close. The bulk threshold itself is an algorithm parameter
+(digests change with it), so any further gain there must come from
+cheaper entry/exit code, not from moving the boundary.
 
 ## Ideas tested and rejected
 
@@ -247,51 +318,58 @@ so another tier would mostly add I-cache footprint.
 
 Items one and two of the original list (more output-identical length
 tiers, and an output-identical two-block unroll) were landed by the
-second pass documented above, with the unroll kept AArch64-only after
-the predicted x86-64 spills materialized.
+second pass documented above; the native x86-64 measurement item was
+resolved by the third pass, which landed the unroll for all of x86-64
+and the tier shape for x86-64 GCC.
 
-1. **Native x86-64 measurement.** The outlining gains and the rejected
-   x86-64 tier and mid-loop-unroll experiments all rest on Rosetta 2
-   numbers. Re-run the A/B gates on real x86-64 silicon; per-tier
-   gating (only 32..127 bytes) looked plausible even under Rosetta.
-2. **A 192..255-byte tier.** The 128..191 tier landed (see above);
+1. **Cheaper bulk entry and exit.** The 320..512-byte transition band
+   is the one place ChibiHash v2 still leads on Zen 5 (2..8%). The
+   eight-lane IV derivation and the 8-to-4 fold are the fixed costs;
+   any output-identical scheduling or spelling change that trims them
+   pays off exactly where the function is weakest.
+2. **Stock-toolchain confirmation on x86-64.** The clang exclusion
+   rests on clang 21 via zig/musl (and directionally on Rosetta).
+   Confirm with a distribution clang/glibc build, and measure MSVC
+   x64, which currently takes the compact dispatch and the one-block
+   bulk loop untested.
+3. **A 192..255-byte tier.** The 128..191 tier landed (see above);
    extending the chain another band would trade a further dispatch
    compare on 256..319 plus I-cache footprint against loop control
    that is already down to three or four unrolled iterations. Only
    worth measuring with a realistic mixed-size workload, where the
    footprint shows.
-3. **A synthesized non-separable 8-to-4 fold.** The four upper-lane multiply
+4. **A synthesized non-separable 8-to-4 fold.** The four upper-lane multiply
    folds are fixed overhead around 320–1024 bytes. Search small add/XOR/rotate
    butterflies in which every upper lane reaches at least two lower lanes
    before the existing final products. This could remove multiplies, but it is
    high risk: reduced-width exhaustive search and full-width SMT must precede
    performance testing.
-4. **A non-separable two-word cell.** Spend two ordinary 64-bit multiplies per
+5. **A non-separable two-word cell.** Spend two ordinary 64-bit multiplies per
    16 bytes, but make both outputs depend on both words before either lane is
    committed. This costs the same multiply density as the current core while
    attacking the separability that broke the half-multiply prototypes.
-5. **Distance-coded block injection.** Borrow HalftimeHash's design principle,
+6. **Distance-coded block injection.** Borrow HalftimeHash's design principle,
    not its SIMD implementation: derive two or three cheap, differently rotated
    checksums from each 64-byte block and inject them into distinct lanes. Any
    candidate must be audited for GF(2) nullspaces and carry-matched modular
    differentials before benchmarking.
-6. **A high-half surrogate.** Test whether one extra 32x32 product per two
+7. **A high-half surrogate.** Test whether one extra 32x32 product per two
    words can cheaply approximate some cross-half information normally supplied
    by a folded 128-bit product. This may be attractive on dual-multiply cores,
    but is likely a loss on small in-order targets.
-7. **A dynamic low-product pair cell.** The only plausible large bulk gain is
+8. **A dynamic low-product pair cell.** The only plausible large bulk gain is
    still one multiply per 16 bytes, but both words and both states must enter
    one dynamic product and survive by feed-forward, rather than forming the
    separable multiplied/ARX halves already rejected. This could halve multiply
    density, but low multiplication remains triangular and an odd operand keeps
    the exact bit-63 differential. Reject candidates with reduced-width state
    resets before spending time on benchmarks.
-8. **Hayahash-specific circuit synthesis.** Extend unary-mixer searches such as
+9. **Hayahash-specific circuit synthesis.** Extend unary-mixer searches such as
    [hash-prospector](https://github.com/skeeto/hash-prospector) to score small
    multiword circuits on real AArch64/x86 instruction counts, SAC/BIC, the
    known orbit corpus, seed-erasure families, and reduced-width exact
    collisions. Avalanche alone is not an adequate objective.
-9. **Continuous algebraic regression.** Add bounded solver and constructed
+10. **Continuous algebraic regression.** Add bounded solver and constructed
    differential searches beside SMHasher3. Statistical tests should remain the
    release gate, while structural searches specifically target bit 63, rotation
    periods, lane reunions, modular carry control, and fold cancellation.
