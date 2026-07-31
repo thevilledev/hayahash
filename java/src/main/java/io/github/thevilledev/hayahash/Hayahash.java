@@ -168,6 +168,9 @@ public final class Hayahash {
                 w = load64(key, p + 56);
                 h7 = (h7 ^ (w + Long.rotateLeft(wp, 27))) * K;
                 wp = w;
+                // Checkpoint the raw-word chain once per block so a
+                // 64-stripe rotation orbit cannot hide a difference.
+                h0 += wp;
                 p += 64;
                 l -= 64;
             } while (l >= 64);

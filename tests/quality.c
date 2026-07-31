@@ -5,7 +5,7 @@
 //   2. SAC over seed bits, per length.
 //   3. Exact 64-bit collision counting over structured key sets
 //      (sequential, sparse, high-byte-only stripes, zero-extension,
-//      repeated blocks, ASCII-ish keys).
+//      repeated blocks, ASCII-ish keys, rotation-orbit ladders).
 //
 // Usage: ./quality [haya|v1|v2]   (default: haya)
 
@@ -279,6 +279,72 @@ static size_t test_combination(hashfn h)
 	return coll_count();
 }
 
+// A difference in bit 63 survives every odd multiplication unchanged.
+// Before the bulk loop checkpointed its final raw word, 64 carefully
+// carry-matched stripe differences could follow rotl(..., 27) through
+// one complete rotation orbit and reconverge in the same lane. Generate
+// several deterministic randomized pairs at every block-relative start
+// offset. The old no-wall loop collides for every pair; the per-block
+// raw-word checkpoint breaks the ladder. Words are stored explicitly
+// little-endian so the test describes the same byte strings everywhere.
+static uint64_t orbit_rng(uint64_t *state)
+{
+	uint64_t x = (*state += UINT64_C(0x9E3779B97F4A7C15));
+	x ^= x >> 30; x *= UINT64_C(0xBF58476D1CE4E5B9);
+	x ^= x >> 27; x *= UINT64_C(0x94D049BB133111EB);
+	return x ^ (x >> 31);
+}
+
+static uint64_t orbit_rotl27(uint64_t x)
+{
+	return (x << 27) | (x >> 37);
+}
+
+static void store64le(uint8_t *p, uint64_t x)
+{
+	for (int i = 0; i < 8; i++)
+		p[i] = (uint8_t)(x >> (i * 8));
+}
+
+static size_t test_rotation_orbit(hashfn h)
+{
+	enum { MAX_WORDS = 136, TRIALS = 8 };
+	uint64_t aw[MAX_WORDS], bw[MAX_WORDS];
+	uint8_t a[MAX_WORDS * 8], b[MAX_WORDS * 8];
+	uint64_t state = UINT64_C(0xD1B54A32D192ED03);
+	const uint64_t seed = UINT64_C(0x0123456789ABCDEF);
+
+	coll_reset();
+	for (unsigned start = 1; start <= 64; start++) {
+		const unsigned needed = start + 65;
+		const unsigned words = (needed + 7) & ~7u;
+		for (int trial = 0; trial < TRIALS; trial++) {
+			for (unsigned i = 0; i < words; i++)
+				aw[i] = bw[i] = orbit_rng(&state);
+
+			bw[start] = aw[start] ^ (UINT64_C(1) << 63);
+			unsigned pos = 63;
+			for (unsigned i = start + 1; i < start + 64; i++) {
+				const unsigned next = (pos + 27) & 63;
+				const uint64_t bit = UINT64_C(1) << next;
+				const uint64_t ar = orbit_rotl27(aw[i - 1]);
+				const uint64_t keep = orbit_rng(&state) & ~bit;
+				aw[i] = keep | ((~ar) & bit);
+				bw[i] = aw[i] ^ bit;
+				pos = next;
+			}
+
+			for (unsigned i = 0; i < words; i++) {
+				store64le(a + i * 8, aw[i]);
+				store64le(b + i * 8, bw[i]);
+			}
+			coll_add(h(a, (ptrdiff_t)words * 8, seed));
+			coll_add(h(b, (ptrdiff_t)words * 8, seed));
+		}
+	}
+	return coll_count();
+}
+
 int main(int argc, char **argv)
 {
 	const char *which = argc > 1 ? argv[1] : "haya";
@@ -328,7 +394,7 @@ int main(int argc, char **argv)
 	// Collisions: any exact 64-bit collision in these set sizes is
 	// astronomically unlikely (n^2 / 2^65) for a good hash.
 	printf("-- collisions --\n");
-	struct { const char *name; size_t c; size_t n; } res[24];
+	struct { const char *name; size_t c; size_t n; } res[25];
 	int nres = 0;
 
 	static const size_t clens[] = { 4, 8, 12, 16, 24, 32, 48, 64, 128, 256 };
@@ -357,6 +423,10 @@ int main(int argc, char **argv)
 	res[nres].c = test_seedblock(h); nres++;
 	res[nres].name = "combination-hi"; res[nres].n = 92;
 	res[nres].c = test_combination(h); nres++;
+	// ChibiHash v2 shares the vulnerable odd-multiply + rotl-27
+	// recurrence, so this deliberately remains active for controls.
+	res[nres].name = "rotation-orbit-64"; res[nres].n = 64 * 8;
+	res[nres].c = test_rotation_orbit(h); nres++;
 
 	for (int i = 0; i < nres; i++) {
 		if (res[i].c) {

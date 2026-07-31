@@ -130,24 +130,24 @@ const vectors = [
 	[319, 0x0000000000000000n, 0xfb6f356631c62298n],
 	[319, 0x9e3779b97f4a7c15n, 0x82a92d2f3c0d3fc2n],
 	[319, 0xdeadbeefcafebaben, 0xc187b939c37f8ec7n],
-	[320, 0x0000000000000000n, 0xc81c58ff60a61519n],
-	[320, 0x9e3779b97f4a7c15n, 0x9b044c0a4af56a86n],
-	[320, 0xdeadbeefcafebaben, 0xd26cbf8b66025b75n],
-	[321, 0x0000000000000000n, 0x3a305a1273ebf04fn],
-	[321, 0x9e3779b97f4a7c15n, 0x9f45dacf398275fcn],
-	[321, 0xdeadbeefcafebaben, 0xc3de88b3556ce065n],
-	[383, 0x0000000000000000n, 0xdd8facb7f74b1409n],
-	[383, 0x9e3779b97f4a7c15n, 0x5c882c0517facc54n],
-	[383, 0xdeadbeefcafebaben, 0x1de5b1c702d219can],
-	[512, 0x0000000000000000n, 0xd15aab5b1bfc55c5n],
-	[512, 0x9e3779b97f4a7c15n, 0xc2e37fd41a5ed608n],
-	[512, 0xdeadbeefcafebaben, 0x88de08068a26f736n],
-	[1023, 0x0000000000000000n, 0x1a8a16006994c3d6n],
-	[1023, 0x9e3779b97f4a7c15n, 0xae6247018ec68c31n],
-	[1023, 0xdeadbeefcafebaben, 0x0f4d23af7d088a7fn],
-	[1024, 0x0000000000000000n, 0xab13d66aa1023222n],
-	[1024, 0x9e3779b97f4a7c15n, 0x874a870e1aa48896n],
-	[1024, 0xdeadbeefcafebaben, 0x5d9052ee0cf697ean],
+	[320, 0x0000000000000000n, 0xaab4de0105c41715n],
+	[320, 0x9e3779b97f4a7c15n, 0x24747e138240d684n],
+	[320, 0xdeadbeefcafebaben, 0xd908512f166e3cd2n],
+	[321, 0x0000000000000000n, 0xd58de26140651f72n],
+	[321, 0x9e3779b97f4a7c15n, 0xae8b28a6ef04cc35n],
+	[321, 0xdeadbeefcafebaben, 0xaa4efd9ba8e0c810n],
+	[383, 0x0000000000000000n, 0x6fbc1354616b9257n],
+	[383, 0x9e3779b97f4a7c15n, 0x09a754cb4921eab0n],
+	[383, 0xdeadbeefcafebaben, 0xf1548b3d85da380en],
+	[512, 0x0000000000000000n, 0x2968882331191fdbn],
+	[512, 0x9e3779b97f4a7c15n, 0x143c166bde64236dn],
+	[512, 0xdeadbeefcafebaben, 0x5e7f7ff6c918fe7fn],
+	[1023, 0x0000000000000000n, 0xda47a412c97502ben],
+	[1023, 0x9e3779b97f4a7c15n, 0x003d27583fdee215n],
+	[1023, 0xdeadbeefcafebaben, 0x80f98032fdb103fdn],
+	[1024, 0x0000000000000000n, 0xd3594d0a25cb043bn],
+	[1024, 0x9e3779b97f4a7c15n, 0xed0e2941d2f3d593n],
+	[1024, 0xdeadbeefcafebaben, 0xf00e1771ab6a3869n],
 ];
 
 const key = new Uint8Array(1024);
@@ -188,7 +188,7 @@ for (const [name, hash] of engines) {
 			view.setBigUint64(i * 8, hash(vkey.subarray(0, i), BigInt(256 - i)), true);
 			vkey[i] = i;
 		}
-		assert.equal(hash(hashes, 0n) & 0xffffffffn, 0x97cd6266n);
+		assert.equal(hash(hashes, 0n) & 0xffffffffn, 0xf3c4a9b4n);
 	});
 }
 

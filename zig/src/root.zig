@@ -120,6 +120,9 @@ pub fn hayahash64(key: []const u8, seed: u64) u64 {
             stripe(&h5, &wp, key, off + 40);
             stripe(&h6, &wp, key, off + 48);
             stripe(&h7, &wp, key, off + 56);
+            // Checkpoint the raw-word chain once per block so a
+            // 64-stripe rotation orbit cannot hide a difference.
+            h0 +%= wp;
             off += 64;
             l -= 64;
             if (l < 64) break;

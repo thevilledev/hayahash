@@ -136,6 +136,10 @@ func Hash64(key []byte, seed uint64) uint64 {
 			h5, wp = stripe(h5, wp, key, off+40)
 			h6, wp = stripe(h6, wp, key, off+48)
 			h7, wp = stripe(h7, wp, key, off+56)
+			// Checkpoint the raw-word chain once per block so a
+			// 64-stripe rotation orbit cannot hide a difference until
+			// it returns to the same lane.
+			h0 += wp
 			off += 64
 			l -= 64
 			if l < 64 {

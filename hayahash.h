@@ -174,10 +174,10 @@ static inline uint64_t hayahash64__injp(const uint8_t *p)
 	return hayahash64__inj(hayahash64__load64le(p));
 }
 
-// Input length (in bytes) at or above which the 8-lane bulk loop kicks in.
-#ifndef HAYAHASH64__BULK_MIN
-#define HAYAHASH64__BULK_MIN 320
-#endif
+// Fixed algorithm parameter: keeping the 4-lane path below 320 bytes
+// bounds it to fewer than the rotation's 64 stripes. Changing this
+// boundary changes the digest and can invalidate that structural bound.
+enum { hayahash64__bulk_min = 320 };
 
 static inline uint64_t
 hayahash64(const void *keyIn, ptrdiff_t len, uint64_t seed)
@@ -228,7 +228,7 @@ hayahash64(const void *keyIn, ptrdiff_t len, uint64_t seed)
 	uint64_t h3 = hayahash64__rotl(s, 51) + (K << 42);
 	uint64_t w, wp = 0;
 
-	if (l >= HAYAHASH64__BULK_MIN) {
+	if (l >= hayahash64__bulk_min) {
 		uint64_t h4 = s + (K >> 27);
 		uint64_t h5 = hayahash64__rotl(s, 13) ^ (K << 9);
 		uint64_t h6 = hayahash64__rotl(s, 26) + (K >> 40);
@@ -258,6 +258,10 @@ hayahash64(const void *keyIn, ptrdiff_t len, uint64_t seed)
 			w = hayahash64__load64le(p + 56);
 			h7 = (h7 ^ (w + hayahash64__rotl(wp, 27))) * K;
 			wp = w;
+			// Checkpoint the raw-word chain once per block. This stops
+			// the known 64-stripe ladder from hiding its difference until
+			// it returns to the same lane; AArch64 emits MADD here.
+			h0 += wp;
 			p += 64; l -= 64;
 		} while (l >= 64);
 		// Fold the upper lanes in with xor + multiply: xor merges

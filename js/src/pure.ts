@@ -148,6 +148,8 @@ export function hashPure(data: Uint8Array, seed: bigint): bigint {
 			w = load64(p + 56);
 			h7 = ((h7 ^ ((w + rotl(wp, 27n)) & MASK64)) * K) & MASK64;
 			wp = w;
+			// Checkpoint the raw-word chain once per bulk block.
+			h0 = (h0 + wp) & MASK64;
 			p += 64;
 			l -= 64;
 		} while (l >= 64);

@@ -124,24 +124,24 @@ const vectors = [_]Vector{
     .{ .len = 319, .seed = 0x0000000000000000, .want = 0xFB6F356631C62298 },
     .{ .len = 319, .seed = 0x9E3779B97F4A7C15, .want = 0x82A92D2F3C0D3FC2 },
     .{ .len = 319, .seed = 0xDEADBEEFCAFEBABE, .want = 0xC187B939C37F8EC7 },
-    .{ .len = 320, .seed = 0x0000000000000000, .want = 0xC81C58FF60A61519 },
-    .{ .len = 320, .seed = 0x9E3779B97F4A7C15, .want = 0x9B044C0A4AF56A86 },
-    .{ .len = 320, .seed = 0xDEADBEEFCAFEBABE, .want = 0xD26CBF8B66025B75 },
-    .{ .len = 321, .seed = 0x0000000000000000, .want = 0x3A305A1273EBF04F },
-    .{ .len = 321, .seed = 0x9E3779B97F4A7C15, .want = 0x9F45DACF398275FC },
-    .{ .len = 321, .seed = 0xDEADBEEFCAFEBABE, .want = 0xC3DE88B3556CE065 },
-    .{ .len = 383, .seed = 0x0000000000000000, .want = 0xDD8FACB7F74B1409 },
-    .{ .len = 383, .seed = 0x9E3779B97F4A7C15, .want = 0x5C882C0517FACC54 },
-    .{ .len = 383, .seed = 0xDEADBEEFCAFEBABE, .want = 0x1DE5B1C702D219CA },
-    .{ .len = 512, .seed = 0x0000000000000000, .want = 0xD15AAB5B1BFC55C5 },
-    .{ .len = 512, .seed = 0x9E3779B97F4A7C15, .want = 0xC2E37FD41A5ED608 },
-    .{ .len = 512, .seed = 0xDEADBEEFCAFEBABE, .want = 0x88DE08068A26F736 },
-    .{ .len = 1023, .seed = 0x0000000000000000, .want = 0x1A8A16006994C3D6 },
-    .{ .len = 1023, .seed = 0x9E3779B97F4A7C15, .want = 0xAE6247018EC68C31 },
-    .{ .len = 1023, .seed = 0xDEADBEEFCAFEBABE, .want = 0x0F4D23AF7D088A7F },
-    .{ .len = 1024, .seed = 0x0000000000000000, .want = 0xAB13D66AA1023222 },
-    .{ .len = 1024, .seed = 0x9E3779B97F4A7C15, .want = 0x874A870E1AA48896 },
-    .{ .len = 1024, .seed = 0xDEADBEEFCAFEBABE, .want = 0x5D9052EE0CF697EA },
+    .{ .len = 320, .seed = 0x0000000000000000, .want = 0xAAB4DE0105C41715 },
+    .{ .len = 320, .seed = 0x9E3779B97F4A7C15, .want = 0x24747E138240D684 },
+    .{ .len = 320, .seed = 0xDEADBEEFCAFEBABE, .want = 0xD908512F166E3CD2 },
+    .{ .len = 321, .seed = 0x0000000000000000, .want = 0xD58DE26140651F72 },
+    .{ .len = 321, .seed = 0x9E3779B97F4A7C15, .want = 0xAE8B28A6EF04CC35 },
+    .{ .len = 321, .seed = 0xDEADBEEFCAFEBABE, .want = 0xAA4EFD9BA8E0C810 },
+    .{ .len = 383, .seed = 0x0000000000000000, .want = 0x6FBC1354616B9257 },
+    .{ .len = 383, .seed = 0x9E3779B97F4A7C15, .want = 0x09A754CB4921EAB0 },
+    .{ .len = 383, .seed = 0xDEADBEEFCAFEBABE, .want = 0xF1548B3D85DA380E },
+    .{ .len = 512, .seed = 0x0000000000000000, .want = 0x2968882331191FDB },
+    .{ .len = 512, .seed = 0x9E3779B97F4A7C15, .want = 0x143C166BDE64236D },
+    .{ .len = 512, .seed = 0xDEADBEEFCAFEBABE, .want = 0x5E7F7FF6C918FE7F },
+    .{ .len = 1023, .seed = 0x0000000000000000, .want = 0xDA47A412C97502BE },
+    .{ .len = 1023, .seed = 0x9E3779B97F4A7C15, .want = 0x003D27583FDEE215 },
+    .{ .len = 1023, .seed = 0xDEADBEEFCAFEBABE, .want = 0x80F98032FDB103FD },
+    .{ .len = 1024, .seed = 0x0000000000000000, .want = 0xD3594D0A25CB043B },
+    .{ .len = 1024, .seed = 0x9E3779B97F4A7C15, .want = 0xED0E2941D2F3D593 },
+    .{ .len = 1024, .seed = 0xDEADBEEFCAFEBABE, .want = 0xF00E1771AB6A3869 },
 };
 
 test "matches C reference" {
@@ -166,5 +166,5 @@ test "smhasher3 verification value" {
         key[i] = @intCast(i);
     }
     const total = hayahash.hayahash64(&hashes, 0);
-    try std.testing.expectEqual(0x97CD6266, @as(u32, @truncate(total)));
+    try std.testing.expectEqual(0xF3C4A9B4, @as(u32, @truncate(total)));
 }
