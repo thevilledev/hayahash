@@ -510,6 +510,53 @@ hayahash64(const void *keyIn, ptrdiff_t len, uint64_t seed)
 	// Mid loop: same absorb as the bulk loop, 4 lanes over 32-byte
 	// blocks. Only 17..319-byte inputs reach it; longer ones took
 	// the hayahash64_internal_long call above.
+#if defined(__aarch64__)
+	// Only 128..319-byte keys get here (the tiers above return for
+	// anything shorter), so run two rounds per iteration with at
+	// most one single round left over; same absorb sequence, half
+	// the loop control.
+	for (; l >= 64; l -= 64, p += 64) {
+		w = hayahash64_internal_load64le(p +  0);
+		h0 = (h0 ^ (w + hayahash64_internal_rotl(wp, 27))) * K;
+		wp = w;
+		w = hayahash64_internal_load64le(p +  8);
+		h1 = (h1 ^ (w + hayahash64_internal_rotl(wp, 27))) * K;
+		wp = w;
+		w = hayahash64_internal_load64le(p + 16);
+		h2 = (h2 ^ (w + hayahash64_internal_rotl(wp, 27))) * K;
+		wp = w;
+		w = hayahash64_internal_load64le(p + 24);
+		h3 = (h3 ^ (w + hayahash64_internal_rotl(wp, 27))) * K;
+		wp = w;
+		w = hayahash64_internal_load64le(p + 32);
+		h0 = (h0 ^ (w + hayahash64_internal_rotl(wp, 27))) * K;
+		wp = w;
+		w = hayahash64_internal_load64le(p + 40);
+		h1 = (h1 ^ (w + hayahash64_internal_rotl(wp, 27))) * K;
+		wp = w;
+		w = hayahash64_internal_load64le(p + 48);
+		h2 = (h2 ^ (w + hayahash64_internal_rotl(wp, 27))) * K;
+		wp = w;
+		w = hayahash64_internal_load64le(p + 56);
+		h3 = (h3 ^ (w + hayahash64_internal_rotl(wp, 27))) * K;
+		wp = w;
+	}
+	if (l >= 32) {
+		w = hayahash64_internal_load64le(p +  0);
+		h0 = (h0 ^ (w + hayahash64_internal_rotl(wp, 27))) * K;
+		wp = w;
+		w = hayahash64_internal_load64le(p +  8);
+		h1 = (h1 ^ (w + hayahash64_internal_rotl(wp, 27))) * K;
+		wp = w;
+		w = hayahash64_internal_load64le(p + 16);
+		h2 = (h2 ^ (w + hayahash64_internal_rotl(wp, 27))) * K;
+		wp = w;
+		w = hayahash64_internal_load64le(p + 24);
+		h3 = (h3 ^ (w + hayahash64_internal_rotl(wp, 27))) * K;
+		wp = w;
+		p += 32; l -= 32;
+	}
+#else
 	for (; l >= 32; l -= 32, p += 32) {
 		w = hayahash64_internal_load64le(p +  0);
 		h0 = (h0 ^ (w + hayahash64_internal_rotl(wp, 27))) * K;
@@ -524,6 +571,7 @@ hayahash64(const void *keyIn, ptrdiff_t len, uint64_t seed)
 		h3 = (h3 ^ (w + hayahash64_internal_rotl(wp, 27))) * K;
 		wp = w;
 	}
+#endif
 
 	// Absorb the final loop stripe's dangling rotated copy. Without
 	// this wall, difference "ladders" (each stripe flip cancelling
