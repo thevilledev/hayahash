@@ -320,11 +320,21 @@ hayahash64_internal_long(const void *keyIn, ptrdiff_t len, uint64_t seed)
 	// loop exits also let independent hashes overlap much deeper.
 	// Rosetta 2 predicted an x86-64 spill penalty that native
 	// silicon does not reproduce.
+	//
+	// The loop runs on a precomputed end pointer with the post-loop
+	// remainder (l & 127) hoisted to entry, where there is ILP
+	// slack. Spelled with `l -= 128` and a length test, GCC turned
+	// the exit into a counted loop anyway, but then had to keep the
+	// length, base pointer, and trip count live in stack slots and
+	// rebuild the remainder after the loop; the pointer-compare
+	// spelling removes the spills and the rebuild chain.
+	const uint8_t *pe = p + ((size_t)l & ~(size_t)127);
+	l &= 127;
 	do {
 		HAYAHASH64_INTERNAL_BULK_BLOCK(p);
 		HAYAHASH64_INTERNAL_BULK_BLOCK(p + 64);
-		p += 128; l -= 128;
-	} while (l >= 128);
+		p += 128;
+	} while (p != pe);
 	if (l >= 64) {
 		HAYAHASH64_INTERNAL_BULK_BLOCK(p);
 		p += 64; l -= 64;
@@ -345,7 +355,11 @@ hayahash64_internal_long(const void *keyIn, ptrdiff_t len, uint64_t seed)
 	h3 = (h3 ^ hayahash64_internal_rotl_product(h7, 47)) * K;
 
 	// 0..63 bytes left: at most one mid round; wp chains in from
-	// the bulk loop.
+	// the bulk loop. Bit-test spellings of these remainder checks
+	// (l & 32, and reading the tail length as len & 31 without the
+	// serial decrements) measured +0.5..1% under GCC 16 in the
+	// 320..383 band but cost stock clang 22 a quarter of its bulk
+	// throughput, so the plain comparisons stay.
 	if (l >= 32) {
 		w = hayahash64_internal_load64le(p +  0);
 		h0 = (h0 ^ (w + hayahash64_internal_rotl(wp, 27))) * K;
