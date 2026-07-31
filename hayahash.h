@@ -311,6 +311,12 @@ hayahash64_internal_long(const void *keyIn, ptrdiff_t len, uint64_t seed)
 	uint64_t h6 = hayahash64_internal_rotl(s, 26) + (K >> 40);
 	uint64_t h7 = hayahash64_internal_rotl(s, 39) ^ (K << 30);
 	uint64_t w, wp = 0;
+#if defined(__x86_64__) && defined(__GNUC__) && !defined(__clang__)
+	// Pin K after the IVs so their shifted-K constants still fold
+	// to literals; from here on the exit path reuses one register
+	// instead of rematerializing the 10-byte movabs four times.
+	__asm__("" : "+r" (K));
+#endif
 
 #if defined(__aarch64__) || defined(__x86_64__)
 	// Two blocks per iteration halves loop-control and pointer
