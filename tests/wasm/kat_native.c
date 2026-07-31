@@ -5,8 +5,10 @@
 //
 // Built with -DKAT_HAYA_ONLY, the program needs no fetched competitor
 // headers and prints only the hayahash lines; CI compiles it that way
-// under gcc, clang and MSVC x64 and diffs the output against the
-// committed kat_haya.txt for digest conformance.
+// under gcc, clang, MSVC x64, and zig cc -target s390x-linux-musl
+// (run via qemu-user), and diffs the output against the committed
+// kat_haya.txt for digest conformance. The s390x job is the
+// endianness proof: same digests on a real big-endian host.
 #include <stdint.h>
 #include <stddef.h>
 #include <stdio.h>

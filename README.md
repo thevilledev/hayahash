@@ -166,6 +166,10 @@ Each fix is documented in the header where it lives.
   shared table of known-answer vectors generated from `hayahash.h`.
   (The JavaScript package checks both of its engines: the wasm build
   of the reference header and the pure-JS fallback.)
+- Endianness is tested in CI: the shared KAT is also produced on
+  s390x (big-endian, via `zig cc` + qemu-user) and must match the
+  little-endian reference. wasm32 covers the ILP32 case; MSVC x64
+  covers the Windows ABI.
 - The absorb sequence is injective by construction (first-difference
   induction), and all tail injections are bijective.
 

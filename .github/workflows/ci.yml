@@ -82,6 +82,45 @@ jobs:
           }
           Write-Host "MSVC x64 digests match the committed KAT."
 
+  # s390x is a real big-endian 64-bit target. Cross-compiling the KAT
+  # with zig cc and running it under qemu-user pins the byte-swap
+  # loaders: digests must match the little-endian reference vectors.
+  # wasm32 already covers the ILP32 case; this covers endianness.
+  s390x:
+    name: C (s390x big-endian)
+    runs-on: avrea-ubuntu-latest-2-vcpu
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Install Zig
+        uses: mlugg/setup-zig@d1434d08867e3ee9daa34448df10607b98908d29 # v2.2.1
+        with:
+          version: 0.16.0
+
+      - name: Install qemu-user for s390x
+        run: sudo apt-get update && sudo apt-get install -y qemu-user
+
+      - name: Cross-compile and run KAT under qemu-s390x
+        run: |
+          zig cc -target s390x-linux-musl \
+            -O2 -std=c11 -Wall -Wextra -Werror \
+            -I. -DKAT_HAYA_ONLY \
+            tests/wasm/kat_native.c -o kat_s390x
+          file kat_s390x
+          qemu-s390x ./kat_s390x > kat_s390x.txt
+
+      - name: Check s390x digests match the committed KAT
+        run: |
+          if ! diff -u tests/wasm/kat_haya.txt kat_s390x.txt; then
+            echo "::error::s390x digests differ from the little-endian KAT"
+            exit 1
+          fi
+          echo "s390x digests match the committed KAT (endianness-independent)."
+
   rust:
     name: Rust
     runs-on: avrea-ubuntu-latest-2-vcpu
