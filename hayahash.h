@@ -141,7 +141,9 @@ static inline uint64_t hayahash64_internal_rotl(uint64_t x, int n)
 // the same stack slots (measured ~2x small-key throughput loss).
 // `unused` keeps -Wunused-function quiet in translation units that
 // include the header without calling hayahash64 (the function is
-// plain static, not static inline, so it is not exempt by default).
+// plain static, not static inline, so it is not exempt by default),
+// and lets the wasm build drop the function silently (it dispatches
+// to the inline fall-through below instead).
 #if defined(__GNUC__) || defined(__clang__)
 #define HAYAHASH64_INTERNAL_NOINLINE __attribute__((noinline, unused))
 #elif defined(_MSC_VER)
@@ -391,8 +393,10 @@ hayahash64(const void *keyIn, ptrdiff_t len, uint64_t seed)
 		return hayahash64_internal_fmix(hayahash64_internal_rotl_product(x, 27) ^ y);
 	}
 
+#if !defined(__wasm__)
 	if (l >= hayahash64_internal_bulk_min)
 		return hayahash64_internal_long(keyIn, len, seed);
+#endif
 
 #if defined(__aarch64__) && (defined(__GNUC__) || defined(__clang__))
 	HAYAHASH64_INTERNAL_COMPILER_GUARD(K);
@@ -402,6 +406,30 @@ hayahash64(const void *keyIn, ptrdiff_t len, uint64_t seed)
 	uint64_t h2 = hayahash64_internal_rotl(s, 34) ^ (K >> 13);
 	uint64_t h3 = hayahash64_internal_rotl(s, 51) + (K << 42);
 	uint64_t w, wp = 0;
+
+#if defined(__wasm__)
+	// Wasm has no callee-saved-register pressure to justify the
+	// outlined bulk path, and a second function means a second copy
+	// of the fold/tail code (+40% module size). Keep the pre-split
+	// fall-through here instead: run the bulk loop inline and drop
+	// into the shared mid loop and tail below. Bit-identical: same
+	// block sequence as hayahash64_internal_long's generic branch,
+	// with wp chaining into at most one mid round.
+	if (l >= hayahash64_internal_bulk_min) {
+		uint64_t h4 = s + (K >> 27);
+		uint64_t h5 = hayahash64_internal_rotl(s, 13) ^ (K << 9);
+		uint64_t h6 = hayahash64_internal_rotl(s, 26) + (K >> 40);
+		uint64_t h7 = hayahash64_internal_rotl(s, 39) ^ (K << 30);
+		do {
+			HAYAHASH64_INTERNAL_BULK_BLOCK(p);
+			p += 64; l -= 64;
+		} while (l >= 64);
+		h0 = (h0 ^ hayahash64_internal_rotl_product(h4, 11)) * K;
+		h1 = (h1 ^ hayahash64_internal_rotl_product(h5, 19)) * K;
+		h2 = (h2 ^ hayahash64_internal_rotl_product(h6, 31)) * K;
+		h3 = (h3 ^ hayahash64_internal_rotl_product(h7, 47)) * K;
+	}
+#endif
 
 #if defined(__aarch64__)
 	// Straight-line spelling of the generic 17..31-byte tail below.

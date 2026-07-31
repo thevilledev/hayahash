@@ -117,6 +117,13 @@ every key, both measured at 2..5% on 17..160-byte keys. With the
 mirrored signature the bulk branch compiles to a bare tail jump and the
 caller's registers stay unconstrained.
 
+The wasm build opts out: it has no callee-saved-register pressure to
+begin with, and the second function body means a second copy of the
+fold/tail code, growing the embedded module from 1424 to 2004 bytes
+for no measured benefit. `hayahash64` keeps the pre-split fall-through
+there (inline bulk loop into the shared mid loop and tail), which the
+native/wasm KAT harness confirms is bit-exact.
+
 ### Unroll the bulk loop two blocks deep, AArch64 only
 
 Inside the outlined function, processing two 64-byte blocks per
