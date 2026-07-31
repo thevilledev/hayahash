@@ -153,15 +153,17 @@ static inline uint64_t hayahash64_internal_rotl(uint64_t x, int n)
 #endif
 
 // Dispatch shape for 17..319-byte keys: straight-line length tiers,
-// plus 64-byte mid-loop rounds so the 192..319-byte keys left in the
+// plus 64-byte mid-loop rounds so the 256..319-byte keys left in the
 // loop recover the tier dispatch compares. Wins 5..15% independent-
 // hash throughput with flat chained latency on AArch64/Apple M1
-// (clang) and on x86-64 Zen 5 under GCC 16. x86-64 clang is excluded
-// from the same shapes, measured on the same Zen 5: it assigns the
-// enlarged monolithic function callee-saved registers, which costs
-// 6% on 17..31-byte keys (tiers) and collapses chained latency by
-// 26..48% (mid rounds; the save/restore traffic lands on the seed
-// dependency chain of back-to-back hashes).
+// (clang) and on x86-64 Zen 5 under GCC 16. x86-64 clang keeps the
+// compact dispatch, re-measured on stock clang 22/glibc: the wide
+// shape now wins 4..16% at fixed sizes with flat chained latency
+// (clang 21's callee-saved chained-latency collapse is gone from
+// the current long path), but mixed-size workloads whose per-hash
+// branch targets are unpredictable lose 8..15% with the whole tier
+// chain live, and a general-purpose default cannot assume
+// single-band input sizes.
 #if defined(__aarch64__) || (defined(__x86_64__) && !defined(__clang__))
 #define HAYAHASH64_INTERNAL_TIERS 1
 #else
