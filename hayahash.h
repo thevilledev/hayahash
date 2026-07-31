@@ -128,7 +128,7 @@ static inline uint64_t hayahash64_internal_rotl(uint64_t x, int n)
 
 // Keep an already-computed product opaque so Clang does not distribute
 // a following rotate into two independent multiplies.
-#if defined(__GNUC__) || defined(__clang__)
+#if defined(__clang__)
 #define HAYAHASH64_INTERNAL_COMPILER_GUARD(v) __asm__("" : "+r" (v))
 #else
 #define HAYAHASH64_INTERNAL_COMPILER_GUARD(v) ((void)0)
