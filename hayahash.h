@@ -417,6 +417,94 @@ hayahash64(const void *keyIn, ptrdiff_t len, uint64_t seed)
 		return hayahash64_internal_long_fmix(
 			s ^ t0 ^ hayahash64_internal_rotl_product(t1, 29), K);
 	}
+	// Straight-line spelling of one mid round plus the generic tail
+	// below for 32..63-byte keys: same loads, absorbs, wall, and
+	// folds, minus the loop and pointer maintenance. The first
+	// absorb folds in wp = 0; the tail conditions test the original
+	// length (l > 48 and l > 32 correspond to the generic path's
+	// post-round l > 16 and l > 0).
+	if (l < 64) {
+		uint64_t w0 = hayahash64_internal_load64le(p +  0);
+		uint64_t w1 = hayahash64_internal_load64le(p +  8);
+		uint64_t w2 = hayahash64_internal_load64le(p + 16);
+		uint64_t w3 = hayahash64_internal_load64le(p + 24);
+		h0 = (h0 ^ w0) * K;
+		h1 = (h1 ^ (w1 + hayahash64_internal_rotl(w0, 27))) * K;
+		h2 = (h2 ^ (w2 + hayahash64_internal_rotl(w1, 27))) * K;
+		h3 = (h3 ^ (w3 + hayahash64_internal_rotl(w2, 27))) * K;
+		h0 += hayahash64_internal_rotl(w3, 27);
+		if (l > 48) {
+			h0 = (h0 + hayahash64_internal_injp(p + 32)) * K;
+			h1 = (h1 + hayahash64_internal_injp(p + 40)) * K;
+		}
+		if (l > 32) {
+			h2 = (h2 + hayahash64_internal_injp(p + l - 16)) * K;
+			h3 = (h3 + hayahash64_internal_injp(p + l -  8)) * K;
+		}
+		uint64_t t0 =
+			(h0 ^ hayahash64_internal_rotl_product(h1, 13)) * K;
+		uint64_t t1 =
+			(h2 ^ hayahash64_internal_rotl_product(h3, 33)) * K;
+		return hayahash64_internal_long_fmix(
+			s ^ t0 ^ hayahash64_internal_rotl_product(t1, 29), K);
+	}
+	// Straight-line 64..127-byte keys: two shared mid rounds, then
+	// either the generic tail directly (64..95) or one more round
+	// first (96..127). Same loads, absorbs, wall, and folds as the
+	// generic path, minus loop and pointer maintenance.
+	if (l < 128) {
+		uint64_t w0 = hayahash64_internal_load64le(p +  0);
+		uint64_t w1 = hayahash64_internal_load64le(p +  8);
+		uint64_t w2 = hayahash64_internal_load64le(p + 16);
+		uint64_t w3 = hayahash64_internal_load64le(p + 24);
+		h0 = (h0 ^ w0) * K;
+		h1 = (h1 ^ (w1 + hayahash64_internal_rotl(w0, 27))) * K;
+		h2 = (h2 ^ (w2 + hayahash64_internal_rotl(w1, 27))) * K;
+		h3 = (h3 ^ (w3 + hayahash64_internal_rotl(w2, 27))) * K;
+		uint64_t w4 = hayahash64_internal_load64le(p + 32);
+		uint64_t w5 = hayahash64_internal_load64le(p + 40);
+		uint64_t w6 = hayahash64_internal_load64le(p + 48);
+		uint64_t w7 = hayahash64_internal_load64le(p + 56);
+		h0 = (h0 ^ (w4 + hayahash64_internal_rotl(w3, 27))) * K;
+		h1 = (h1 ^ (w5 + hayahash64_internal_rotl(w4, 27))) * K;
+		h2 = (h2 ^ (w6 + hayahash64_internal_rotl(w5, 27))) * K;
+		h3 = (h3 ^ (w7 + hayahash64_internal_rotl(w6, 27))) * K;
+		if (l >= 96) {
+			uint64_t w8  = hayahash64_internal_load64le(p + 64);
+			uint64_t w9  = hayahash64_internal_load64le(p + 72);
+			uint64_t w10 = hayahash64_internal_load64le(p + 80);
+			uint64_t w11 = hayahash64_internal_load64le(p + 88);
+			h0 = (h0 ^ (w8  + hayahash64_internal_rotl(w7,  27))) * K;
+			h1 = (h1 ^ (w9  + hayahash64_internal_rotl(w8,  27))) * K;
+			h2 = (h2 ^ (w10 + hayahash64_internal_rotl(w9,  27))) * K;
+			h3 = (h3 ^ (w11 + hayahash64_internal_rotl(w10, 27))) * K;
+			h0 += hayahash64_internal_rotl(w11, 27);
+			if (l > 112) {
+				h0 = (h0 + hayahash64_internal_injp(p +  96)) * K;
+				h1 = (h1 + hayahash64_internal_injp(p + 104)) * K;
+			}
+			if (l > 96) {
+				h2 = (h2 + hayahash64_internal_injp(p + l - 16)) * K;
+				h3 = (h3 + hayahash64_internal_injp(p + l -  8)) * K;
+			}
+		} else {
+			h0 += hayahash64_internal_rotl(w7, 27);
+			if (l > 80) {
+				h0 = (h0 + hayahash64_internal_injp(p + 64)) * K;
+				h1 = (h1 + hayahash64_internal_injp(p + 72)) * K;
+			}
+			if (l > 64) {
+				h2 = (h2 + hayahash64_internal_injp(p + l - 16)) * K;
+				h3 = (h3 + hayahash64_internal_injp(p + l -  8)) * K;
+			}
+		}
+		uint64_t t0 =
+			(h0 ^ hayahash64_internal_rotl_product(h1, 13)) * K;
+		uint64_t t1 =
+			(h2 ^ hayahash64_internal_rotl_product(h3, 33)) * K;
+		return hayahash64_internal_long_fmix(
+			s ^ t0 ^ hayahash64_internal_rotl_product(t1, 29), K);
+	}
 #endif
 
 	// Mid loop: same absorb as the bulk loop, 4 lanes over 32-byte
