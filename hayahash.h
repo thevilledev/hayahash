@@ -266,6 +266,19 @@ enum { hayahash64_internal_bulk_min = 320 };
 static HAYAHASH64_INTERNAL_NOINLINE uint64_t
 hayahash64_internal_long(const void *keyIn, ptrdiff_t len, uint64_t seed)
 {
+	// Restate the dispatch invariant: the range information does not
+	// survive the noinline boundary, and without it GCC cannot prove
+	// the bulk loop runs at least four blocks. It then keeps a live
+	// remaining-length computation in the loop exit (two dependent
+	// ALU ops per block) and guards the post-loop remainder with a
+	// cmov chain for the impossible zero-trip case, a measured
+	// 1..3.5% of 320-byte-and-up throughput on Zen 5.
+#if defined(__GNUC__) || defined(__clang__)
+	if (len < (ptrdiff_t)hayahash64_internal_bulk_min)
+		__builtin_unreachable();
+#elif defined(_MSC_VER)
+	__assume(len >= (ptrdiff_t)hayahash64_internal_bulk_min);
+#endif
 	const uint8_t *p = (const uint8_t *)keyIn;
 	ptrdiff_t l = len;
 	uint64_t K = HAYAHASH64_INTERNAL_K;
