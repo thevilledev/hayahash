@@ -217,8 +217,8 @@ ChibiHash v2.
 The same comparison on native x86-64 (AMD Zen 5, GCC 16,
 `-march=native`) gives the same ordering: hayahash leads ChibiHash v2
 at every size below 320 bytes (128-byte keys: 5.2 vs 6.5 ns
-independent, 24.6 vs 19.7 GB/s streamed) and in sustained bulk
-(35.3 vs 31.2 GB/s at 1 MiB), with v2 ahead 2..8% only in the
+independent, 25.0 vs 19.7 GB/s streamed) and in sustained bulk
+(35.4 vs 31.5 GB/s at 1 MiB), with v2 ahead 2..8% only in the
 320..512-byte band where hayahash's eight-lane bulk loop is still
 amortizing its setup. Dispatch shapes are tuned per architecture and
 compiler; `OPTIMIZATION_NOTES.md` documents the measurements.

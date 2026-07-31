@@ -255,11 +255,23 @@ same shapes without touching the chain. A single
 AArch64 and x86-64-non-clang, and the compact one for x86-64 clang
 (unmeasured targets also stay compact).
 
+### Drop the product guard for GCC
+
+The empty-asm guard on computed products exists to stop clang from
+distributing a following rotate into two independent multiplies. GCC
+never applies that transform, so for it the barrier only pinned
+values and serialized scheduling around the folds and the finalizer,
+squarely on the chained-hash critical path. Making the guard
+clang-only gains 0.6..4.1% chained latency across all measured
+17..319-byte keys and 1..3% independent-hash throughput on most of
+them, with bulk rates and every clang target (wasm module included)
+unchanged.
+
 ### Reference numbers and an open transition band
 
 Against the vendored ChibiHash baselines on the same Zen 5 (GCC 16),
 hayahash leads at every size below 320 bytes (128-byte keys: 5.2 vs
-6.5 ns independent) and in sustained bulk (35.3 vs 31.2 GB/s at
+6.5 ns independent) and in sustained bulk (35.4 vs 31.5 GB/s at
 1 MiB). ChibiHash v2 leads by 2..8% only in the 320..512-byte
 transition band, where the eight-lane bulk loop is still amortizing
 its lane setup and fold; the band shrank with the invariant fix but
