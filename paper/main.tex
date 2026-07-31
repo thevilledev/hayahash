@@ -51,19 +51,22 @@ raw-word checkpoint added after a constructed collision was found in an
 earlier version.  This paper specifies the current development snapshot,
 explains which parts have proofs and which do not, and records the available
 quality and performance evidence.  The current snapshot passes the local
-quality harness and is faster than ChibiHash v2 at most measured sizes on the
-two recorded systems.  There is no current, archived SMHasher3 result, no
-proof for the complete construction, and no cryptographic security claim.
+quality harness and SMHasher3's default suite, and is faster than ChibiHash v2
+at most measured sizes on the two recorded systems.  There is no proof for the
+complete construction and no cryptographic security claim.
 \end{abstract}
 
 \section{Status and scope}
 
 This is a living paper for a working algorithm.  The normative artifact for
-this draft is the C header at Git commit
+this draft is the C header at release \texttt{\SnapshotVersion}, Git commit
 \texttt{\SnapshotCommit} \cite{vesilehto2026hayahash}.
 The SHA-256 digest of that header is
 \texttt{\SnapshotHeaderSha}.
-Both values are defined once, in the register file
+The digest, not the commit, is what identifies the audited artifact: a
+commit that leaves the header byte-identical carries every result in this
+paper forward unchanged.
+These values are defined once, in the register file
 \path{paper/snapshot.tex}; an algorithm change updates the register, the
 evaluation records, and this text as one reviewable change.
 
@@ -96,6 +99,7 @@ digest.  The portability claim therefore concerns required primitives and
 output, not identical source code on every target.
 
 \section{Related work and comparison class}
+\label{sec:related}
 
 Fast non-cryptographic hashes make different choices about their required
 instructions and their guarantees.  MurmurHash3 and xxHash are widely used
@@ -441,9 +445,11 @@ material statement is classified as code-derived, reproduced, archived,
 reported, or open.  A reported result is not promoted to a result for the
 current snapshot without the tested source, tool revision, command, host
 information, and raw output.  The register covers this paper's claims about
-the current snapshot; it does not audit historical project artifacts.  The
-policy's main consequence today is recorded in
-Section~\ref{sec:smhasher}: the current snapshot has no SMHasher3 result.
+the current snapshot; it does not audit historical project artifacts.
+Section~\ref{sec:smhasher} shows the policy applied end to end: a result
+reported for an earlier digest was held out of the paper until an adapter,
+a pinned tool revision, and raw output existed for the current one, at which
+point it was promoted rather than assumed.
 
 \subsection{Local quality harness}
 
@@ -473,24 +479,87 @@ shows why a statistical suite and construction-specific differential tests
 serve different roles.  The control output is archived in
 \path{paper/results/quality-chibihash-v2.txt}.
 
-\subsection{SMHasher3 (TBD)}
+\subsection{SMHasher3}
 \label{sec:smhasher}
 
-This subsection is a placeholder: there is no SMHasher3 result for the
-current snapshot.  A clean full run (188 of 188 tests, verification value
-\texttt{0x6B558D9D}) was reported for the earlier \texttt{v0.2.1} digest.
-The digest has changed since, so that result does not transfer and is not
-evidence about the function specified here.
+Release \texttt{\SnapshotVersion} passes SMHasher3's default suite, 188 of
+188 tests, on three host and compiler combinations.  SMHasher3 was pinned at
+upstream commit \texttt{6ab43433}.  The verification values it computes for
+the function are \texttt{0xF3C4A9B4} for the canonical little-endian reading
+and \texttt{0x01E3C68D} for the byte-swapped one.
 
-The subsection is filled in when the following artifacts are committed
-together: an SMHasher3 adapter for the current header, the exact SMHasher3
-commit it was built against, the complete raw output including warnings,
-the compiler and host description, and the resulting verification value.
-Until then, the only current verification value is the direct-interface
-self-test value \texttt{\SnapshotVerification} recomputed by
-\path{paper/tools/reference_check.c}.
+\begin{center}
+\begin{tabular}{@{}lllcc@{}}
+\toprule
+Host & Compiler & Tiers & Result & Time \\
+\midrule
+Apple M1        & Apple Clang 21 & 1 & 188/188 & 583\,s \\
+Zen 5           & GCC 16.1.1     & 1 & 188/188 & 257\,s \\
+Zen 5           & Clang 22.1.8   & 0 & 188/188 & 236\,s \\
+\bottomrule
+\end{tabular}
+\end{center}
+
+The runs were chosen to cover both compiled dispatch shapes.  As
+Section~\ref{sec:platforms} notes, the header's
+\texttt{HAYAHASH64\_\allowbreak INTERNAL\_\allowbreak TIERS} switch is 1
+on AArch64 and on x86-64 under GCC, and 0 on x86-64 under Clang, so the two
+shapes are different programs even though they are specified to agree.  Every
+line of the three outputs that does not report a time is identical, including
+each individual p-value and collision count.  The shapes therefore differ
+only in speed, which is direct evidence for the exactness claim discussed in
+Section~\ref{sec:implementation} and is stronger than a boundary-vector
+comparison, since the suite compares many millions of digests.
+
+The adapter, \path{tests/smhasher3/hayahash.cpp}, includes the specified
+header itself rather than restating the algorithm in SMHasher3's own style.
+A restatement would make the suite evidence about a copy of the function
+instead of the artifact this paper specifies; the project's earlier adapter
+was such a copy and still carried a stale verification value long after the
+digest had moved.  SMHasher3 requires a second reader for the opposite byte
+order, so the header is included twice, the second time with the host byte
+order forced, which selects the header's own byte-swapping load path.
+\path{tests/smhasher3/Makefile} clones the pinned commit, applies the
+adapter and one portability patch, builds, and runs; the clone is not
+vendored, because SMHasher3 is GPL-3.0 and this repository is public domain.
+The patch fixes an unrelated \texttt{size\_t}-to-\texttt{uint64\_t\&} binding
+in the tool's own random-number code that does not compile under Clang on
+macOS.  It is applied on every host so that all three runs build identical
+source, and it is archived beside the adapter.
+
+The canonical value \texttt{0xF3C4A9B4} is the same number this paper
+already carried as \texttt{\SnapshotVerification}, the direct-interface
+self-test value recomputed by \path{paper/tools/reference_check.c}.  That is
+expected rather than a coincidence: the self-test reimplements SMHasher3's
+verification procedure over the direct interface.  Its agreement with the
+tool was previously an untested assumption and is now checked.
+
+Complete raw output, including the tool's warnings, the exact commands, and
+the host and compiler descriptions, is archived in
+\path{paper/results/apple-m1-smhasher3.txt},
+\path{paper/results/zen5-smhasher3-gcc.txt}, and
+\path{paper/results/zen5-smhasher3-clang.txt}.
+
+Two limits on what this result means.  A clean run is a statistical
+black-box result: as Section~\ref{sec:related} notes, it neither proves
+collision resistance nor ranks two functions, and the constructed
+rotation-orbit collision found in an earlier digest after a clean run is a
+concrete demonstration of that gap.  Separately, the suite's own Speed and
+Hashmap sections are recorded in the archived output but are not this
+paper's performance evidence; Section~\ref{sec:bench} describes the
+measurements the tables use.  This paper also does not report the broad
+SMHasher3 speed shootout across competitors, which would need the competitor
+revisions pinned and archived as well.
+
+A run for the earlier release \texttt{v0.2.1} reported the same 188 of 188
+with verification value \texttt{0x6B558D9D}.  The digest changed between that
+release and \texttt{\SnapshotVersion}, so the older result is superseded; it
+was also never accompanied by an adapter or raw output in this repository.
+The matching test counts reflect the size of the suite's default set, not a
+result carried over.
 
 \subsection{Benchmark method}
+\label{sec:bench}
 
 The repository benchmark compares the reference C implementations through
 non-inlined wrappers with the same signature.  It reports three views:
@@ -579,9 +648,11 @@ Each item becomes a record under \path{paper/results} when it is done:
 \item the WebAssembly comparison: the repository has a baseline-wasm32
       shootout harness under \path{tests/wasm}, but no archived run
       prepared to this paper's standard;
-\item x86-64 under Clang, which compiles a different dispatch shape than
-      the measured GCC build because the straight-line length tiers are
-      disabled there;
+\item performance on x86-64 under Clang, which compiles a different dispatch
+      shape than the measured GCC build because the straight-line length
+      tiers are disabled there.  That shape is now covered for correctness by
+      the Clang run in Section~\ref{sec:smhasher}, but no benchmark record
+      for it exists at this paper's standard;
 \item MSVC, 32-bit targets, big-endian targets, and small in-order cores,
       including the portable byte-assembly load path;
 \item cache and workload distributions beyond the fixed-size benchmark; and
@@ -619,8 +690,7 @@ vector and the tables in this paper.
 \section{Limitations}
 
 Open tasks with defined completion criteria live in the TBD sections:
-analysis (Section~\ref{sec:analysis}), SMHasher3
-(Section~\ref{sec:smhasher}), platform coverage
+analysis (Section~\ref{sec:analysis}), platform coverage
 (Section~\ref{sec:platforms}), and the cross-language vector generator
 (Section~\ref{sec:implementation}).  The following limitations are standing
 properties of the design or of its stage, not tasks:
@@ -634,6 +704,10 @@ properties of the design or of its stage, not tasks:
       collision bound for the complete construction.
 \item The local quality harness is a deterministic smoke test with simple
       thresholds, not a substitute for a broader statistical suite.
+\item A clean SMHasher3 run is a black-box statistical result on the key sets
+      the suite generates.  It bounds nothing about adversarial or
+      constructed inputs; an earlier digest passed the suite and still had a
+      constructed rotation-orbit collision.
 \item The function is one-shot: the length is premixed into the initial
       state, so adapters that expose a streaming interface must buffer the
       full byte sequence or define a different construction.
@@ -692,6 +766,13 @@ quality result, and archived M1/Zen 5 comparison. \\
 register in \path{paper/snapshot.tex}, TBD sections for analysis goals,
 SMHasher3, and platform coverage, and historical bookkeeping trimmed from
 the main text. \\
+\addlinespace
+2026-07-31 & \texttt{v0.3.0} & SMHasher3 section filled in and its TBD
+closed: adapter in \path{tests/smhasher3} that includes the specified header,
+upstream pinned at \texttt{6ab43433}, and three archived runs covering both
+compiled dispatch shapes.  Snapshot register advanced from \texttt{cf9690f}
+to release \texttt{v0.3.0}; the header digest is unchanged across that range,
+so the vectors and the verification value are untouched. \\
 \bottomrule
 \end{tabular}
 

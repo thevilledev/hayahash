@@ -1,9 +1,17 @@
 # Claim and evidence register
 
-This register belongs to the working paper at source snapshot
-`cf9690f67100225feb30fdb1cce7c5a2200ea32d`. The authoritative snapshot
-identity lives in `paper/snapshot.tex`; `make -C paper check-snapshot`
-verifies that this file, the checkout, and the header digest agree.
+This register belongs to the working paper at release `v0.3.0`, source
+snapshot `4e14b4c3c46b300aa6bb446fbeacb8e8c54326ee`. The authoritative
+snapshot identity lives in `paper/snapshot.tex`; `make -C paper
+check-snapshot` verifies that this file, the checkout, and the header digest
+agree.
+
+What identifies the audited artifact is the header digest, not the commit. A
+commit that leaves `hayahash.h` byte-identical carries every result here
+forward. That applies to the range `cf9690f..v0.3.0`, over which the digest
+never moved: the intermediate commits are output-identical optimizations,
+documentation, and the `v0.3.0` release commit, which touches only package
+version strings.
 
 The register covers the paper's claims about the current snapshot. It does
 not audit historical project artifacts; the few historical facts the paper
@@ -26,13 +34,13 @@ Evidence states:
 | The transformed word sequence `w_i + rotl(w_{i-1},27)` is injective for a fixed initial previous word. | code-derived | First-difference argument in `hayahash.h`; proof restated in the paper | This is not a collision-resistance proof for the complete hash. |
 | The tail injection maps are bijections on 64-bit words. | code-derived | `hayahash64_internal_inj` and `inj2`; polynomial argument in the paper | Recheck if the word width or rotation counts change. |
 | The known-answer vectors match the C reference. | reproduced | `make -C paper check-reference` | Update vectors intentionally whenever the digest changes. |
-| The direct-call verification procedure returns `0xF3C4A9B4`. | reproduced | `paper/tools/reference_check.c`; language-port test files | This is a self-test value, not an SMHasher3-registered value; see the paper's SMHasher3 section. |
-| The current snapshot passes SMHasher3. | open | None; the paper's SMHasher3 section is a TBD placeholder | Fill in only when the adapter, the exact SMHasher3 commit, the complete raw output, the host description, and the verification value are committed together. |
+| The direct-call verification procedure returns `0xF3C4A9B4`. | reproduced, archived | `paper/tools/reference_check.c`; language-port test files; SMHasher3 reports the same value as its canonical-endian verification value in all three archived runs | The self-test reimplements SMHasher3's procedure over the direct interface. Their agreement was an assumption until the runs archived under `paper/results/` checked it; recheck on every digest change. |
+| Release `v0.3.0` passes SMHasher3's default suite, 188 of 188, on three host and compiler combinations, with verification values `0xF3C4A9B4` (LE) and `0x01E3C68D` (BE). | reproduced, archived | `tests/smhasher3` adapter and Makefile at upstream commit `6ab43433`; `paper/results/apple-m1-smhasher3.txt`, `zen5-smhasher3-gcc.txt`, `zen5-smhasher3-clang.txt` | Rerun on every digest change; the verification values change with the digest. Keep the upstream pin and the applied patch recorded together with the output. The runs were executed from commit `b35496a`, whose `hayahash.h` is byte-identical to the one at `v0.3.0` (`v0.3.0` changes only package version strings), so they are evidence about the released header. |
 | The local quality harness passes, with worst observed input bias 0.0403, seed bias 0.0338, and 24 clean collision sets. | reproduced, archived | `make -C tests run-quality`; `paper/results/quality.txt` | Rerun after every digest change and record compiler and snapshot. |
 | The local rotation-orbit control produces 512 colliding ChibiHash v2 pairs. | reproduced, archived | `./tests/quality v2`; `paper/results/quality-chibihash-v2.txt` | Keep this result scoped to the constructed set; it is not a general quality ranking. |
 | The Apple M1 ChibiHash comparison uses the median of three idle process runs, each using nine calibrated samples per cell. | reproduced, archived | `tests/bench.c`; `paper/results/apple-m1-chibihash.txt` | Retain all nine raw samples in a future harness revision; the current harness retains one median per process and cell. |
 | The Zen 5 ChibiHash comparison used GCC 16 on a core pinned near 5.16 GHz. | archived | `OPTIMIZATION_NOTES.md`; `paper/results/zen5-chibihash.txt` | Add an environment manifest and raw sample values before release. |
-| Compiler-specific dispatch changes preserve output. | reported, partial | `OPTIMIZATION_NOTES.md` and `.optwork/exact.c`; current KATs cover boundaries but not the historical A/B candidates | Archive the A/B source pair and exact-check output for each optimization claim that remains in the paper. |
+| Compiler-specific dispatch changes preserve output. | reproduced, archived | The three SMHasher3 runs under `paper/results/` cover both compiled shapes (`HAYAHASH64_INTERNAL_TIERS` 1 and 0) and agree on both verification values and on every non-timing output line | This covers the two shapes the current header compiles, over the many millions of digests the suite hashes. It does not cover the historical A/B optimization candidates named in `OPTIMIZATION_NOTES.md`; archive those source pairs separately if the paper keeps citing them. |
 | Rust, Go, Zig, Java, WebAssembly, and pure JavaScript implementations pass their checked-in conformance vectors at this snapshot. | reproduced, archived | `paper/results/conformance.txt`; current tests in each port | A single generated machine-readable vector file is still needed. The present suites share copied tables. |
 
 ## Historical notes
@@ -42,11 +50,14 @@ construction specified by the paper.
 
 - Release `v0.2.1` was reported to pass 188 of 188 SMHasher3 tests with
   verification value `0x6B558D9D`; the claim first appears no later than
-  commit `565c949`. The adapter and raw run are not in this repository, and
-  the digest has changed since `v0.2.1`, so the result does not transfer to
-  the current snapshot.
-- `README.md` and `js/README.md` still show the `v0.2.1` verification value.
-  The current direct-interface self-test value is `0xF3C4A9B4`. Correct the
+  commit `565c949`. No adapter or raw run for it exists in this repository,
+  and the digest changed between `v0.2.1` and `v0.3.0`, so the value is
+  superseded. `v0.3.0` independently reaches 188 of 188 with verification
+  value `0xF3C4A9B4`; the test count matching is a coincidence of the default
+  suite's size, not evidence that the old run transfers.
+- `README.md` and `js/README.md` still show the `v0.2.1` verification value
+  `0x6B558D9D` as if it applied to current code, and `js/README.md`
+  contradicts the test file it cites, which asserts `0xF3C4A9B4`. Correct the
   package documentation separately; the paper does not rely on it.
 
 ## Deliberate exclusions
@@ -54,4 +65,6 @@ construction specified by the paper.
 The paper does not claim cryptographic security, collision resistance
 against an adversary, universality, a proof for the complete construction, or
 a universal speed record. It also omits the broad SMHasher3 speed shootout
-until the raw output and exact competitor revisions are archived.
+until the raw output and exact competitor revisions are archived; the Speed
+and Hashmap sections inside the archived SMHasher3 runs are the tool's own
+timings and are not used for any performance claim in the paper.

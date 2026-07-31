@@ -2,6 +2,9 @@
 tests/bench
 tests/quality
 
+# SMHasher3 harness: the pinned upstream clone (GPL-3.0, never vendored)
+tests/smhasher3/smhasher3*/
+
 # Wasm harness: build outputs and fetched competitor headers
 tests/wasm/bench.wasm
 tests/wasm/kat_native

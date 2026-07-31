@@ -35,9 +35,17 @@ This performs the following operations:
    checkout, that `hayahash.h` still has the audited digest, and that
    `AUDIT.md` references the same snapshot.
 
-The complete SMHasher3 run is not yet reproducible from this repository. Its
-adapter and raw output should be archived before any SMHasher3 result appears
-in the paper. See `AUDIT.md` for the claim-by-claim evidence status.
+The SMHasher3 run is not part of `make check`, because it clones and builds an
+external tool and takes minutes per host. Reproduce it separately:
+
+```sh
+make -C tests/smhasher3 run
+```
+
+That clones SMHasher3 at the pinned upstream commit, applies the adapter and
+one portability patch, builds, and runs the default suite. See
+`tests/smhasher3/Makefile` for the pin and for building with a different
+compiler, and `AUDIT.md` for the claim-by-claim evidence status.
 
 When running a benchmark directly, use `make -B` or compile to a new output
 path. The test Makefile does not know that a changed `CC`, `CFLAGS`, or `ARCH`
