@@ -181,37 +181,37 @@ Large-input throughput (GB/s, higher is better):
 
 | size    | chibihash v1 | chibihash v2 | hayahash  |
 |--------:|-------------:|-------------:|----------:|
-| 64      | 7.5          | 9.8          | **10.1**  |
-| 256     | 15.5         | 17.6         | **17.7**  |
-| 1024    | 15.3         | 19.2         | **23.8**  |
-| 16384   | 14.4         | 18.5         | **26.5**  |
-| 1048576 | 14.4         | 18.5         | **26.8**  |
+| 64      | 7.5          | 9.8          | **13.4**  |
+| 256     | 15.5         | 17.5         | **20.8**  |
+| 1024    | 15.2         | 19.2         | **25.7**  |
+| 16384   | 14.4         | 18.5         | **28.2**  |
+| 1048576 | 14.3         | 18.5         | **28.5**  |
 
 Small-input latency (ns/hash, seed-chained, lower is better):
 
 | len | chibihash v1 | chibihash v2 | hayahash |
 |----:|-------------:|-------------:|---------:|
-| 4   | 10.0         | 10.4         | **7.8**  |
-| 8   | 6.6          | 10.0         | 7.9      |
-| 16  | 6.9          | 10.2         | 7.8      |
-| 32  | 12.3         | 11.7         | **10.3** |
-| 64  | 14.5         | 13.3         | **12.1** |
-| 128 | 18.8         | 17.1         | **15.7** |
+| 4   | 9.9          | 10.3         | **7.4**  |
+| 8   | 6.5          | 9.8          | 7.4      |
+| 16  | 6.9          | 10.1         | 7.4      |
+| 32  | 12.2         | 11.6         | **8.4**  |
+| 64  | 14.3         | 13.2         | **9.5**  |
+| 128 | 18.9         | 16.9         | **12.2** |
 
 Small-input throughput (ns/hash, independent hashes, lower is better):
 
 | len | chibihash v1 | chibihash v2 | hayahash |
 |----:|-------------:|-------------:|---------:|
-| 4   | 7.5          | 4.4          | **3.1**  |
-| 8   | 4.6          | 4.6          | **3.1**  |
-| 16  | 5.2          | 5.1          | **3.1**  |
-| 32  | 6.9          | 5.4          | **5.3**  |
-| 64  | 8.6          | 6.6          | **6.4**  |
-| 128 | 11.9         | 9.2          | **8.8**  |
+| 4   | 7.3          | 4.3          | **2.8**  |
+| 8   | 4.5          | 4.5          | **2.8**  |
+| 16  | 5.2          | 5.0          | **2.8**  |
+| 32  | 7.5          | 5.3          | **3.5**  |
+| 64  | 8.6          | 6.6          | **4.8**  |
+| 128 | 11.9         | 9.1          | **7.4**  |
 
 v1's 8/16-byte latency wins come from special-cased paths that are also
 part of why it fails SMHasher3; among the two functions that pass,
-hayahash is fastest at every size, and the bulk rate is ~1.4x
+hayahash is fastest at every size, and the bulk rate is ~1.5x
 ChibiHash v2.
 
 ### SMHasher3 shootout
