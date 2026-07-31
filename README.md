@@ -207,7 +207,7 @@ Small-input throughput (ns/hash, independent hashes, lower is better):
 | 16  | 5.2          | 5.0          | **2.8**  |
 | 32  | 7.5          | 5.3          | **3.5**  |
 | 64  | 8.6          | 6.6          | **4.8**  |
-| 128 | 11.9         | 9.1          | **7.4**  |
+| 128 | 11.9         | 9.1          | **6.9**  |
 
 v1's 8/16-byte latency wins come from special-cased paths that are also
 part of why it fails SMHasher3; among the two functions that pass,

@@ -162,6 +162,18 @@ serves 128..319-byte keys. Two rounds per iteration (with at most one
 single round left over) halves its loop control: +4..5% for that band,
 with the main function still free of callee-saved spills.
 
+### A straight-line 128..191-byte tier on AArch64
+
+A follow-up extended the tier chain by one band: four spelled-out
+mid rounds, then the same optional-round-plus-tail shape as the
+64..127 tier. Measured +6..7% independent-hash throughput on 128..159
+bytes and +10..11% on 160..191 (the sizes that previously ran two
+64-byte loop iterations), with chained latency up +0.2..3.2% across
+the band. The extra dispatch compare costs 192..288-byte keys at most
+0.5%, at the edge of the noise floor. 192..319 stays on the unrolled
+mid loop: its loop control is a shrinking fraction of per-hash time,
+so another tier would mostly add I-cache footprint.
+
 ### Second-pass ideas tested and rejected
 
 - **Bulk dispatch after the tiers:** moving the 320-byte check below
@@ -236,10 +248,12 @@ the predicted x86-64 spills materialized.
    x86-64 tier experiment both rest on Rosetta 2 numbers. Re-run the
    A/B gates on real x86-64 silicon; per-tier gating (only 32..127
    bytes) looked plausible even under Rosetta.
-2. **A 128..191 or 128..255-byte tier.** The remaining mid band still
-   runs a loop; under the current dispatch it would add one compare to
-   the 192..319 path, so it needs the same tax-versus-gain measurement
-   the smaller tiers got.
+2. **A 192..255-byte tier.** The 128..191 tier landed (see above);
+   extending the chain another band would trade a further dispatch
+   compare on 256..319 plus I-cache footprint against loop control
+   that is already down to three or four unrolled iterations. Only
+   worth measuring with a realistic mixed-size workload, where the
+   footprint shows.
 3. **A synthesized non-separable 8-to-4 fold.** The four upper-lane multiply
    folds are fixed overhead around 320–1024 bytes. Search small add/XOR/rotate
    butterflies in which every upper lane reaches at least two lower lanes

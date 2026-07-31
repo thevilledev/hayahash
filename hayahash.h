@@ -533,13 +533,86 @@ hayahash64(const void *keyIn, ptrdiff_t len, uint64_t seed)
 		return hayahash64_internal_long_fmix(
 			s ^ t0 ^ hayahash64_internal_rotl_product(t1, 29), K);
 	}
+	// Straight-line 128..191-byte keys: four shared mid rounds, then
+	// either the generic tail directly (128..159) or one more round
+	// first (160..191). Same loads, absorbs, wall, and folds as the
+	// generic path, minus loop and pointer maintenance.
+	if (l < 192) {
+		uint64_t w0 = hayahash64_internal_load64le(p +  0);
+		uint64_t w1 = hayahash64_internal_load64le(p +  8);
+		uint64_t w2 = hayahash64_internal_load64le(p + 16);
+		uint64_t w3 = hayahash64_internal_load64le(p + 24);
+		h0 = (h0 ^ w0) * K;
+		h1 = (h1 ^ (w1 + hayahash64_internal_rotl(w0, 27))) * K;
+		h2 = (h2 ^ (w2 + hayahash64_internal_rotl(w1, 27))) * K;
+		h3 = (h3 ^ (w3 + hayahash64_internal_rotl(w2, 27))) * K;
+		uint64_t w4 = hayahash64_internal_load64le(p + 32);
+		uint64_t w5 = hayahash64_internal_load64le(p + 40);
+		uint64_t w6 = hayahash64_internal_load64le(p + 48);
+		uint64_t w7 = hayahash64_internal_load64le(p + 56);
+		h0 = (h0 ^ (w4 + hayahash64_internal_rotl(w3, 27))) * K;
+		h1 = (h1 ^ (w5 + hayahash64_internal_rotl(w4, 27))) * K;
+		h2 = (h2 ^ (w6 + hayahash64_internal_rotl(w5, 27))) * K;
+		h3 = (h3 ^ (w7 + hayahash64_internal_rotl(w6, 27))) * K;
+		uint64_t w8  = hayahash64_internal_load64le(p + 64);
+		uint64_t w9  = hayahash64_internal_load64le(p + 72);
+		uint64_t w10 = hayahash64_internal_load64le(p + 80);
+		uint64_t w11 = hayahash64_internal_load64le(p + 88);
+		h0 = (h0 ^ (w8  + hayahash64_internal_rotl(w7,  27))) * K;
+		h1 = (h1 ^ (w9  + hayahash64_internal_rotl(w8,  27))) * K;
+		h2 = (h2 ^ (w10 + hayahash64_internal_rotl(w9,  27))) * K;
+		h3 = (h3 ^ (w11 + hayahash64_internal_rotl(w10, 27))) * K;
+		uint64_t w12 = hayahash64_internal_load64le(p +  96);
+		uint64_t w13 = hayahash64_internal_load64le(p + 104);
+		uint64_t w14 = hayahash64_internal_load64le(p + 112);
+		uint64_t w15 = hayahash64_internal_load64le(p + 120);
+		h0 = (h0 ^ (w12 + hayahash64_internal_rotl(w11, 27))) * K;
+		h1 = (h1 ^ (w13 + hayahash64_internal_rotl(w12, 27))) * K;
+		h2 = (h2 ^ (w14 + hayahash64_internal_rotl(w13, 27))) * K;
+		h3 = (h3 ^ (w15 + hayahash64_internal_rotl(w14, 27))) * K;
+		if (l >= 160) {
+			uint64_t w16 = hayahash64_internal_load64le(p + 128);
+			uint64_t w17 = hayahash64_internal_load64le(p + 136);
+			uint64_t w18 = hayahash64_internal_load64le(p + 144);
+			uint64_t w19 = hayahash64_internal_load64le(p + 152);
+			h0 = (h0 ^ (w16 + hayahash64_internal_rotl(w15, 27))) * K;
+			h1 = (h1 ^ (w17 + hayahash64_internal_rotl(w16, 27))) * K;
+			h2 = (h2 ^ (w18 + hayahash64_internal_rotl(w17, 27))) * K;
+			h3 = (h3 ^ (w19 + hayahash64_internal_rotl(w18, 27))) * K;
+			h0 += hayahash64_internal_rotl(w19, 27);
+			if (l > 176) {
+				h0 = (h0 + hayahash64_internal_injp(p + 160)) * K;
+				h1 = (h1 + hayahash64_internal_injp(p + 168)) * K;
+			}
+			if (l > 160) {
+				h2 = (h2 + hayahash64_internal_injp(p + l - 16)) * K;
+				h3 = (h3 + hayahash64_internal_injp(p + l -  8)) * K;
+			}
+		} else {
+			h0 += hayahash64_internal_rotl(w15, 27);
+			if (l > 144) {
+				h0 = (h0 + hayahash64_internal_injp(p + 128)) * K;
+				h1 = (h1 + hayahash64_internal_injp(p + 136)) * K;
+			}
+			if (l > 128) {
+				h2 = (h2 + hayahash64_internal_injp(p + l - 16)) * K;
+				h3 = (h3 + hayahash64_internal_injp(p + l -  8)) * K;
+			}
+		}
+		uint64_t t0 =
+			(h0 ^ hayahash64_internal_rotl_product(h1, 13)) * K;
+		uint64_t t1 =
+			(h2 ^ hayahash64_internal_rotl_product(h3, 33)) * K;
+		return hayahash64_internal_long_fmix(
+			s ^ t0 ^ hayahash64_internal_rotl_product(t1, 29), K);
+	}
 #endif
 
 	// Mid loop: same absorb as the bulk loop, 4 lanes over 32-byte
 	// blocks. Only 17..319-byte inputs reach it; longer ones took
 	// the hayahash64_internal_long call above.
 #if defined(__aarch64__)
-	// Only 128..319-byte keys get here (the tiers above return for
+	// Only 192..319-byte keys get here (the tiers above return for
 	// anything shorter), so run two rounds per iteration with at
 	// most one single round left over; same absorb sequence, half
 	// the loop control.
