@@ -224,28 +224,28 @@ hayahash64(const void *keyIn, ptrdiff_t len, uint64_t seed)
 		uint64_t h7 = hayahash64__rotl(s, 39) ^ (K << 30);
 		do {
 			w = hayahash64__load64le(p +  0);
-			h0 = (h0 + (w + hayahash64__rotl(wp, 27))) * K;
+			h0 = (h0 ^ (w + hayahash64__rotl(wp, 27))) * K;
 			wp = w;
 			w = hayahash64__load64le(p +  8);
-			h1 = (h1 + (w + hayahash64__rotl(wp, 27))) * K;
+			h1 = (h1 ^ (w + hayahash64__rotl(wp, 27))) * K;
 			wp = w;
 			w = hayahash64__load64le(p + 16);
-			h2 = (h2 + (w + hayahash64__rotl(wp, 27))) * K;
+			h2 = (h2 ^ (w + hayahash64__rotl(wp, 27))) * K;
 			wp = w;
 			w = hayahash64__load64le(p + 24);
-			h3 = (h3 + (w + hayahash64__rotl(wp, 27))) * K;
+			h3 = (h3 ^ (w + hayahash64__rotl(wp, 27))) * K;
 			wp = w;
 			w = hayahash64__load64le(p + 32);
-			h4 = (h4 + (w + hayahash64__rotl(wp, 27))) * K;
+			h4 = (h4 ^ (w + hayahash64__rotl(wp, 27))) * K;
 			wp = w;
 			w = hayahash64__load64le(p + 40);
-			h5 = (h5 + (w + hayahash64__rotl(wp, 27))) * K;
+			h5 = (h5 ^ (w + hayahash64__rotl(wp, 27))) * K;
 			wp = w;
 			w = hayahash64__load64le(p + 48);
-			h6 = (h6 + (w + hayahash64__rotl(wp, 27))) * K;
+			h6 = (h6 ^ (w + hayahash64__rotl(wp, 27))) * K;
 			wp = w;
 			w = hayahash64__load64le(p + 56);
-			h7 = (h7 + (w + hayahash64__rotl(wp, 27))) * K;
+			h7 = (h7 ^ (w + hayahash64__rotl(wp, 27))) * K;
 			wp = w;
 			p += 64; l -= 64;
 		} while (l >= 64);
@@ -278,16 +278,16 @@ hayahash64(const void *keyIn, ptrdiff_t len, uint64_t seed)
 	// blocks; wp chains in from the bulk loop.
 	for (; l >= 32; l -= 32, p += 32) {
 		w = hayahash64__load64le(p +  0);
-		h0 = (h0 + (w + hayahash64__rotl(wp, 27))) * K;
+		h0 = (h0 ^ (w + hayahash64__rotl(wp, 27))) * K;
 		wp = w;
 		w = hayahash64__load64le(p +  8);
-		h1 = (h1 + (w + hayahash64__rotl(wp, 27))) * K;
+		h1 = (h1 ^ (w + hayahash64__rotl(wp, 27))) * K;
 		wp = w;
 		w = hayahash64__load64le(p + 16);
-		h2 = (h2 + (w + hayahash64__rotl(wp, 27))) * K;
+		h2 = (h2 ^ (w + hayahash64__rotl(wp, 27))) * K;
 		wp = w;
 		w = hayahash64__load64le(p + 24);
-		h3 = (h3 + (w + hayahash64__rotl(wp, 27))) * K;
+		h3 = (h3 ^ (w + hayahash64__rotl(wp, 27))) * K;
 		wp = w;
 	}
 

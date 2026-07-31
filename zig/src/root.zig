@@ -59,11 +59,11 @@ inline fn injp(p: []const u8, i: usize) u64 {
     return inj(load64le(p, i));
 }
 
-/// Absorb one 8-byte stripe: h = (h + (w + rotl(wp, 27))) * K, then
+/// Absorb one 8-byte stripe: h = (h ^ (w + rotl(wp, 27))) * K, then
 /// remember the stripe so the next lane injects its rotated copy.
 inline fn stripe(h: *u64, wp: *u64, p: []const u8, i: usize) void {
     const w = load64le(p, i);
-    h.* = (h.* +% (w +% rotl(wp.*, 27))) *% K;
+    h.* = (h.* ^ (w +% rotl(wp.*, 27))) *% K;
     wp.* = w;
 }
 

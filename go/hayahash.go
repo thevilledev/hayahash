@@ -69,10 +69,10 @@ func injp(p []byte, i int) uint64 {
 
 // stripe absorbs the 8-byte stripe at key[i:] into lane h and returns
 // the updated lane and the stripe itself (the next lane's wp):
-// h' = (h + (w + rotl(wp, 27))) * k.
+// h' = (h ^ (w + rotl(wp, 27))) * k.
 func stripe(h, wp uint64, key []byte, i int) (uint64, uint64) {
 	w := load64le(key, i)
-	return (h + (w + bits.RotateLeft64(wp, 27))) * k, w
+	return (h ^ (w + bits.RotateLeft64(wp, 27))) * k, w
 }
 
 // Hash64 hashes key with seed, returning a 64-bit digest.

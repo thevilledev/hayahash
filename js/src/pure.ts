@@ -115,28 +115,28 @@ export function hashPure(data: Uint8Array, seed: bigint): bigint {
 		let h7 = rotl(s, 39n) ^ K_SHL30;
 		do {
 			w = load64(p);
-			h0 = ((h0 + w + rotl(wp, 27n)) * K) & MASK64;
+			h0 = ((h0 ^ ((w + rotl(wp, 27n)) & MASK64)) * K) & MASK64;
 			wp = w;
 			w = load64(p + 8);
-			h1 = ((h1 + w + rotl(wp, 27n)) * K) & MASK64;
+			h1 = ((h1 ^ ((w + rotl(wp, 27n)) & MASK64)) * K) & MASK64;
 			wp = w;
 			w = load64(p + 16);
-			h2 = ((h2 + w + rotl(wp, 27n)) * K) & MASK64;
+			h2 = ((h2 ^ ((w + rotl(wp, 27n)) & MASK64)) * K) & MASK64;
 			wp = w;
 			w = load64(p + 24);
-			h3 = ((h3 + w + rotl(wp, 27n)) * K) & MASK64;
+			h3 = ((h3 ^ ((w + rotl(wp, 27n)) & MASK64)) * K) & MASK64;
 			wp = w;
 			w = load64(p + 32);
-			h4 = ((h4 + w + rotl(wp, 27n)) * K) & MASK64;
+			h4 = ((h4 ^ ((w + rotl(wp, 27n)) & MASK64)) * K) & MASK64;
 			wp = w;
 			w = load64(p + 40);
-			h5 = ((h5 + w + rotl(wp, 27n)) * K) & MASK64;
+			h5 = ((h5 ^ ((w + rotl(wp, 27n)) & MASK64)) * K) & MASK64;
 			wp = w;
 			w = load64(p + 48);
-			h6 = ((h6 + w + rotl(wp, 27n)) * K) & MASK64;
+			h6 = ((h6 ^ ((w + rotl(wp, 27n)) & MASK64)) * K) & MASK64;
 			wp = w;
 			w = load64(p + 56);
-			h7 = ((h7 + w + rotl(wp, 27n)) * K) & MASK64;
+			h7 = ((h7 ^ ((w + rotl(wp, 27n)) & MASK64)) * K) & MASK64;
 			wp = w;
 			p += 64;
 			l -= 64;
@@ -151,16 +151,16 @@ export function hashPure(data: Uint8Array, seed: bigint): bigint {
 	// blocks; wp chains in from the bulk loop.
 	for (; l >= 32; l -= 32, p += 32) {
 		w = load64(p);
-		h0 = ((h0 + w + rotl(wp, 27n)) * K) & MASK64;
+		h0 = ((h0 ^ ((w + rotl(wp, 27n)) & MASK64)) * K) & MASK64;
 		wp = w;
 		w = load64(p + 8);
-		h1 = ((h1 + w + rotl(wp, 27n)) * K) & MASK64;
+		h1 = ((h1 ^ ((w + rotl(wp, 27n)) & MASK64)) * K) & MASK64;
 		wp = w;
 		w = load64(p + 16);
-		h2 = ((h2 + w + rotl(wp, 27n)) * K) & MASK64;
+		h2 = ((h2 ^ ((w + rotl(wp, 27n)) & MASK64)) * K) & MASK64;
 		wp = w;
 		w = load64(p + 24);
-		h3 = ((h3 + w + rotl(wp, 27n)) * K) & MASK64;
+		h3 = ((h3 ^ ((w + rotl(wp, 27n)) & MASK64)) * K) & MASK64;
 		wp = w;
 	}
 

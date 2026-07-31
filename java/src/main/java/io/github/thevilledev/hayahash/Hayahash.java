@@ -127,7 +127,7 @@ public final class Hayahash {
     // a 4-lane mid loop over 32-byte blocks, then overlapping tail
     // reads. Each lane absorbs t = w + rotl(wp, 27), where wp is the
     // previous stripe (chained across lanes, blocks, and the bulk/mid
-    // boundary): h' = (h + t) * K.
+    // boundary): h' = (h ^ t) * K.
     private static long hashLong(byte[] key, int off, int len, long s) {
         long h0 = s ^ K;
         long h1 = Long.rotateLeft(s, 17) + (K << 21);
@@ -145,28 +145,28 @@ public final class Hayahash {
             long h7 = Long.rotateLeft(s, 39) ^ (K << 30);
             do {
                 w = load64(key, p);
-                h0 = (h0 + (w + Long.rotateLeft(wp, 27))) * K;
+                h0 = (h0 ^ (w + Long.rotateLeft(wp, 27))) * K;
                 wp = w;
                 w = load64(key, p + 8);
-                h1 = (h1 + (w + Long.rotateLeft(wp, 27))) * K;
+                h1 = (h1 ^ (w + Long.rotateLeft(wp, 27))) * K;
                 wp = w;
                 w = load64(key, p + 16);
-                h2 = (h2 + (w + Long.rotateLeft(wp, 27))) * K;
+                h2 = (h2 ^ (w + Long.rotateLeft(wp, 27))) * K;
                 wp = w;
                 w = load64(key, p + 24);
-                h3 = (h3 + (w + Long.rotateLeft(wp, 27))) * K;
+                h3 = (h3 ^ (w + Long.rotateLeft(wp, 27))) * K;
                 wp = w;
                 w = load64(key, p + 32);
-                h4 = (h4 + (w + Long.rotateLeft(wp, 27))) * K;
+                h4 = (h4 ^ (w + Long.rotateLeft(wp, 27))) * K;
                 wp = w;
                 w = load64(key, p + 40);
-                h5 = (h5 + (w + Long.rotateLeft(wp, 27))) * K;
+                h5 = (h5 ^ (w + Long.rotateLeft(wp, 27))) * K;
                 wp = w;
                 w = load64(key, p + 48);
-                h6 = (h6 + (w + Long.rotateLeft(wp, 27))) * K;
+                h6 = (h6 ^ (w + Long.rotateLeft(wp, 27))) * K;
                 wp = w;
                 w = load64(key, p + 56);
-                h7 = (h7 + (w + Long.rotateLeft(wp, 27))) * K;
+                h7 = (h7 ^ (w + Long.rotateLeft(wp, 27))) * K;
                 wp = w;
                 p += 64;
                 l -= 64;
@@ -184,16 +184,16 @@ public final class Hayahash {
         // blocks; wp chains in from the bulk loop.
         for (; l >= 32; l -= 32, p += 32) {
             w = load64(key, p);
-            h0 = (h0 + (w + Long.rotateLeft(wp, 27))) * K;
+            h0 = (h0 ^ (w + Long.rotateLeft(wp, 27))) * K;
             wp = w;
             w = load64(key, p + 8);
-            h1 = (h1 + (w + Long.rotateLeft(wp, 27))) * K;
+            h1 = (h1 ^ (w + Long.rotateLeft(wp, 27))) * K;
             wp = w;
             w = load64(key, p + 16);
-            h2 = (h2 + (w + Long.rotateLeft(wp, 27))) * K;
+            h2 = (h2 ^ (w + Long.rotateLeft(wp, 27))) * K;
             wp = w;
             w = load64(key, p + 24);
-            h3 = (h3 + (w + Long.rotateLeft(wp, 27))) * K;
+            h3 = (h3 ^ (w + Long.rotateLeft(wp, 27))) * K;
             wp = w;
         }
 

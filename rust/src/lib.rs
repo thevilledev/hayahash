@@ -131,14 +131,12 @@ pub fn hayahash64(key: &[u8], seed: u64) -> u64 {
     let mut off = 0usize;
     let mut l = len;
 
-    // Absorb one 8-byte stripe: h = (h + (w + rotl(wp, 27))) * K, then
+    // Absorb one 8-byte stripe: h = (h ^ (w + rotl(wp, 27))) * K, then
     // remember the stripe so the next lane injects its rotated copy.
     macro_rules! stripe {
         ($h:ident, $at:expr) => {{
             let w = load64le(key, $at);
-            $h = $h
-                .wrapping_add(w.wrapping_add(wp.rotate_left(27)))
-                .wrapping_mul(K);
+            $h = ($h ^ w.wrapping_add(wp.rotate_left(27))).wrapping_mul(K);
             wp = w;
         }};
     }
