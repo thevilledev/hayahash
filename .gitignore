@@ -7,6 +7,7 @@ tests/smhasher3/smhasher3*/
 
 # Wasm harness: build outputs and fetched competitor headers
 tests/wasm/bench.wasm
+tests/wasm/kat_haya
 tests/wasm/kat_native
 tests/wasm/kat_native.txt
 tests/wasm/kat_wasm.txt

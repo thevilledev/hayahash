@@ -22,7 +22,7 @@ INC     = -I../.. -I..
 RAPIDHASH_COMMIT = 5c62c4b3352c7d4c87ed3429d2329ddaf9b74df9
 XXHASH_COMMIT    = c0b5ea995d66691734b1a79ad89e73a0d2fd5a53
 
-.PHONY: all run-kat run-bench clean distclean
+.PHONY: all run-kat check-kat-haya run-bench clean distclean
 
 all: bench.wasm kat_native
 
@@ -44,11 +44,23 @@ run-kat: bench.wasm kat_native
 	diff kat_native.txt kat_wasm.txt
 	@echo "OK: wasm and native builds are bit-exact"
 
+# Hayahash-only build of the same generator. Needs no fetched
+# competitor headers, so any toolchain can produce it -- including
+# MSVC, which has no way to run the wasm half of run-kat. Its digests
+# are committed as kat_haya.txt and both CI C jobs diff against them,
+# which is what pins the MSVC x64 build to the same output.
+kat_haya: kat_native.c ../../hayahash.h
+	$(CC) $(CFLAGS) $(INC) -DKAT_HAYA_ONLY -o $@ kat_native.c
+
+check-kat-haya: kat_haya
+	./kat_haya | diff -u kat_haya.txt -
+	@echo "OK: hayahash digests match the committed kat_haya.txt"
+
 run-bench: bench.wasm
 	$(NODE) driver.mjs bench.wasm
 
 clean:
-	rm -f bench.wasm kat_native kat_native.txt kat_wasm.txt
+	rm -f bench.wasm kat_native kat_native.txt kat_wasm.txt kat_haya
 
 distclean: clean
 	rm -f rapidhash.h xxhash.h

@@ -5,8 +5,8 @@
 //
 // Built with -DKAT_HAYA_ONLY, the program needs no fetched competitor
 // headers and prints only the hayahash lines; CI compiles it that way
-// under MSVC x64 and diffs the output against the haya lines of the
-// committed kat_native.txt for digest conformance.
+// under gcc, clang and MSVC x64 and diffs the output against the
+// committed kat_haya.txt for digest conformance.
 #include <stdint.h>
 #include <stddef.h>
 #include <stdio.h>
