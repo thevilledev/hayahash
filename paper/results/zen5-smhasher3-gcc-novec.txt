@@ -10,12 +10,12 @@ smhasher3 modifications: the adapter and the two patches in tests/smhasher3,
   are submitted upstream as merge requests !31 and !32.
 host: AMD Ryzen AI 9 HX PRO 370 (Zen 5), 12 cores / 24 threads, CPU max
   5157.9 MHz, performance governor, Linux 6.18.38-1-MANJARO
-compiler: clang 22.1.8 (clang++)
-build: cmake 4.4.0, Release, CXXFLAGS="-I<repo root>", CMake appends -march=native
-dispatch: TIERS=0 VECGCC=0 (verified by compile-time probe)
-command: make -C tests/smhasher3 run BUILD=build-clang CXX=clang++
+compiler: GCC 16.1.1 20260625 (g++)
+build: cmake 4.4.0, Release, CXXFLAGS="-I<repo root> -U__AVX512DQ__", CMake appends -march=native
+dispatch: TIERS=1 VECGCC=0 (verified by compile-time probe)
+command: make -C tests/smhasher3 run BUILD=build-gccnv EXTRA_CXXFLAGS=-U__AVX512DQ__ -U__AVX512DQ__
 threads: SMHasher3 default (--ncpu=4), so both thread-safety sanity tests run
-result: pass 188/188, verification CE 0xF3C4A9B4 / NE 0x01E3C68D, 232.39 s
+result: pass 188/188, verification CE 0xF3C4A9B4 / NE 0x01E3C68D, 236.73 s
 date: 2026-08-01
 
 DIGEST UNCHANGED ACROSS THE v0.4.0 REWRITE
@@ -58,73 +58,73 @@ Running thread-safety test 2 .......... PASS
 [[[ Speed Tests ]]]
 
 Small key speed test - [1, 31]-byte keys
-   1-byte keys -     9.57 cycles/hash
-   2-byte keys -     9.57 cycles/hash
-   3-byte keys -     9.57 cycles/hash
-   4-byte keys -     6.51 cycles/hash
-   5-byte keys -    11.26 cycles/hash
-   6-byte keys -    11.25 cycles/hash
-   7-byte keys -    11.26 cycles/hash
-   8-byte keys -    11.66 cycles/hash
-   9-byte keys -    11.66 cycles/hash
-  10-byte keys -    11.65 cycles/hash
-  11-byte keys -    11.66 cycles/hash
-  12-byte keys -    11.65 cycles/hash
-  13-byte keys -    11.66 cycles/hash
-  14-byte keys -    11.65 cycles/hash
-  15-byte keys -    11.65 cycles/hash
-  16-byte keys -    11.65 cycles/hash
-  17-byte keys -    11.72 cycles/hash
-  18-byte keys -    11.74 cycles/hash
-  19-byte keys -    11.73 cycles/hash
-  20-byte keys -    11.31 cycles/hash
-  21-byte keys -    11.29 cycles/hash
-  22-byte keys -    11.29 cycles/hash
-  23-byte keys -    11.31 cycles/hash
-  24-byte keys -    11.29 cycles/hash
-  25-byte keys -    11.29 cycles/hash
-  26-byte keys -    11.29 cycles/hash
-  27-byte keys -    11.34 cycles/hash
-  28-byte keys -    11.29 cycles/hash
-  29-byte keys -    11.28 cycles/hash
-  30-byte keys -    11.29 cycles/hash
-  31-byte keys -    11.29 cycles/hash
-Average        -    11.12 cycles/hash
- rnd-byte keys -    11.12 cycles/hash
+   1-byte keys -     9.62 cycles/hash
+   2-byte keys -     9.62 cycles/hash
+   3-byte keys -     9.61 cycles/hash
+   4-byte keys -     6.37 cycles/hash
+   5-byte keys -    11.28 cycles/hash
+   6-byte keys -    11.27 cycles/hash
+   7-byte keys -    11.27 cycles/hash
+   8-byte keys -    11.80 cycles/hash
+   9-byte keys -    11.80 cycles/hash
+  10-byte keys -    11.80 cycles/hash
+  11-byte keys -    11.80 cycles/hash
+  12-byte keys -    11.72 cycles/hash
+  13-byte keys -    11.72 cycles/hash
+  14-byte keys -    11.72 cycles/hash
+  15-byte keys -    11.72 cycles/hash
+  16-byte keys -    11.72 cycles/hash
+  17-byte keys -    11.90 cycles/hash
+  18-byte keys -    11.92 cycles/hash
+  19-byte keys -    11.92 cycles/hash
+  20-byte keys -    11.29 cycles/hash
+  21-byte keys -    11.30 cycles/hash
+  22-byte keys -    11.30 cycles/hash
+  23-byte keys -    11.30 cycles/hash
+  24-byte keys -    11.30 cycles/hash
+  25-byte keys -    11.30 cycles/hash
+  26-byte keys -    11.30 cycles/hash
+  27-byte keys -    11.29 cycles/hash
+  28-byte keys -    11.30 cycles/hash
+  29-byte keys -    11.30 cycles/hash
+  30-byte keys -    11.30 cycles/hash
+  31-byte keys -    11.30 cycles/hash
+Average        -    11.17 cycles/hash
+ rnd-byte keys -    11.21 cycles/hash
 
 Bulk speed test - 262144-byte keys
-Alignment   7 - 30.91 bytes/cycle - 100.77 GiB/sec @ 3.5 ghz
-Alignment   6 - 30.77 bytes/cycle - 100.29 GiB/sec @ 3.5 ghz
-Alignment   5 - 30.73 bytes/cycle - 100.17 GiB/sec @ 3.5 ghz
-Alignment   4 - 30.73 bytes/cycle - 100.17 GiB/sec @ 3.5 ghz
-Alignment   3 - 30.73 bytes/cycle - 100.17 GiB/sec @ 3.5 ghz
-Alignment   2 - 30.73 bytes/cycle - 100.17 GiB/sec @ 3.5 ghz
-Alignment   1 - 30.73 bytes/cycle - 100.17 GiB/sec @ 3.5 ghz
-Alignment   0 - 30.77 bytes/cycle - 100.29 GiB/sec @ 3.5 ghz
-Average       - 30.76 bytes/cycle - 100.28 GiB/sec @ 3.5 ghz
-Alignment rnd - 30.73 bytes/cycle - 100.17 GiB/sec @ 3.5 ghz
+Alignment   7 - 17.43 bytes/cycle - 56.81 GiB/sec @ 3.5 ghz
+Alignment   6 - 17.43 bytes/cycle - 56.81 GiB/sec @ 3.5 ghz
+Alignment   5 - 17.43 bytes/cycle - 56.81 GiB/sec @ 3.5 ghz
+Alignment   4 - 17.45 bytes/cycle - 56.89 GiB/sec @ 3.5 ghz
+Alignment   3 - 17.44 bytes/cycle - 56.85 GiB/sec @ 3.5 ghz
+Alignment   2 - 17.46 bytes/cycle - 56.93 GiB/sec @ 3.5 ghz
+Alignment   1 - 17.46 bytes/cycle - 56.93 GiB/sec @ 3.5 ghz
+Alignment   0 - 17.68 bytes/cycle - 57.62 GiB/sec @ 3.5 ghz
+Average       - 17.47 bytes/cycle - 56.96 GiB/sec @ 3.5 ghz
+Alignment rnd - 17.49 bytes/cycle - 57.01 GiB/sec @ 3.5 ghz
 
 Bulk speed test - [262017, 262144]-byte keys
-Alignment   7 - 30.65 bytes/cycle - 99.91 GiB/sec @ 3.5 ghz
-Alignment   6 - 30.66 bytes/cycle - 99.93 GiB/sec @ 3.5 ghz
-Alignment   5 - 30.65 bytes/cycle - 99.92 GiB/sec @ 3.5 ghz
-Alignment   4 - 30.66 bytes/cycle - 99.93 GiB/sec @ 3.5 ghz
-Alignment   3 - 30.65 bytes/cycle - 99.92 GiB/sec @ 3.5 ghz
-Alignment   2 - 30.67 bytes/cycle - 99.96 GiB/sec @ 3.5 ghz
-Alignment   1 - 30.66 bytes/cycle - 99.96 GiB/sec @ 3.5 ghz
-Alignment   0 - 30.65 bytes/cycle - 99.90 GiB/sec @ 3.5 ghz
-Average       - 30.66 bytes/cycle - 99.93 GiB/sec @ 3.5 ghz
-Alignment rnd - 30.60 bytes/cycle - 99.73 GiB/sec @ 3.5 ghz
+Alignment   7 - 17.41 bytes/cycle - 56.75 GiB/sec @ 3.5 ghz
+Alignment   6 - 17.41 bytes/cycle - 56.74 GiB/sec @ 3.5 ghz
+Alignment   5 - 17.41 bytes/cycle - 56.76 GiB/sec @ 3.5 ghz
+Alignment   4 - 17.44 bytes/cycle - 56.84 GiB/sec @ 3.5 ghz
+Alignment   3 - 17.43 bytes/cycle - 56.80 GiB/sec @ 3.5 ghz
+Alignment   2 - 17.43 bytes/cycle - 56.83 GiB/sec @ 3.5 ghz
+Alignment   1 - 17.58 bytes/cycle - 57.31 GiB/sec @ 3.5 ghz
+Alignment   0 - 17.65 bytes/cycle - 57.55 GiB/sec @ 3.5 ghz
+Average       - 17.47 bytes/cycle - 56.95 GiB/sec @ 3.5 ghz
+Alignment rnd - 17.50 bytes/cycle - 57.05 GiB/sec @ 3.5 ghz
 
 [[[ 'Hashmap' Speed Tests ]]]
 
 std::unordered_map
-Init std HashMapTest:     343.724 cycles/op (792291 inserts, 1% deletions)
-Running std HashMapTest:  266.531 cycles/op (7.1 stdv)
+Init std HashMapTest:     335.471 cycles/op (792291 inserts, 1% deletions)
+Running std HashMapTest:  266.396 cycles/op (8.9 stdv)
 
 greg7mdp/parallel-hashmap
-Init fast HashMapTest:    157.002 cycles/op (792291 inserts, 1% deletions)
-Running fast HashMapTest: 252.682 cycles/op (2.1 stdv)
+Init fast HashMapTest:    156.033 cycles/op (792291 inserts, 1% deletions)
+Running fast HashMapTest: 252.062 cycles/op (1.8 stdv)
 
 [[[ Avalanche Tests ]]]
 
@@ -2496,7 +2496,7 @@ Summary for: HayaHash64
 Overall result: pass            ( 188 / 188 passed)
 
 ----------------------------------------------------------------------------------------------
-Verification value is 0x00000001 - Testing took 236.734599 seconds
+Verification value is 0x00000001 - Testing took 257.754048 seconds
 
 
 

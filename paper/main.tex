@@ -483,33 +483,48 @@ serve different roles.  The control output is archived in
 \label{sec:smhasher}
 
 Release \texttt{\SnapshotVersion} passes SMHasher3's default suite, 188 of
-188 tests, on three host and compiler combinations.  SMHasher3 was pinned at
-upstream commit \texttt{6ab43433}.  The verification values it computes for
-the function are \texttt{0xF3C4A9B4} for the canonical little-endian reading
-and \texttt{0x01E3C68D} for the byte-swapped one.
+188 tests, on four builds spanning two architectures and every dispatch
+shape the header compiles.  SMHasher3 was pinned at upstream commit
+\texttt{6ab43433}.  The verification values it computes for the function are
+\texttt{0xF3C4A9B4} for the canonical little-endian reading and
+\texttt{0x01E3C68D} for the byte-swapped one.
 
 \begin{center}
-\begin{tabular}{@{}lllcc@{}}
+\begin{tabular}{@{}llcccc@{}}
 \toprule
-Host & Compiler & Tiers & Result & Time \\
+Host & Compiler & Tiers & Vec & Result & Time \\
 \midrule
-Apple M1        & Apple Clang 21 & 1 & 188/188 & 583\,s \\
-Zen 5           & GCC 16.1.1     & 1 & 188/188 & 257\,s \\
-Zen 5           & Clang 22.1.8   & 0 & 188/188 & 236\,s \\
+Apple M1 & Apple Clang 21 & 0 & 0 & 188/188 & 408\,s \\
+Zen 5    & GCC 16.1.1     & 1 & 1 & 188/188 & 258\,s \\
+Zen 5    & GCC 16.1.1     & 1 & 0 & 188/188 & 237\,s \\
+Zen 5    & Clang 22.1.8   & 0 & 0 & 188/188 & 232\,s \\
 \bottomrule
 \end{tabular}
 \end{center}
 
-The runs were chosen to cover both compiled dispatch shapes.  As
-Section~\ref{sec:platforms} notes, the header's
-\texttt{HAYAHASH64\_\allowbreak INTERNAL\_\allowbreak TIERS} switch is 1
-on AArch64 and on x86-64 under GCC, and 0 on x86-64 under Clang, so the two
-shapes are different programs even though they are specified to agree.  Every
-line of the three outputs that does not report a time is identical, including
-each individual p-value and collision count.  The shapes therefore differ
-only in speed, which is direct evidence for the exactness claim discussed in
-Section~\ref{sec:implementation} and is stronger than a boundary-vector
-comparison, since the suite compares many millions of digests.
+Two independent compile-time switches select between these shapes.
+\texttt{HAYAHASH64\_\allowbreak INTERNAL\_\allowbreak TIERS} enables the
+straight-line length tiers and is 1 unless the compiler is Clang.
+\texttt{HAYAHASH64\_\allowbreak INTERNAL\_\allowbreak VECGCC}, new in this
+release, selects a bulk spelling that GCC's vectorizer can seed from, and is
+1 on x86-64 under GCC when AVX-512DQ is available.  The third row disables
+that gate deliberately, with \texttt{-U\_\_AVX512DQ\_\_}, because it is the
+shape an ordinary GCC build without AVX-512 receives.
+
+Every line of the four outputs that does not report a time is identical,
+including each individual p-value and collision count.  That is direct
+evidence for the exactness claim discussed in
+Section~\ref{sec:implementation}, and it is stronger than a boundary-vector
+comparison because the suite compares many millions of digests.  It matters
+most for the vectorized row: disassembly confirms that build issues packed
+64-bit multiplies over four lanes where the others are scalar, so the
+agreement is between genuinely different machine code rather than between
+two spellings the compiler collapsed.
+
+The shapes are not stable across releases and should be probed rather than
+assumed.  At \texttt{v0.3.0} the tier switch keyed off the architecture, so
+the Apple M1 compiled the wide shape; at \texttt{\SnapshotVersion} it keys off
+the compiler, and that host now compiles the compact one.
 
 The adapter, \path{tests/smhasher3/hayahash.cpp}, includes the specified
 header itself rather than restating the algorithm in SMHasher3's own style.
@@ -779,6 +794,12 @@ quality result, and archived M1/Zen 5 comparison. \\
 register in \path{paper/snapshot.tex}, TBD sections for analysis goals,
 SMHasher3, and platform coverage, and historical bookkeeping trimmed from
 the main text. \\
+\addlinespace
+2026-08-01 & \texttt{v0.4.0} & Snapshot advanced to \texttt{v0.4.0}, whose
+fifth optimization pass rewrote the header's per-compiler dispatch and added a
+vectorizable bulk spelling without moving the digest.  SMHasher3 rerun on four
+builds covering every shape the header now compiles; all agree line for line.
+\\
 \addlinespace
 2026-07-31 & \texttt{v0.3.0} & SMHasher3 section filled in and its TBD
 closed: adapter in \path{tests/smhasher3} that includes the specified header,

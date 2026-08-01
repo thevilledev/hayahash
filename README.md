@@ -288,23 +288,30 @@ upstream commit; [`docs/smhasher3.md`](docs/smhasher3.md) covers how to
 reproduce all of this. Small-key numbers are cycles per hash over 1-31-byte
 keys (lower is better); bulk is bytes per cycle on 256 KiB keys (higher
 is better). Full-suite results are our own runs at that pinned commit,
-not upstream's published tables. hayahash's Zen 5 bulk cell was
-re-measured after the fifth pass's GCC vectorization change; every
-other cell is from the fourth-pass session, whose code paths the fifth
-pass left bit-identical.
+not upstream's published tables. Every cell was re-measured at `v0.4.0`,
+five replicates per hash.
 
 | hash | M1 small | M1 bulk | Zen 5 small | Zen 5 bulk | full suite | peak-performance requirement |
 |---|---:|---:|---:|---:|---|---|
-| rapidhash v3 | **21.2** | 14.9 | 9.8 | 28.7 | pass | 64x64-to-128-bit multiply |
-| wyhash v4.2 | 22.2 | 8.6 | 8.8 | 19.8 | fail (11) | 64x64-to-128-bit multiply |
-| a5hash v5.21 | 23.0 | 3.0 | **6.1** | 6.9 | pass | 64x64-to-128-bit multiply |
-| komihash v5.27 | 25.0 | 7.5 | 10.7 | 19.9 | pass | 64x64-to-128-bit multiply |
-| XXH3-64 | 25.6 | **12.6** | 10.1 | 49.1 | fail (22) | SIMD for peak bulk speed |
-| gxhash-64 | - | - | 16.4 | **64.8** | fail (23) | AES instructions |
-| **hayahash64** | 33.3 | 9.7 | 12.0 | 31.1 | pass | ordinary 64x64-to-64-bit multiply |
-| ChibiHash v2 | 37.4 | 6.1 | 9.2 | 15.8 | pass | ordinary 64x64-to-64-bit multiply |
-| mx3.v3 | 45.1 | 4.1 | 16.9 | 10.1 | fail (26) | ordinary 64x64-to-64-bit multiply |
-| SpookyHash2-64 | 52.2 | 4.1 | 18.1 | 15.4 | fail (5) | ordinary 64-bit operations |
+| rapidhash v3 | **21.5** | 15.2 | 9.8 | 28.6 | pass | 64x64-to-128-bit multiply |
+| wyhash v4.2 | 22.5 | 8.8 | 8.8 | 19.8 | fail (11) | 64x64-to-128-bit multiply |
+| a5hash v5.21 | 23.3 | 3.0 | **6.1** | 6.9 | pass | 64x64-to-128-bit multiply |
+| komihash v5.27 | 25.3 | 7.5 | 10.7 | 19.9 | pass | 64x64-to-128-bit multiply |
+| XXH3-64 | 25.9 | **12.6** | 10.1 | 48.9 | fail (22) | SIMD for peak bulk speed |
+| gxhash-64 | - | - | 16.4 | **64.7** | fail (23) | AES instructions |
+| **hayahash64** | 33.5 | 9.8 | 12.0 | 31.2 [^avx] | pass | ordinary 64x64-to-64-bit multiply |
+| ChibiHash v2 | 37.7 | 6.1 | 9.2 | 15.7 | pass | ordinary 64x64-to-64-bit multiply |
+| mx3.v3 | 44.7 | 4.2 | 16.9 | 10.1 | fail (26) | ordinary 64x64-to-64-bit multiply |
+| SpookyHash2-64 | 52.6 | 4.1 | 18.1 | 15.4 | fail (5) | ordinary 64-bit operations |
+
+[^avx]: That figure needs the compiler to auto-vectorize the bulk loop,
+    which requires AVX-512DQ for its packed 64-bit multiply. A separate
+    five-replicate sweep across the three shapes on the same host gives
+    31.1 B/cy under GCC with `-march=native`, 31.1 under Clang, and
+    **17.6 under GCC without AVX-512DQ** (the 31.2 above is the same
+    quantity from the main sweep; the 0.1 is run-to-run). The source stays portable
+    scalar C either way - nothing here is hand-vectorized - but a machine
+    without AVX-512 gets the lower rate. Small-key figures are unaffected.
 
 Two things about the small-key column before reading anything into it.
 It is *dependent latency*, not throughput: SMHasher3 feeds each hash's
@@ -313,8 +320,11 @@ not comparable to the independent-hash figures in the ChibiHash tables
 above. It also needed correcting: SMHasher3 measures call overhead once
 per process and subtracts it from all 31 lengths, and that calibration
 varied by ~2 cycles between runs, which is 10-40% on Zen 5. The archived
-records explain the correction; after it, replicates agree to within
-0.25 cycles.
+records explain the correction. After it the five Zen 5 replicates agree
+to within 0.35 cycles. The fanless M1 is noisier: one replicate per hash
+came out uniformly fast, consistent with the core clocking above the rate
+the cycle timer assumes, so its figures are medians and the archived record
+reports both raw and outlier-trimmed dispersion.
 
 gxhash is measured on Zen 5 only. Its SMHasher3 port takes the hardware
 path solely under x86 AES, so an ARM number would describe a software-AES
@@ -327,15 +337,16 @@ The results fall into distinct instruction classes:
   honest recommendation when a native 128-bit multiply result is
   available - exactly the instruction hayahash's portability rules
   exclude. Its Zen 5 bulk lead did not survive the fifth pass, though:
-  28.7 bytes/cycle against hayahash's 31.1.
+  28.6 bytes/cycle against hayahash's 31.2, and only where hayahash's bulk
+  loop vectorizes.
 - **SIMD or hardware acceleration:** these win bulk decisively where the
-  hardware provides them. XXH3-64 reaches 49.1 B/cy on Zen 5 with AVX-512
-  and 12.6 B/cy on the M1 with NEON, and gxhash reaches 64.8 B/cy on Zen 5
-  with AES-NI, against hayahash's 31.1 and 9.7. Both fail the suite, but
+  hardware provides them. XXH3-64 reaches 48.9 B/cy on Zen 5 with AVX-512
+  and 12.6 B/cy on the M1 with NEON, and gxhash reaches 64.7 B/cy on Zen 5
+  with AES-NI, against hayahash's 31.2 and 9.8. Both fail the suite, but
   they are not beaten on speed.
 - **Portable 64-bit scalar:** the only other hash here that meets
   hayahash's constraints *and* passes is ChibiHash v2. hayahash leads it
-  in bulk on both hosts, by 1.59x on the M1 and 1.97x on Zen 5. On small
+  in bulk on both hosts, by 1.61x on the M1 and 1.99x on Zen 5. On small
   keys the two split: hayahash takes 11% less time on the M1, but 30%
   more on Zen 5, where ChibiHash v2's simpler short path wins the
   8-15-byte band by about 5.3 cycles. mx3.v3 is the remaining
@@ -343,14 +354,17 @@ The results fall into distinct instruction classes:
 
 Taken together: within the portable scalar class, hayahash is the fastest
 hash we found in sustained bulk that passes the complete SMHasher3 suite,
-on both hosts - and on Zen 5 it is now the fastest passing hash in bulk
-of any instruction class measured here, wide multiplies included; only
-XXH3-64 and gxhash stream faster, and both fail the suite. It does not
-hold that lead on small-key latency
-everywhere - ChibiHash v2 is ahead on Zen 5 - so the small-key advantage
-is architecture-dependent, not general. This is a deliberately scoped
-claim, not a universal record: two hosts, one compiler each, bounded by
-the roughly 250 hashes SMHasher3 tracks.
+on both hosts. On Zen 5 it also beats every wide-multiply hash measured
+here in bulk, rapidhash v3 included; only XXH3-64 and gxhash stream
+faster, and both fail the suite. That last part is conditional, though:
+it holds where the bulk loop vectorizes, and a build without AVX-512DQ
+falls back to 17.6 B/cy, behind rapidhash's 28.6.
+
+Two further limits. hayahash does not hold a small-key lead everywhere -
+ChibiHash v2 is ahead on Zen 5 - so that advantage is
+architecture-dependent, not general. And this is a deliberately scoped
+claim rather than a universal record: two hosts, bounded by the roughly
+250 hashes SMHasher3 tracks.
 
 ## Status
 

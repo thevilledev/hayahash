@@ -42,32 +42,50 @@ make -C tests/smhasher3 run HASH=ChibiHash2                 # some other hash
 Always pair a different `CXX` with a different `BUILD`, or CMake reuses the
 cached compiler from the existing tree and silently ignores you.
 
-## Covering both dispatch shapes
+## Covering every dispatch shape
 
-`hayahash.h` compiles two different programs. `HAYAHASH64_INTERNAL_TIERS` is 1
-on AArch64 and on x86-64 under GCC, and 0 on x86-64 under Clang, which
-disables the straight-line length tiers. They are specified to produce
-identical output, so a conformance run should cover both:
+`hayahash.h` compiles to several different programs, all specified to produce
+identical output. Two independent compile-time switches select between them,
+and **both conditions have changed before**, so read them out of the header
+rather than trusting this table:
+
+| switch | 1 when | effect |
+|---|---|---|
+| `HAYAHASH64_INTERNAL_TIERS` | AArch64 or x86-64, **and not Clang** | straight-line length tiers for 17..319-byte keys |
+| `HAYAHASH64_INTERNAL_VECGCC` | x86-64, GCC, and `__AVX512DQ__` | array-and-loop bulk spelling that GCC's SLP vectorizer can seed from |
+
+As of `v0.4.0` that gives three distinct shapes, and a conformance run should
+cover all of them:
+
+| shape | how to build it |
+|---|---|
+| tiers 1, vecgcc 1 | `make run BUILD=build-gcc` on x86-64 with GCC (CMake adds `-march=native`) |
+| tiers 1, vecgcc 0 | `make run BUILD=build-gccnv EXTRA_CXXFLAGS=-U__AVX512DQ__` - the plain GCC spelling, what a build without AVX-512 gets |
+| tiers 0, vecgcc 0 | `make run BUILD=build-clang CXX=clang++`, and any Clang build including Apple clang on the M1 |
+
+Note that Apple Silicon under Apple clang is `tiers 0` as of `v0.4.0`; it was
+`tiers 1` in `v0.3.0`, when the condition keyed off the architecture rather
+than the compiler. Never assume the M1 covers the wide shape.
+
+To read the shape out of a build:
 
 ```bash
-make -C tests/smhasher3 run                              # gcc on x86-64 -> tiers 1
-make -C tests/smhasher3 run CXX=clang++ BUILD=build-clang # clang on x86-64 -> tiers 0
+cat > /tmp/shape.c <<'EOF'
+#include <stdio.h>
+#include "hayahash.h"
+int main(void){ printf("TIERS=%d VECGCC=%d\n",
+  HAYAHASH64_INTERNAL_TIERS, HAYAHASH64_INTERNAL_VECGCC); return 0; }
+EOF
+cc -O3 -march=native -I. -o /tmp/shape /tmp/shape.c && /tmp/shape
 ```
 
-To confirm which shape you actually built:
-
-```bash
-printf '#include <stdio.h>\n#include "hayahash.h"\nint main(void){printf("TIERS=%%d\\n", HAYAHASH64_INTERNAL_TIERS);}\n' > /tmp/t.c
-cc -I. -o /tmp/t /tmp/t.c && /tmp/t
-```
-
-The two shapes should agree on every line of output that does not report a
-time. That is a much stronger exactness check than comparing boundary vectors,
+Every shape must agree on every line of output that does not report a time.
+That is a far stronger exactness check than comparing boundary vectors,
 because the suite hashes millions of keys:
 
 ```bash
 strip() { grep -vE "cycles/hash|cycles/op|bytes/cycle|GiB/sec|MiB/sec|Testing took|ghz" "$1"; }
-diff <(strip run-gcc.txt) <(strip run-clang.txt) && echo "identical"
+diff <(strip full-build-gcc.txt) <(strip full-build-clang.txt) && echo "identical"
 ```
 
 ## After the digest changes

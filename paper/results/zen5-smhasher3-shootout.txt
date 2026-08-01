@@ -1,116 +1,98 @@
-snapshot: v0.3.0, commit 4e14b4c3c46b300aa6bb446fbeacb8e8c54326ee
-hayahash.h sha256: bfd314f30f21014035028f4e3e9e8f3a41e7145c7bb771ae89fb134449cee06f
-smhasher3 upstream: https://gitlab.com/fwojcik/smhasher3.git
-smhasher3 commit: 6ab4343396fbe0f7a1c7ac4f01d0eb9acffe4202
-smhasher3 --version: SMHasher3 20260326-main-6ab43433-dirty
-smhasher3 modifications: the adapter and the two patches in tests/smhasher3,
-  applied by its Makefile. "dirty" above is those modifications.
-
-Both patches have been submitted upstream (merge requests !31 and !32,
-open as of 2026-08-01), so this deviation from the pinned revision is
-meant to be temporary. A later record should advance the pin and drop them.
+snapshot: v0.4.0, commit 24b8d58cc17cf7048e6b792153ab52ba4a50315f
+hayahash.h sha256: d7c67c1e697a16b119810655e08f039d51f0a43e937eb5cd3db0ec59b22d06d4
+smhasher3 commit: 6ab4343396fbe0f7a1c7ac4f01d0eb9acffe4202 (+ the two patches
+  in tests/smhasher3, submitted upstream as merge requests !31 and !32)
 host: AMD Ryzen AI 9 HX PRO 370 (Zen 5), 12 cores / 24 threads, CPU max
   5157.9 MHz, performance governor, Linux 6.18.38-1-MANJARO
-compiler: GCC 16.1.1 20260625, cmake 4.4.0, Release, -O3 -march=native
-competitor build width: this host detects its full ISA, so competitors run at
-  their best: XXH3-64 builds avx512, gxhash-64 builds sse2+aesni.
-speed command: ./SMHasher3 --test=Speed --verbose <hash>, 5 replicates per
-  hash, run round-robin across hashes rather than five-in-a-row, so drift
-  affects every hash equally. Median reported.
-full-suite command: ./SMHasher3 <hash>, once per hash. The statistical tests
-  are deterministic given the hash, so one host settles pass/fail.
-date: 2026-07-31
+compiler: GCC 16.1.1 20260625, Release, -O3 -march=native
+dispatch: hayahash TIERS=1 VECGCC=1 (the vectorized bulk shape)
+command: ./SMHasher3 --test=Speed --verbose <hash>, 5 replicates round-robin
+date: 2026-08-01
+
+COMPETITOR BUILD WIDTH
+
+This host detects its full ISA, so competitors run at their best: XXH3-64
+builds avx512, gxhash-64 builds sse2+aesni.
 
 OVERHEAD CALIBRATION, AND WHY THE RAW NUMBERS NEEDED CORRECTING
 
 SMHasher3 measures the cost of calling a do-nothing hash once per process and
 subtracts it from every small-key timing (tests/SpeedTest.cpp, SpeedTestInit).
-That single calibration turned out to be noisy: across the 50 runs here it
-ranged 1.55 to 3.62 cycles. Because it is subtracted from all 31 key lengths
-alike, a bad calibration shifts an entire run by a constant. On this host the
-hashes themselves cost 6..18 cycles, so a 2-cycle calibration error is a
-10..40% error, and an earlier 3-replicate sweep produced impossible readings
-such as 1.59 cycles/hash for a 4-byte rapidhash, below the latency of a single
-multiply.
+That single calibration is noisy: across the 50 runs here it ranged 1.55 to
+3.62 cycles. Because it is subtracted from all 31 key lengths alike, a bad
+calibration shifts an entire run by a constant. On this host the hashes cost
+6..18 cycles, so a 2-cycle calibration error is a 10..40% error, and an
+uncorrected sweep once produced an impossible 1.59 cycles/hash for a 4-byte
+rapidhash, below the latency of a single multiply.
 
-Correction applied here: add each run's own reported overhead back to recover
-the raw measurement, then subtract one common baseline for every hash on the
-host. The baseline is the smallest calibration observed, 1.55 cycles, since
+Correction: add each run's own reported overhead back to recover the raw
+measurement, then subtract one common baseline for every hash on the host.
+The baseline is the smallest calibration observed, 1.55 cycles, since
 interference can only inflate the do-nothing hash's measured cost, never push
-it below its true value. After correction the replicate spread is at most 0.07
-cycles, against +-2.08 before.
+it below its true value. After correction the replicate spread is at most
+0.35 cycles, against +-2.08 before.
 
 Bulk figures are uncorrected: they use a separate long-hash overhead that is
 negligible against a 262144-byte hash, and they were already stable.
 
 WHAT THE SMALL-KEY COLUMN MEASURES
 
-timehash_small() feeds each hash's output back into the key between iterations
-(j = i ^ hash_temp[0]; memcpy(key, &j, 4)), so hashes cannot overlap. The
-small-key column is therefore dependent latency over 1..31-byte keys, not
-independent throughput, and it is not comparable to the independent-hash
-figures produced by tests/bench.c.
+timehash_small() feeds each hash's output back into the key between
+iterations, so hashes cannot overlap. The column is dependent latency over
+1..31-byte keys, not independent throughput, and it is not comparable to the
+independent-hash figures produced by tests/bench.c.
 
 RESULTS
 
 hash             small keys (cy/hash)   bulk (B/cy)   full suite
-rapidhash                         9.8          28.7   pass 188/188
+rapidhash                         9.8          28.6   pass 188/188
 wyhash                            8.8          19.8   FAIL 177/188
 a5hash                            6.1           6.9   pass 188/188
 komihash                         10.7          19.9   pass 188/188
-XXH3-64                          10.1          49.1   FAIL 166/188
-HayaHash64                       12.0          17.7   pass 188/188
-ChibiHash2                        9.2          15.8   pass 188/188
+XXH3-64                          10.1          48.9   FAIL 166/188
+HayaHash64                       12.0          31.2   pass 188/188
+ChibiHash2                        9.2          15.7   pass 188/188
 mx3.v3                           16.9          10.1   FAIL 162/188
 SpookyHash2-64                   18.1          15.4   FAIL 183/188
-gxhash-64                        16.4          64.8   FAIL 165/188
+gxhash-64                        16.4          64.7   pass? see below
 
-| SpookyHash2-64 | 18.1 | 15.4 |
-| gxhash-64 | 16.4 | 64.8 |
+Competitor pass/fail is carried over from the v0.3.0 sweep, which used this
+same SMHasher3 pin and the same competitor sources; only hayahash's header
+changed between the two, and its own result was re-run here. gxhash-64 failed
+165/188 there.
+
+HAYAHASH BULK IS SHAPE-DEPENDENT: 31.2 IS NOT A UNIVERSAL FIGURE
+
+v0.4.0's fifth pass added a bulk spelling that a vectorizer can seed from,
+and the effect is large but conditional. Measured on this host, same binary
+family, five replicates each:
+
+  shape                                 small (cy/hash)   bulk (B/cy)
+  gcc -march=native   (tiers 1, vec 1)             12.0          31.1
+  gcc -U__AVX512DQ__  (tiers 1, vec 0)             12.0          17.6
+  clang++             (tiers 0, vec 0)             11.9          31.1
+
+So a GCC build without AVX-512DQ gets 17.6 bytes/cycle, not 31. Disassembly
+of hashes/hayahash.cpp.o explains it: the two fast builds each emit 8 vpmullq
+(packed 64x64 multiply, an AVX-512DQ instruction, here on 256-bit ymm
+registers) and the slow one emits none.
+
+Note what that also shows: clang reaches the same rate without the special
+spelling. The VECGCC gate exists to coax GCC into what clang already does on
+the ordinary code, so "needs AVX-512DQ" is the real constraint and "needs
+GCC" is not.
+
+PER-REPLICATE DETAIL
+
 
 spread after correction (max-min across reps):
-  rapidhash        small 0.01 cy   bulk 0.31 B/cy
-  wyhash           small 0.07 cy   bulk 0.15 B/cy
-  a5hash           small 0.02 cy   bulk 0.00 B/cy
-  komihash         small 0.01 cy   bulk 0.02 B/cy
-  XXH3-64          small 0.01 cy   bulk 0.22 B/cy
-  HayaHash64       small 0.03 cy   bulk 0.03 B/cy
-  ChibiHash2       small 0.02 cy   bulk 0.03 B/cy
-  mx3.v3           small 0.01 cy   bulk 0.05 B/cy
-  SpookyHash2-64   small 0.03 cy   bulk 0.03 B/cy
-  gxhash-64        small 0.01 cy   bulk 0.24 B/cy
-
-PER-LENGTH DETAIL, HayaHash64 vs ChibiHash2 (overhead-corrected)
-
-len  HayaHash64  ChibiHash2  delta
-  1       10.37       10.57   -0.20
-  2       10.37       10.57   -0.20
-  3       10.36       10.58   -0.22
-  4        7.12        7.82   -0.70
-  5       12.04       11.29   +0.75
-  6       12.04       11.29   +0.75
-  7       12.03       11.29   +0.74
-  8       12.56        7.10   +5.46
-  9       12.56        7.31   +5.25
- 10       12.56        7.32   +5.24
- 11       12.56        7.31   +5.25
- 12       12.49        7.17   +5.32
- 13       12.48        7.17   +5.31
- 14       12.49        7.17   +5.32
- 15       12.48        7.17   +5.31
- 16       12.48        8.72   +3.76
- 17       12.67        8.92   +3.75
- 18       12.67        8.92   +3.75
- 19       12.67        8.92   +3.75
- 20       12.17        8.71   +3.46
- 21       12.17        8.71   +3.46
- 22       12.17        8.71   +3.46
- 23       12.17        8.71   +3.46
- 24       12.17       10.18   +1.99
- 25       12.28       10.37   +1.91
- 26       12.29       10.37   +1.92
- 27       12.29       10.37   +1.92
- 28       12.28       10.40   +1.88
- 29       12.29       10.41   +1.88
- 30       12.29       10.41   +1.88
- 31       12.29       10.41   +1.88
+  rapidhash        small 0.04 cy   bulk 0.33 B/cy
+  wyhash           small 0.06 cy   bulk 0.13 B/cy
+  a5hash           small 0.04 cy   bulk 0.00 B/cy
+  komihash         small 0.35 cy   bulk 0.06 B/cy
+  XXH3-64          small 0.01 cy   bulk 0.29 B/cy
+  HayaHash64       small 0.00 cy   bulk 0.16 B/cy
+  ChibiHash2       small 0.02 cy   bulk 0.04 B/cy
+  mx3.v3           small 0.01 cy   bulk 0.03 B/cy
+  SpookyHash2-64   small 0.02 cy   bulk 0.04 B/cy
+  gxhash-64        small 0.01 cy   bulk 0.14 B/cy

@@ -56,6 +56,13 @@ BUILD ?= build
 # hayahash.h lives at the repository root.
 INC = -I$(abspath ../..)
 
+# Extra compiler flags, appended after INC when CMake is configured. Use this
+# to select a dispatch shape the host would not pick by default, for example
+# turning off the GCC bulk vectorization gate:
+#   make run BUILD=build-gccnv EXTRA_CXXFLAGS=-U__AVX512DQ__
+# CMake appends its own -march=native afterwards, but -U still wins.
+EXTRA_CXXFLAGS ?=
+
 # SMHasher3 matches hash names case-insensitively.
 HASH ?= hayahash64
 
@@ -89,7 +96,7 @@ install: $(SRC)/.git hayahash.cpp
 
 build: install
 	mkdir -p $(SRC)/$(BUILD)
-	cd $(SRC)/$(BUILD) && CXXFLAGS="$(INC)" cmake ..
+	cd $(SRC)/$(BUILD) && CXXFLAGS="$(INC) $(EXTRA_CXXFLAGS)" cmake ..
 	$(MAKE) -C $(SRC)/$(BUILD) -j$(shell getconf _NPROCESSORS_ONLN 2>/dev/null || echo 4)
 
 # Prints the verification values SMHasher3 computes, for both the canonical

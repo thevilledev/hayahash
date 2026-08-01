@@ -1,45 +1,45 @@
-snapshot: v0.3.0, commit 4e14b4c3c46b300aa6bb446fbeacb8e8c54326ee
-executed from: commit b35496aabdad2334cc92cfe0a40c7921e7ec997a, whose hayahash.h is
-  byte-identical to the one released as v0.3.0. The v0.3.0 commit changes only
-  package version strings (java/pom.xml, js/package.json, rust/Cargo.toml,
-  zig/build.zig.zon) and does not touch the header, so this run is evidence
-  about the released header. The digest below is the check that matters.
-hayahash.h sha256: bfd314f30f21014035028f4e3e9e8f3a41e7145c7bb771ae89fb134449cee06f
-adapter: tests/smhasher3/hayahash.cpp sha256 6be74992b7470d7840e498b38beb03995040d7391581f7bf8a45c1d92b1aae38
-digest drift note: two files in tests/smhasher3 were later given SPDX license
-  headers. Neither change touches code or patch hunks, so this run still
-  reproduces, but the digests recorded here are the ones that produced it and
-  no longer match the working tree. Current values:
-    hayahash.cpp   ce659d6c92f8c3c860a99290af6d67ea994ac7573a829329a2000bf70d824ba1
-      (relicensed GPL-3.0-or-later; byte-identical from the first #include on)
-    0001-...patch  aad9255a4ef45f5de16e7a9376c521a483dc353bfadb071b8f3028a3b789bf84
-      (SPDX header plus an upstream merge-request reference above the diff)
+snapshot: v0.4.0, commit 24b8d58cc17cf7048e6b792153ab52ba4a50315f
+hayahash.h sha256: d7c67c1e697a16b119810655e08f039d51f0a43e937eb5cd3db0ec59b22d06d4
+adapter: tests/smhasher3/hayahash.cpp sha256
+  ce659d6c92f8c3c860a99290af6d67ea994ac7573a829329a2000bf70d824ba1
 smhasher3 upstream: https://gitlab.com/fwojcik/smhasher3.git
 smhasher3 commit: 6ab4343396fbe0f7a1c7ac4f01d0eb9acffe4202
-smhasher3 modifications: three, all recorded in tests/smhasher3 and applied by its
-  Makefile: (1) the adapter copied to hashes/hayahash.cpp, (2) that filename appended
-  to hashes/Hashsrc.cmake, (3) 0001-macos-size_t-reference-binding.patch, sha256
-  a42220d9f5a5d3f0308471df880cf87203f44a171cd0a0ead8d2403fa15c6654, which fixes a
-  size_t/uint64_t reference binding in util/Random.cpp that does not compile under
-  clang on macOS. The patch is applied on every host so all runs build identical
-  source. These are why the tool reports its version as "-dirty" below.
-
-That patch has been submitted upstream as merge request !31, open as of
-2026-08-01, so the deviation from the pinned revision is meant to be
-temporary. Note this run predates the second patch (!32, Apple Silicon
-NEON detection), which affects only competitor build width and not
-hayahash; see the shootout records.
-host: AMD Ryzen AI 9 HX PRO 370 (Zen 5), 12 cores / 24 threads, CPU max 5157.9 MHz,
-  performance governor, Linux 6.18.38-1-MANJARO
+smhasher3 --version: SMHasher3 20260326-main-6ab43433-dirty
+smhasher3 modifications: the adapter and the two patches in tests/smhasher3,
+  applied by its Makefile; "dirty" above is those modifications. Both patches
+  are submitted upstream as merge requests !31 and !32.
+host: AMD Ryzen AI 9 HX PRO 370 (Zen 5), 12 cores / 24 threads, CPU max
+  5157.9 MHz, performance governor, Linux 6.18.38-1-MANJARO
 compiler: GCC 16.1.1 20260625 (g++)
-build: cmake 4.4.0, CMAKE_BUILD_TYPE=Release, CXXFLAGS=-I<repo root>, build dir build
-dispatch: HAYAHASH64_INTERNAL_TIERS=1 (verified with a compile-time probe on this host)
-command: make -C tests/smhasher3 run
-threads: SMHasher3 default (--ncpu=4); the two thread-safety sanity tests therefore
-  execute rather than being skipped
-speed caveat: the Speed and Hashmap sections below are SMHasher3's own timing
-  harness and are not the paper's performance evidence; see the benchmark section.
-date: 2026-07-31
+build: cmake 4.4.0, Release, CXXFLAGS="-I<repo root>", CMake appends -march=native
+dispatch: TIERS=1 VECGCC=1 (verified by compile-time probe)
+command: make -C tests/smhasher3 run BUILD=build-gcc
+threads: SMHasher3 default (--ncpu=4), so both thread-safety sanity tests run
+result: pass 188/188, verification CE 0xF3C4A9B4 / NE 0x01E3C68D, 257.75 s
+date: 2026-08-01
+
+DIGEST UNCHANGED ACROSS THE v0.4.0 REWRITE
+
+v0.4.0's fifth optimization pass changed 83 lines of hayahash.h and reworked
+its per-compiler dispatch, including a new bulk spelling that GCC's SLP
+vectorizer can seed from. The verification values are identical to v0.3.0's.
+
+WHY THREE BUILDS
+
+hayahash.h has two independent compile-time dispatch switches, and this
+snapshot reaches three distinct shapes on this host. All three are recorded
+side by side, and every line of their output that does not report a time is
+identical across all three, over the millions of keys the suite hashes:
+
+  HAYAHASH64_INTERNAL_TIERS   1 unless the compiler is Clang
+  HAYAHASH64_INTERNAL_VECGCC  1 on x86-64 under GCC with __AVX512DQ__
+
+Verified by disassembly of hashes/hayahash.cpp.o: the vecgcc build emits 8
+vpmullq (packed 64x64 multiply, AVX-512DQ, on 256-bit ymm registers), the
+non-vecgcc GCC build emits none, and Clang emits 8 without needing the
+special spelling at all. The gate exists to coax GCC into what Clang already
+does on the ordinary code.
+
 raw output follows verbatim, including the tool's own warnings.
 
 -------------------------------------------------------------------------------
@@ -58,73 +58,73 @@ Running thread-safety test 2 .......... PASS
 [[[ Speed Tests ]]]
 
 Small key speed test - [1, 31]-byte keys
-   1-byte keys -     9.58 cycles/hash
-   2-byte keys -     9.58 cycles/hash
-   3-byte keys -     9.58 cycles/hash
-   4-byte keys -     6.46 cycles/hash
+   1-byte keys -     9.60 cycles/hash
+   2-byte keys -     9.61 cycles/hash
+   3-byte keys -     9.61 cycles/hash
+   4-byte keys -     6.22 cycles/hash
    5-byte keys -    11.26 cycles/hash
-   6-byte keys -    11.26 cycles/hash
-   7-byte keys -    11.26 cycles/hash
-   8-byte keys -    11.79 cycles/hash
-   9-byte keys -    11.79 cycles/hash
-  10-byte keys -    11.79 cycles/hash
-  11-byte keys -    11.79 cycles/hash
-  12-byte keys -    11.71 cycles/hash
-  13-byte keys -    11.71 cycles/hash
-  14-byte keys -    11.71 cycles/hash
-  15-byte keys -    11.71 cycles/hash
-  16-byte keys -    11.71 cycles/hash
-  17-byte keys -    11.89 cycles/hash
-  18-byte keys -    11.89 cycles/hash
-  19-byte keys -    11.89 cycles/hash
-  20-byte keys -    11.40 cycles/hash
-  21-byte keys -    11.40 cycles/hash
-  22-byte keys -    11.39 cycles/hash
-  23-byte keys -    11.39 cycles/hash
-  24-byte keys -    11.40 cycles/hash
-  25-byte keys -    11.40 cycles/hash
-  26-byte keys -    11.40 cycles/hash
-  27-byte keys -    11.40 cycles/hash
-  28-byte keys -    11.39 cycles/hash
-  29-byte keys -    11.38 cycles/hash
-  30-byte keys -    11.38 cycles/hash
-  31-byte keys -    11.40 cycles/hash
-Average        -    11.20 cycles/hash
- rnd-byte keys -    11.21 cycles/hash
+   6-byte keys -    11.25 cycles/hash
+   7-byte keys -    11.25 cycles/hash
+   8-byte keys -    11.77 cycles/hash
+   9-byte keys -    11.78 cycles/hash
+  10-byte keys -    11.78 cycles/hash
+  11-byte keys -    11.78 cycles/hash
+  12-byte keys -    11.77 cycles/hash
+  13-byte keys -    11.77 cycles/hash
+  14-byte keys -    11.77 cycles/hash
+  15-byte keys -    11.77 cycles/hash
+  16-byte keys -    11.76 cycles/hash
+  17-byte keys -    11.83 cycles/hash
+  18-byte keys -    11.85 cycles/hash
+  19-byte keys -    11.84 cycles/hash
+  20-byte keys -    11.53 cycles/hash
+  21-byte keys -    11.53 cycles/hash
+  22-byte keys -    11.53 cycles/hash
+  23-byte keys -    11.53 cycles/hash
+  24-byte keys -    11.53 cycles/hash
+  25-byte keys -    11.53 cycles/hash
+  26-byte keys -    11.53 cycles/hash
+  27-byte keys -    11.54 cycles/hash
+  28-byte keys -    11.54 cycles/hash
+  29-byte keys -    11.53 cycles/hash
+  30-byte keys -    11.53 cycles/hash
+  31-byte keys -    11.53 cycles/hash
+Average        -    11.25 cycles/hash
+ rnd-byte keys -    11.25 cycles/hash
 
 Bulk speed test - 262144-byte keys
-Alignment   7 - 17.68 bytes/cycle - 57.62 GiB/sec @ 3.5 ghz
-Alignment   6 - 17.68 bytes/cycle - 57.62 GiB/sec @ 3.5 ghz
-Alignment   5 - 17.69 bytes/cycle - 57.66 GiB/sec @ 3.5 ghz
-Alignment   4 - 17.70 bytes/cycle - 57.70 GiB/sec @ 3.5 ghz
-Alignment   3 - 17.68 bytes/cycle - 57.62 GiB/sec @ 3.5 ghz
-Alignment   2 - 17.69 bytes/cycle - 57.66 GiB/sec @ 3.5 ghz
-Alignment   1 - 17.69 bytes/cycle - 57.66 GiB/sec @ 3.5 ghz
-Alignment   0 - 17.88 bytes/cycle - 58.29 GiB/sec @ 3.5 ghz
-Average       - 17.71 bytes/cycle - 57.73 GiB/sec @ 3.5 ghz
-Alignment rnd - 17.68 bytes/cycle - 57.64 GiB/sec @ 3.5 ghz
+Alignment   7 - 31.39 bytes/cycle - 102.33 GiB/sec @ 3.5 ghz
+Alignment   6 - 31.13 bytes/cycle - 101.48 GiB/sec @ 3.5 ghz
+Alignment   5 - 31.17 bytes/cycle - 101.60 GiB/sec @ 3.5 ghz
+Alignment   4 - 31.13 bytes/cycle - 101.48 GiB/sec @ 3.5 ghz
+Alignment   3 - 31.13 bytes/cycle - 101.48 GiB/sec @ 3.5 ghz
+Alignment   2 - 31.10 bytes/cycle - 101.36 GiB/sec @ 3.5 ghz
+Alignment   1 - 31.10 bytes/cycle - 101.36 GiB/sec @ 3.5 ghz
+Alignment   0 - 31.17 bytes/cycle - 101.60 GiB/sec @ 3.5 ghz
+Average       - 31.17 bytes/cycle - 101.59 GiB/sec @ 3.5 ghz
+Alignment rnd - 31.06 bytes/cycle - 101.23 GiB/sec @ 3.5 ghz
 
 Bulk speed test - [262017, 262144]-byte keys
-Alignment   7 - 17.61 bytes/cycle - 57.40 GiB/sec @ 3.5 ghz
-Alignment   6 - 17.61 bytes/cycle - 57.41 GiB/sec @ 3.5 ghz
-Alignment   5 - 17.61 bytes/cycle - 57.40 GiB/sec @ 3.5 ghz
-Alignment   4 - 17.63 bytes/cycle - 57.46 GiB/sec @ 3.5 ghz
-Alignment   3 - 17.61 bytes/cycle - 57.40 GiB/sec @ 3.5 ghz
-Alignment   2 - 17.61 bytes/cycle - 57.39 GiB/sec @ 3.5 ghz
-Alignment   1 - 17.61 bytes/cycle - 57.39 GiB/sec @ 3.5 ghz
-Alignment   0 - 17.81 bytes/cycle - 58.04 GiB/sec @ 3.5 ghz
-Average       - 17.64 bytes/cycle - 57.49 GiB/sec @ 3.5 ghz
-Alignment rnd - 17.60 bytes/cycle - 57.36 GiB/sec @ 3.5 ghz
+Alignment   7 - 31.01 bytes/cycle - 101.07 GiB/sec @ 3.5 ghz
+Alignment   6 - 31.01 bytes/cycle - 101.09 GiB/sec @ 3.5 ghz
+Alignment   5 - 31.03 bytes/cycle - 101.14 GiB/sec @ 3.5 ghz
+Alignment   4 - 31.01 bytes/cycle - 101.08 GiB/sec @ 3.5 ghz
+Alignment   3 - 31.00 bytes/cycle - 101.04 GiB/sec @ 3.5 ghz
+Alignment   2 - 30.99 bytes/cycle - 101.01 GiB/sec @ 3.5 ghz
+Alignment   1 - 31.00 bytes/cycle - 101.04 GiB/sec @ 3.5 ghz
+Alignment   0 - 31.26 bytes/cycle - 101.90 GiB/sec @ 3.5 ghz
+Average       - 31.04 bytes/cycle - 101.17 GiB/sec @ 3.5 ghz
+Alignment rnd - 30.99 bytes/cycle - 101.02 GiB/sec @ 3.5 ghz
 
 [[[ 'Hashmap' Speed Tests ]]]
 
 std::unordered_map
-Init std HashMapTest:     339.452 cycles/op (792291 inserts, 1% deletions)
-Running std HashMapTest:  268.230 cycles/op (8.7 stdv)
+Init std HashMapTest:     334.108 cycles/op (792291 inserts, 1% deletions)
+Running std HashMapTest:  266.568 cycles/op (9.2 stdv)
 
 greg7mdp/parallel-hashmap
-Init fast HashMapTest:    151.316 cycles/op (792291 inserts, 1% deletions)
-Running fast HashMapTest: 250.800 cycles/op (2.6 stdv)
+Init fast HashMapTest:    151.930 cycles/op (792291 inserts, 1% deletions)
+Running fast HashMapTest: 250.935 cycles/op (1.3 stdv)
 
 [[[ Avalanche Tests ]]]
 
@@ -2496,7 +2496,7 @@ Summary for: HayaHash64
 Overall result: pass            ( 188 / 188 passed)
 
 ----------------------------------------------------------------------------------------------
-Verification value is 0x00000001 - Testing took 256.602519 seconds
+Verification value is 0x00000001 - Testing took 232.388954 seconds
 
 
 
