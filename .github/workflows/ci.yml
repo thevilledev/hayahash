@@ -356,12 +356,23 @@ jobs:
           version: "1.1.411"
           working-directory: python
 
-  # Smoke one manylinux wheel so the cibuildwheel path (auditwheel tags,
-  # extension build inside the container) stays green without waiting for
-  # a release tag. The full matrix lives in release.yml.
+  # Smoke one Linux and one Windows wheel so the cibuildwheel path stays
+  # green without waiting for a release tag. cp39-win_amd64 is intentional:
+  # older CPython headers trip MSVC /W4 /WX unless treated as external.
+  # The full matrix lives in release.yml.
   python-wheels:
-    name: Python wheels (manylinux smoke)
-    runs-on: ubuntu-latest
+    name: Python wheels (${{ matrix.name }})
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - name: manylinux smoke
+            os: ubuntu-latest
+            build: cp312-manylinux_x86_64
+          - name: windows smoke
+            os: windows-latest
+            build: cp39-win_amd64
 
     steps:
       - name: Check out repository
@@ -371,11 +382,12 @@ jobs:
 
       - name: Check vendored header matches the C reference
         run: diff -q hayahash.h python/include/hayahash.h
+        shell: bash
 
-      - name: Build cp312 manylinux_x86_64
+      - name: Build ${{ matrix.build }}
         uses: pypa/cibuildwheel@4726cd35bb13f7bde50cf2761f2499ac7b3aa32c # v4.1.1
         env:
-          CIBW_BUILD: cp312-manylinux_x86_64
+          CIBW_BUILD: ${{ matrix.build }}
         with:
           package-dir: python
           output-dir: wheelhouse
