@@ -59,8 +59,10 @@ jobs:
   npm:
     name: Publish to npm
     needs: check
-    # npm trusted publishing only works on GitHub-hosted runners.
-    runs-on: avrea-ubuntu-latest-2-vcpu
+    # npm trusted publishing only works on GitHub-hosted runners. The
+    # self-hosted images also point npm at a pull-through cache, which you
+    # can install through but not publish to (ENEEDAUTH against the mirror).
+    runs-on: ubuntu-latest
     permissions:
       contents: read
       id-token: write
@@ -98,8 +100,10 @@ jobs:
     name: Publish to crates.io
     needs: check
     # crates.io trusted publishing, like npm's, is designed for
-    # GitHub-hosted runners.
-    runs-on: avrea-ubuntu-latest-2-vcpu
+    # GitHub-hosted runners. The self-hosted images also replace the
+    # crates-io source with a pull-through cache, and cargo refuses to
+    # publish through a replaced source.
+    runs-on: ubuntu-latest
     permissions:
       contents: read
       id-token: write
@@ -225,6 +229,14 @@ jobs:
           pytest -q
           python -m build
         working-directory: python
+
+      # `python -m build` produces a wheel tagged for the exact build host,
+      # linux_x86_64, and PyPI rejects that tag: binary wheels must be
+      # manylinux or musllinux so they are portable. Ship the sdist only,
+      # which pip compiles on install. The wheel is still built above, so it
+      # stays a smoke test of the extension build.
+      - name: Drop the non-portable wheel
+        run: rm -f python/dist/*.whl
 
       - name: Publish
         uses: pypa/gh-action-pypi-publish@dc37677b2e1c63e2034f94d8a5b11f265b73ba33 # v1.14.2

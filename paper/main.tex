@@ -59,9 +59,10 @@ complete construction and no cryptographic security claim.
 \section{Status and scope}
 
 This is a living paper for a working algorithm.  The normative artifact for
-this draft is the C header \cite{vesilehto2026hayahash} at the Git commit
-and SHA-256 digest below, a development snapshot after release
-\texttt{\SnapshotRelease}:
+this draft is the C header \cite{vesilehto2026hayahash} as released in
+\texttt{\SnapshotRelease}.  The commit below is the one that last changed
+it, which a release commit cannot name for itself, together with its
+SHA-256 digest:
 
 \begin{center}
 \texttt{\SnapshotCommit}\\
@@ -73,7 +74,7 @@ commit that leaves the header byte-identical carries every result in this
 paper forward unchanged.
 
 The archived evaluation records under \path{paper/results} were produced
-against the header at release \texttt{\SnapshotRelease}, whose SHA-256 was
+against the header at release \texttt{v0.4.0}, whose SHA-256 was
 \texttt{d7c67c1e\ldots}, and the header has moved since.  Those records
 still describe the header specified here, for a reason stronger than an
 unchanged digest.  The two intervening commits narrow the conditions under

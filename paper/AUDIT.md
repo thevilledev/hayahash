@@ -1,8 +1,9 @@
 # Claim and evidence register
 
-This register belongs to the working paper at source snapshot
-`2a4ef58e3d2e18b01ae67dd1ed4af207e3a79130`, a development snapshot after
-release `v0.4.0`. The authoritative
+This register belongs to the working paper at release `v0.4.2`. Its header
+is the one introduced by commit `3cfe41155ae2f7ebf498a048518cceb7cffcd749`,
+which is the identity `paper/snapshot.tex` records: a release commit cannot
+name its own hash, and the header is what matters. The authoritative
 snapshot identity lives in `paper/snapshot.tex`; `make -C paper
 check-snapshot` verifies that this file, the checkout, and the header digest
 agree.

@@ -9,6 +9,6 @@ from hayahash._hayahash import hayahash64
 try:
     __version__ = version("hayahash")
 except PackageNotFoundError:  # pragma: no cover - editable/uninstalled tree
-    __version__ = "0.4.1"
+    __version__ = "0.4.2"
 
 __all__ = ["__version__", "hayahash64"]
