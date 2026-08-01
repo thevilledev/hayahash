@@ -282,6 +282,24 @@ enum { hayahash64_internal_bulk_min = 320 };
 #define HAYAHASH64_INTERNAL_VECGCC 0
 #endif
 
+// clang auto-vectorizes the middle four bulk lanes to 32-byte
+// vpmullq wherever AVX-512DQ is available. On Zen 4/5 vpmullq is a
+// single uop and the vector loop is a large win; Skylake-X-class
+// servers microcode it (3 uops, ~15-cycle latency on each lane's
+// xor-add-mul chain) and the same transform measured ~30% slower
+// sustained bulk and ~35% worse chained latency from 320 bytes up
+// on Cascade Lake (clang 18). On non-Zen AVX-512 targets these
+// barriers pin the middle lanes to scalar registers at each block
+// boundary, which denies the vectorizer its seed; they cost no
+// instructions and the digest is unchanged.
+#if defined(__clang__) && defined(__x86_64__) && defined(__AVX512DQ__) && \
+    !defined(__znver4__) && !defined(__znver5__)
+#define HAYAHASH64_INTERNAL_BULK_LANE_GUARD(v) \
+	HAYAHASH64_INTERNAL_COMPILER_GUARD(v)
+#else
+#define HAYAHASH64_INTERNAL_BULK_LANE_GUARD(v) ((void)0)
+#endif
+
 #if HAYAHASH64_INTERNAL_VECGCC
 #define HAYAHASH64_INTERNAL_BULK_BLOCK(q) \
 	do { \
@@ -329,6 +347,10 @@ enum { hayahash64_internal_bulk_min = 320 };
 		h7 = (h7 ^ (w + hayahash64_internal_rotl(wp, 27))) * K; \
 		wp = w; \
 		h0 += wp; \
+		HAYAHASH64_INTERNAL_BULK_LANE_GUARD(h2); \
+		HAYAHASH64_INTERNAL_BULK_LANE_GUARD(h3); \
+		HAYAHASH64_INTERNAL_BULK_LANE_GUARD(h4); \
+		HAYAHASH64_INTERNAL_BULK_LANE_GUARD(h5); \
 	} while (0)
 #endif
 
