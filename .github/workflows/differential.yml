@@ -1,4 +1,4 @@
-name: Differential conformance
+name: Nightly differential conformance
 
 on:
   schedule:
@@ -28,7 +28,7 @@ jobs:
     runs-on: avrea-ubuntu-latest-2-vcpu
     timeout-minutes: 20
     env:
-      HAYAHASH_CORPUS: ${{ runner.temp }}/hayahash-differential.bin
+      HAYAHASH_CORPUS: ${{ github.workspace }}/hayahash-differential.bin
 
     steps:
       - name: Check out repository
