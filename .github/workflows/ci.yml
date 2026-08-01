@@ -73,7 +73,7 @@ jobs:
   # so MSVC performance measurement stays a documented open item.
   msvc:
     name: C (MSVC x64)
-    runs-on: windows-latest
+    runs-on: avrea-windows-2025-2-vcpu
 
     steps:
       - name: Check out repository
