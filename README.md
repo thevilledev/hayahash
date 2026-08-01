@@ -8,6 +8,7 @@
 [![pkg.go.dev](https://img.shields.io/github/v/release/thevilledev/hayahash?logo=go&logoColor=white&label=pkg.go.dev)](https://pkg.go.dev/github.com/thevilledev/hayahash/go)
 [![zig](https://img.shields.io/github/v/release/thevilledev/hayahash?logo=zig&logoColor=white&label=zig)](https://github.com/thevilledev/hayahash/releases/latest)
 [![Maven Central](https://img.shields.io/maven-central/v/io.github.thevilledev/hayahash?logo=openjdk&logoColor=white&label=maven%20central)](https://central.sonatype.com/artifact/io.github.thevilledev/hayahash)
+[![NuGet](https://img.shields.io/nuget/v/Hayahash?logo=nuget&logoColor=white&label=nuget)](https://www.nuget.org/packages/Hayahash)
 [![npm](https://img.shields.io/npm/v/hayahash?logo=npm&logoColor=white&label=npm)](https://www.npmjs.com/package/hayahash)
 
 A small 64-bit hash function that passes the full
@@ -15,7 +16,7 @@ A small 64-bit hash function that passes the full
 strictly portable: no SIMD, no 64x64-to-128-bit multiply, no
 per-architecture code, no UB, and endianness-independent output.
 
-That suits wasm, JVM, and portable C targets where only ordinary
+That suits wasm, JVM, .NET, and portable C targets where only ordinary
 64-bit multiplication is available. On native x86-64 or ARM64, where a
 wide multiply is available, `rapidhash v3` is decisively faster and is
 the better choice unless that portability matters to you.
@@ -40,6 +41,7 @@ The reference implementation is the single C header
 - `zig/` - Zig port (`hayahash` module, Zig 0.16)
 - `java/` - Java port (Maven module `io.github.thevilledev:hayahash`,
   Java 17+)
+- `csharp/` - C# / .NET port (NuGet package `Hayahash`, .NET 8+)
 - `js/` - JavaScript/TypeScript port for npm (`hayahash` package): the
   reference header compiled to WebAssembly, plus a pure-JS fallback
 - `mips/` - MIPS64 assembly port (`hayahash.S`, n64 ABI); tested under
@@ -63,7 +65,9 @@ Each port lives in its own top-level directory and is verified against
 the reference implementation via the SMHasher3 verification value and
 the shared known-answer vectors (see `rust/tests/kat.rs`,
 `go/kat_test.go`, `zig/tests/kat.zig`, the Java `KatTest` under
-`java/src/test`, `js/test/hayahash.test.mjs`, and `make -C mips test`).
+`java/src/test`, the C# `KatTests` under `csharp/tests`,
+`js/test/hayahash.test.mjs`, and `make -C mips test`).
+
 
 ## Usage
 
@@ -103,6 +107,14 @@ Java - the Maven module lives in [`java/`](java/):
 import io.github.thevilledev.hayahash.Hayahash;
 
 long h = Hayahash.hash64(buf, seed);
+```
+
+C# / .NET - the NuGet package lives in [`csharp/`](csharp/):
+
+```csharp
+using Hayahash;
+
+ulong h = Hayahash.Hash64(buf, seed);
 ```
 
 JavaScript/TypeScript - the npm package lives in [`js/`](js/); the
@@ -176,7 +188,7 @@ Each fix is documented in the header where it lives.
   criterion over input and seed bits, plus exact-collision tests over
   23 structured key sets, including reproductions of the SMHasher3
   keysets that broke earlier iterations. All clean.
-- The Rust, Go, Zig, Java, JavaScript, and MIPS64 assembly ports are
+- The Rust, Go, Zig, Java, C#, JavaScript, and MIPS64 assembly ports are
   bit-exact against the C reference:
   each port's test suite checks the SMHasher3 verification value and a
   shared table of known-answer vectors generated from `hayahash.h`.
