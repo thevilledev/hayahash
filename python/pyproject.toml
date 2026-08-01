@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "hayahash"
-version = "0.4.4"
+version = "0.4.5"
 description = "hayahash64, a small, fast, portable 64-bit hash function; CPython C extension over the C reference"
 readme = "README.md"
 license = { text = "Unlicense" }

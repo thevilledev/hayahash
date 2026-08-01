@@ -6,7 +6,7 @@
 
   <groupId>io.github.thevilledev</groupId>
   <artifactId>hayahash</artifactId>
-  <version>0.4.4</version>
+  <version>0.4.5</version>
   <packaging>jar</packaging>
 
   <name>hayahash</name>
