@@ -188,15 +188,25 @@ jobs:
         with:
           go-version: stable
 
+      - name: Install golangci-lint
+        uses: golangci/golangci-lint-action@ba0d7d2ec06a0ea1cb5fa41b2e4a3ab91d21278a # v9.3.0
+        with:
+          version: v2.12.2
+          install-only: true
+          verify: true
+          working-directory: go
+
       - name: Check formatting
-        run: |
-          test -z "$(gofmt -l go)" || { gofmt -d go; exit 1; }
+        run: golangci-lint fmt --diff
+        working-directory: go
 
       - name: Lint
-        run: go vet -C go ./...
+        run: golangci-lint run
+        working-directory: go
 
       - name: Test
-        run: go test -C go ./...
+        run: go test ./...
+        working-directory: go
 
   zig:
     name: Zig
@@ -256,6 +266,10 @@ jobs:
         with:
           dotnet-version: 8.0.x
 
+      - name: Check formatting
+        run: dotnet format --verify-no-changes --severity minimal
+        working-directory: csharp
+
       - name: Test
         run: dotnet test --configuration Release --verbosity minimal
         working-directory: csharp
@@ -278,12 +292,31 @@ jobs:
       - name: Check vendored header matches the C reference
         run: diff -q hayahash.h python/include/hayahash.h
 
+      - name: Ruff check
+        uses: astral-sh/ruff-action@278981a28ce3188b1e39527901f38254bf3aac89 # v4.1.0
+        with:
+          version: "0.16.1"
+          src: "python"
+
+      - name: Ruff format
+        uses: astral-sh/ruff-action@278981a28ce3188b1e39527901f38254bf3aac89 # v4.1.0
+        with:
+          version: "0.16.1"
+          args: "format --check"
+          src: "python"
+
       - name: Install and test
         run: |
           python -m pip install -U pip
           python -m pip install -e ".[test]"
           pytest -q
         working-directory: python
+
+      - name: Pyright
+        uses: jakebailey/pyright-action@8ec14b5cfe41f26e5f41686a31eb6012758217ef # v3.0.2
+        with:
+          version: "1.1.411"
+          working-directory: python
 
   js:
     name: JavaScript

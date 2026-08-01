@@ -1,4 +1,3 @@
-#!/usr/bin/env python3
 """Build the hayahash C extension against the reference header."""
 
 from __future__ import annotations

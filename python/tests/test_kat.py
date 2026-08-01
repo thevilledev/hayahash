@@ -12,6 +12,7 @@ import pytest
 
 from hayahash import hayahash64
 
+
 # Deterministic key material shared with the C generator:
 # byte(i) = (i*K + 0x2545F4914F6CDD1D) >> 56.
 def byte_at(i: int) -> int:
