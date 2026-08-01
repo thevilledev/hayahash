@@ -11,4 +11,4 @@ try:
 except PackageNotFoundError:  # pragma: no cover - editable/uninstalled tree
     __version__ = "0.4.0"
 
-__all__ = ["hayahash64", "__version__"]
+__all__ = ["__version__", "hayahash64"]

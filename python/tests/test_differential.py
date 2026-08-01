@@ -18,7 +18,8 @@ def test_randomized_c_reference_corpus() -> None:
         )
         return
 
-    data = open(path, "rb").read()
+    with open(path, "rb") as corpus:
+        data = corpus.read()
     cursor = 0
 
     def require_remaining(nbytes: int) -> None:

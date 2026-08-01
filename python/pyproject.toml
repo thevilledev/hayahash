@@ -33,12 +33,44 @@ Issues = "https://github.com/thevilledev/hayahash/issues"
 
 [project.optional-dependencies]
 test = ["pytest>=8"]
+dev = [
+  "ruff==0.16.1",
+  "pyright==1.1.411",
+  "pytest>=8",
+]
 
 [tool.setuptools.packages.find]
 where = ["src"]
 
 [tool.setuptools.package-data]
-hayahash = ["py.typed"]
+hayahash = ["py.typed", "*.pyi"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
+
+[tool.ruff]
+target-version = "py39"
+src = ["src", "tests"]
+
+[tool.ruff.lint]
+select = [
+  "E",    # pycodestyle errors
+  "W",    # pycodestyle warnings
+  "F",    # pyflakes
+  "I",    # isort
+  "B",    # flake8-bugbear
+  "UP",   # pyupgrade
+  "SIM",  # flake8-simplify
+  "RUF",  # ruff-specific
+]
+
+[tool.ruff.lint.isort]
+known-first-party = ["hayahash"]
+
+[tool.pyright]
+include = ["src", "tests", "setup.py"]
+extraPaths = ["src"]
+pythonVersion = "3.9"
+typeCheckingMode = "standard"
+# The _hayahash module is a C extension; only the .pyi stub is typed.
+reportMissingModuleSource = false

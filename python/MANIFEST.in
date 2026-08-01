@@ -3,7 +3,7 @@ include pyproject.toml
 include setup.py
 recursive-include include *.h
 recursive-include native *.c
-recursive-include src *.py *.typed
+recursive-include src *.py *.pyi *.typed
 recursive-include tests *.py
 global-exclude *.pyc
 global-exclude __pycache__

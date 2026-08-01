@@ -6,6 +6,10 @@
     <Nullable>enable</Nullable>
     <IsPackable>false</IsPackable>
     <RootNamespace>Hayahash.Tests</RootNamespace>
+    <EnableNETAnalyzers>true</EnableNETAnalyzers>
+    <AnalysisLevel>latest-recommended</AnalysisLevel>
+    <EnforceCodeStyleInBuild>true</EnforceCodeStyleInBuild>
+    <TreatWarningsAsErrors>true</TreatWarningsAsErrors>
   </PropertyGroup>
 
   <ItemGroup>
