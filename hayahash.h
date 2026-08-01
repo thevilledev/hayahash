@@ -126,8 +126,18 @@ static inline uint64_t hayahash64_internal_rotl(uint64_t x, int n)
 	return (x << n) | (x >> (-n & 63));
 }
 
-// Keep an already-computed product opaque so Clang does not distribute
-// a following rotate into two independent multiplies.
+// Keep an already-computed product opaque. The original reason was to
+// stop clang distributing a following rotate into two independent
+// multiplies; neither Apple clang 21 nor stock clang 22 still applies
+// that transform, but the barriers now earn their keep another way and
+// removal was re-measured as a loss on both. On the M1 the guarded
+// schedule is simply faster (removal costs 2..15% independent
+// throughput at 17..319 bytes and 2..4% of 320..1024-byte
+// throughput despite fewer instructions). On Zen 5, clang 22 without
+// the guards auto-vectorizes the mid/tail paths, which lifts
+// independent throughput 15..50% but collapses seed-chained latency
+// 20..42%; the barrier is what keeps the latency chain scalar and
+// short. GCC never needed them (third pass).
 #if defined(__clang__)
 #define HAYAHASH64_INTERNAL_COMPILER_GUARD(v) __asm__("" : "+r" (v))
 #else
@@ -154,17 +164,22 @@ static inline uint64_t hayahash64_internal_rotl(uint64_t x, int n)
 
 // Dispatch shape for 17..319-byte keys: straight-line length tiers,
 // plus 64-byte mid-loop rounds so the 256..319-byte keys left in the
-// loop recover the tier dispatch compares. Wins 5..15% independent-
-// hash throughput with flat chained latency on AArch64/Apple M1
-// (clang) and on x86-64 Zen 5 under GCC 16. x86-64 clang keeps the
-// compact dispatch, re-measured on stock clang 22/glibc: the wide
-// shape now wins 4..16% at fixed sizes with flat chained latency
-// (clang 21's callee-saved chained-latency collapse is gone from
-// the current long path), but mixed-size workloads whose per-hash
-// branch targets are unpredictable lose 8..15% with the whole tier
-// chain live, and a general-purpose default cannot assume
-// single-band input sizes.
-#if defined(__aarch64__) || (defined(__x86_64__) && !defined(__clang__))
+// loop recover the tier dispatch compares. This is a GCC shape: GCC
+// shrink-wraps the tier chain and wins with it on every measured
+// workload (Zen 5: compact costs 3..13% fixed-size independent
+// throughput and 2..10% on mixed-size runs). Both measured clangs
+// lose with the chain live once per-hash branch targets are
+// unpredictable: mixed-size workloads on Apple clang 21 (M1) run
+// 3..13% faster independent and up to 9% faster chained under the
+// compact dispatch (which gives back 6..11% at fixed 32..192-byte
+// sizes), and stock clang 22 on Zen 5 collapses chained latency
+// 9..20% when forced wide. A general-purpose default cannot assume
+// single-band input sizes, so clang gets the compact dispatch.
+// Jump-table dispatch over the same tier bodies (switch and computed
+// goto) was measured and rejected on every compiler/arch pair: one
+// indirect branch predicts worse than the short compare chain on
+// mixed sizes (GCC/Zen 5 -16..-35%, Apple clang/M1 -4..-15%).
+#if (defined(__aarch64__) || defined(__x86_64__)) && !defined(__clang__)
 #define HAYAHASH64_INTERNAL_TIERS 1
 #else
 #define HAYAHASH64_INTERNAL_TIERS 0
@@ -240,6 +255,53 @@ enum { hayahash64_internal_bulk_min = 320 };
 // until it returns to the same lane; AArch64 emits MADD for it.
 // A macro (expanded twice below) so the bulk loop can be unrolled
 // two blocks deep without spelling the stripes three times.
+//
+// Two spellings of the same dataflow. GCC targeting AVX-512DQ gets
+// the middle four lanes as a tiny local array updated through a
+// countable 4-iteration loop, re-loading the absorb and rotate-source
+// words straight from the buffer (pure loads of the same bytes, so
+// the digest cannot change). That is the shape clang discovers by
+// itself in the plain spelling: lanes h2..h5 become one vector whose
+// rotate source and absorb input are two overlapping vector loads
+// (vprolq + vpaddq from memory, no shuffles), with h0/h1/h6/h7 kept
+// scalar on the integer pipes because they carry the wp chain and
+// the checkpoint. GCC cannot see it on its own: its SLP vectorizer
+// only seeds from groups of adjacent stores, and register-resident
+// lanes never store (spelled straight-line, SRA scalarizes the array
+// back and the seed disappears — measured, not conjecture). The
+// array + loop force real stores; GCC 16 then emits the same 4+4
+// split and sustained bulk goes from 35 to 62 GB/s on Zen 5, with
+// the 320..512-byte transition band up 30..46% and every sub-320
+// path bit-identical in code as well as output. Without AVX-512DQ
+// the gate is off and this preprocesses to the plain spelling
+// token for token, so default x86-64 builds are untouched.
+#if defined(__x86_64__) && defined(__GNUC__) && !defined(__clang__) && \
+    defined(__AVX512DQ__)
+#define HAYAHASH64_INTERNAL_VECGCC 1
+#else
+#define HAYAHASH64_INTERNAL_VECGCC 0
+#endif
+
+#if HAYAHASH64_INTERNAL_VECGCC
+#define HAYAHASH64_INTERNAL_BULK_BLOCK(q) \
+	do { \
+		w = hayahash64_internal_load64le((q) +  0); \
+		h0 = (h0 ^ (w + hayahash64_internal_rotl(wp, 27))) * K; \
+		h1 = (h1 ^ (hayahash64_internal_load64le((q) +  8) + \
+		    hayahash64_internal_rotl(w, 27))) * K; \
+		for (int hh_i = 0; hh_i < 4; hh_i++) \
+			hv[hh_i] = (hv[hh_i] ^ \
+			    (hayahash64_internal_load64le((q) + 16 + 8 * hh_i) + \
+			     hayahash64_internal_rotl( \
+			        hayahash64_internal_load64le((q) + 8 + 8 * hh_i), 27))) * K; \
+		h6 = (h6 ^ (hayahash64_internal_load64le((q) + 48) + \
+		    hayahash64_internal_rotl(hayahash64_internal_load64le((q) + 40), 27))) * K; \
+		h7 = (h7 ^ (hayahash64_internal_load64le((q) + 56) + \
+		    hayahash64_internal_rotl(hayahash64_internal_load64le((q) + 48), 27))) * K; \
+		wp = hayahash64_internal_load64le((q) + 56); \
+		h0 += wp; \
+	} while (0)
+#else
 #define HAYAHASH64_INTERNAL_BULK_BLOCK(q) \
 	do { \
 		w = hayahash64_internal_load64le((q) +  0); \
@@ -268,6 +330,7 @@ enum { hayahash64_internal_bulk_min = 320 };
 		wp = w; \
 		h0 += wp; \
 	} while (0)
+#endif
 
 // Long-input path, len >= hayahash64_internal_bulk_min. Bit-identical
 // to running the former inline bulk loop plus the shared mid/tail
@@ -336,6 +399,10 @@ hayahash64_internal_long(const void *keyIn, ptrdiff_t len, uint64_t seed)
 	// length, base pointer, and trip count live in stack slots and
 	// rebuild the remainder after the loop; the pointer-compare
 	// spelling removes the spills and the rebuild chain.
+#if HAYAHASH64_INTERNAL_VECGCC
+	// The vectorized middle lanes; folded back after the last block.
+	uint64_t hv[4] = { h2, h3, h4, h5 };
+#endif
 	const uint8_t *pe = p + ((size_t)l & ~(size_t)127);
 	l &= 127;
 	do {
@@ -353,6 +420,9 @@ hayahash64_internal_long(const void *keyIn, ptrdiff_t len, uint64_t seed)
 		HAYAHASH64_INTERNAL_BULK_BLOCK(p);
 		p += 64; l -= 64;
 	} while (l >= 64);
+#endif
+#if HAYAHASH64_INTERNAL_VECGCC
+	h2 = hv[0]; h3 = hv[1]; h4 = hv[2]; h5 = hv[3];
 #endif
 	// Fold the upper lanes in with xor + multiply: xor merges
 	// of multiply spreads can only cancel by carry-pattern
