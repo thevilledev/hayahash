@@ -2,9 +2,9 @@
 
 `generate.c` creates randomized inputs, random 64-bit hash seeds, and the
 expected digest produced by the C reference in `hayahash.h`. The Rust, Go,
-Zig, Java, C#, and JavaScript test suites read that same binary corpus when
-`HAYAHASH_CORPUS` points to it. JavaScript checks both its WebAssembly and
-pure-JS engines.
+Zig, Java, C#, Python, and JavaScript test suites read that same binary
+corpus when `HAYAHASH_CORPUS` points to it. JavaScript checks both its
+WebAssembly and pure-JS engines.
 
 The first 385 cases exhaustively cover input lengths 0 through 384, including
 every short, tail, mid-loop, tier, and 320-byte bulk dispatch boundary. Larger
@@ -28,6 +28,9 @@ HAYAHASH_CORPUS=/tmp/hayahash-corpus.bin \
   mvn --batch-mode --no-transfer-progress -f java/pom.xml -Dtest=DifferentialTest test
 HAYAHASH_CORPUS=/tmp/hayahash-corpus.bin \
   dotnet test csharp/Hayahash.sln --filter RandomizedCReferenceCorpus --verbosity minimal
+(cd python && python -m pip install -e ".[test]" >/dev/null)
+HAYAHASH_CORPUS=/tmp/hayahash-corpus.bin \
+  pytest -q python/tests/test_differential.py
 npm --prefix js run build
 HAYAHASH_CORPUS=/tmp/hayahash-corpus.bin \
   node --test js/test/differential.test.mjs

@@ -1,0 +1,14 @@
+"""hayahash64: small, fast, portable 64-bit non-cryptographic hash."""
+
+from __future__ import annotations
+
+from importlib.metadata import PackageNotFoundError, version
+
+from hayahash._hayahash import hayahash64
+
+try:
+    __version__ = version("hayahash")
+except PackageNotFoundError:  # pragma: no cover - editable/uninstalled tree
+    __version__ = "0.4.0"
+
+__all__ = ["hayahash64", "__version__"]

@@ -47,6 +47,13 @@ C#
     HAYAHASH_CORPUS=... dotnet test csharp/Hayahash.sln --filter RandomizedCReferenceCorpus
   result: PASS; 6 xUnit tests; 4096 differential corpus cases matched
 
+Python
+  toolchain: CPython 3.12, setuptools extension module
+  commands:
+    cd python; pip install -e ".[test]"; pytest -q
+    HAYAHASH_CORPUS=... pytest -q tests/test_differential.py
+  result: PASS; 129 KAT/API tests; 4096 differential corpus cases matched
+
 JavaScript
   toolchain: Node 26.5.0, locked TypeScript 5.9.3
   commands:
