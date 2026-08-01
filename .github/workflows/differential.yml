@@ -1,0 +1,157 @@
+name: Differential conformance
+
+on:
+  schedule:
+    - cron: "23 2 * * *"
+  workflow_dispatch:
+    inputs:
+      seed:
+        description: "Optional uint64 corpus seed (for example 0x0123456789abcdef)"
+        required: false
+        type: string
+      cases:
+        description: "Number of cases (minimum 406)"
+        required: false
+        default: "4096"
+        type: string
+
+permissions:
+  contents: read
+
+concurrency:
+  group: differential-conformance-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  differential:
+    name: C reference vs every port
+    runs-on: avrea-ubuntu-latest-2-vcpu
+    timeout-minutes: 20
+    env:
+      HAYAHASH_CORPUS: ${{ runner.temp }}/hayahash-differential.bin
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Install Rust
+        run: |
+          rustup toolchain install stable --profile minimal
+          rustup default stable
+
+      - name: Install Go
+        uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
+        with:
+          go-version: stable
+
+      - name: Install Zig
+        uses: mlugg/setup-zig@d1434d08867e3ee9daa34448df10607b98908d29 # v2.2.1
+        with:
+          version: 0.16.0
+
+      - name: Install Java
+        uses: actions/setup-java@03ad4de0992f5dab5e18fcb136590ce7c4a0ac95 # v5.6.0
+        with:
+          distribution: temurin
+          java-version: 17
+          cache: maven
+
+      - name: Install Node.js
+        uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version: 24
+          cache: npm
+          cache-dependency-path: js/package-lock.json
+
+      - name: Install JavaScript dependencies
+        run: npm ci
+        working-directory: js
+
+      - name: Generate C-reference corpus
+        env:
+          REQUESTED_CASES: ${{ inputs.cases }}
+          REQUESTED_SEED: ${{ inputs.seed }}
+        run: |
+          cases="${REQUESTED_CASES:-4096}"
+          seed="$REQUESTED_SEED"
+          if [[ -z "$seed" ]]; then
+            seed="0x$(od -An -N8 -tx1 /dev/urandom | tr -d ' \n')"
+          fi
+          echo "Differential corpus PRNG seed: $seed"
+          echo "HAYAHASH_PRNG_SEED=$seed" >> "$GITHUB_ENV"
+          {
+            echo "### Differential conformance corpus"
+            echo
+            echo "- PRNG seed: \`$seed\`"
+            echo "- Cases: \`$cases\`"
+          } >> "$GITHUB_STEP_SUMMARY"
+          cc -O2 -std=c11 -Wall -Wextra -Werror \
+            tests/differential/generate.c -o "$RUNNER_TEMP/hayahash-generate"
+          "$RUNNER_TEMP/hayahash-generate" "$HAYAHASH_CORPUS" "$seed" "$cases"
+
+      # Continue through all implementations so one bad port does not hide
+      # whether the others matched the same randomized C corpus.
+      - name: Check Rust port
+        id: rust
+        continue-on-error: true
+        run: >-
+          cargo test
+          --manifest-path rust/Cargo.toml
+          --test differential
+          -- --nocapture
+
+      - name: Check Go port
+        id: go
+        continue-on-error: true
+        run: go test -C go -run '^TestDifferentialConformance$' -v
+
+      - name: Check Zig port
+        id: zig
+        continue-on-error: true
+        run: zig build test --summary all
+        working-directory: zig
+
+      - name: Check Java port
+        id: java
+        continue-on-error: true
+        run: >-
+          mvn --batch-mode --no-transfer-progress
+          -Dtest=DifferentialTest test
+        working-directory: java
+
+      - name: Check JavaScript wasm and pure ports
+        id: js
+        continue-on-error: true
+        run: |
+          npm run build
+          node --test test/differential.test.mjs
+        working-directory: js
+
+      - name: Report port results
+        if: always()
+        env:
+          GO_RESULT: ${{ steps.go.outcome }}
+          JAVA_RESULT: ${{ steps.java.outcome }}
+          JS_RESULT: ${{ steps.js.outcome }}
+          RUST_RESULT: ${{ steps.rust.outcome }}
+          ZIG_RESULT: ${{ steps.zig.outcome }}
+        run: |
+          printf 'Rust=%s Go=%s Zig=%s Java=%s JavaScript=%s\n' \
+            "$RUST_RESULT" "$GO_RESULT" "$ZIG_RESULT" "$JAVA_RESULT" "$JS_RESULT"
+          if [[ "$RUST_RESULT" != success || "$GO_RESULT" != success || \
+                "$ZIG_RESULT" != success || "$JAVA_RESULT" != success || \
+                "$JS_RESULT" != success ]]; then
+            echo "::error::Differential conformance failed; replay PRNG seed $HAYAHASH_PRNG_SEED"
+            exit 1
+          fi
+
+      - name: Upload failing corpus for exact replay
+        if: failure()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: differential-corpus-${{ github.run_id }}-${{ github.run_attempt }}
+          path: ${{ env.HAYAHASH_CORPUS }}
+          if-no-files-found: ignore
+          retention-days: 7

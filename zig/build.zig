@@ -24,8 +24,19 @@ pub fn build(b: *std.Build) void {
             },
         }),
     });
+    const differential_tests = b.addTest(.{
+        .root_module = b.createModule(.{
+            .root_source_file = b.path("tests/differential.zig"),
+            .target = target,
+            .optimize = optimize,
+            .imports = &.{
+                .{ .name = "hayahash", .module = mod },
+            },
+        }),
+    });
 
     const test_step = b.step("test", "Run tests");
     test_step.dependOn(&b.addRunArtifact(mod_tests).step);
     test_step.dependOn(&b.addRunArtifact(kat_tests).step);
+    test_step.dependOn(&b.addRunArtifact(differential_tests).step);
 }

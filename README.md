@@ -49,6 +49,8 @@ The reference implementation is the single C header
   suite is cloned at test time, never vendored. See
   [`docs/smhasher3.md`](docs/smhasher3.md)
 - `docs/` - how to run and reproduce the external test suites
+- `tests/differential/` - reproducible randomized corpus generator for
+  nightly cross-port differential conformance against the C reference
 - `tests/wasm/` - baseline-wasm32 shootout and wasm-vs-native
   bit-exactness check (zig cc + Node); run on demand in CI via the
   "Wasm bench" workflow, or locally with `make -C tests/wasm run-kat
@@ -170,6 +172,14 @@ Each fix is documented in the header where it lives.
   shared table of known-answer vectors generated from `hayahash.h`.
   (The JavaScript package checks both of its engines: the wasm build
   of the reference header and the pure-JS fallback.)
+- Nightly differential conformance fuzzing generates one C-reference
+  corpus with random input bytes, random 64-bit hash seeds, exhaustive
+  lengths 0..384, and boundary-biased random lengths through the
+  128 KiB edge.
+  Every port consumes the identical corpus (including both JavaScript
+  engines). The logged PRNG seed or the failure artifact reproduces a
+  run exactly; the workflow can also be dispatched manually with a
+  chosen seed.
 - Endianness is tested in CI: the shared KAT is also produced on
   s390x (big-endian, via `zig cc` + qemu-user) and must match the
   little-endian reference. wasm32 covers the ILP32 case; MSVC x64
