@@ -199,22 +199,22 @@ Large-input throughput (GB/s, higher is better):
 
 | size    | chibihash v1 | chibihash v2 | hayahash  |
 |--------:|-------------:|-------------:|----------:|
-| 64      | 7.5          | 9.8          | **13.4**  |
-| 256     | 15.5         | 17.5         | **20.8**  |
-| 1024    | 15.2         | 19.2         | **25.7**  |
-| 16384   | 14.4         | 18.5         | **28.2**  |
-| 1048576 | 14.3         | 18.5         | **28.5**  |
+| 64      | 7.7          | 9.9          | **13.0**  |
+| 256     | 15.7         | 17.8         | **20.3**  |
+| 1024    | 15.5         | 19.5         | **27.2**  |
+| 16384   | 14.6         | 18.8         | **30.1**  |
+| 1048576 | 14.6         | 18.8         | **30.2**  |
 
 Small-input latency (ns/hash, seed-chained, lower is better):
 
 | len | chibihash v1 | chibihash v2 | hayahash |
 |----:|-------------:|-------------:|---------:|
-| 4   | 9.9          | 10.3         | **7.4**  |
-| 8   | 6.5          | 9.8          | 7.4      |
-| 16  | 6.9          | 10.1         | 7.4      |
-| 32  | 12.2         | 11.6         | **8.4**  |
-| 64  | 14.3         | 13.2         | **9.5**  |
-| 128 | 18.9         | 16.9         | **12.2** |
+| 4   | 9.7          | 10.1         | **7.3**  |
+| 8   | 6.4          | 9.6          | 7.3      |
+| 16  | 6.8          | 9.9          | 7.3      |
+| 32  | 12.0         | 11.4         | **8.0**  |
+| 64  | 14.2         | 13.1         | **9.4**  |
+| 128 | 19.7         | 16.9         | **13.0** |
 
 Small-input throughput (ns/hash, independent hashes, lower is better):
 
@@ -223,22 +223,28 @@ Small-input throughput (ns/hash, independent hashes, lower is better):
 | 4   | 7.3          | 4.3          | **2.8**  |
 | 8   | 4.5          | 4.5          | **2.8**  |
 | 16  | 5.2          | 5.0          | **2.8**  |
-| 32  | 7.5          | 5.3          | **3.5**  |
-| 64  | 8.6          | 6.6          | **4.8**  |
-| 128 | 11.9         | 9.1          | **6.9**  |
+| 32  | 7.4          | 5.3          | **3.8**  |
+| 64  | 8.5          | 6.6          | **5.0**  |
+| 128 | 11.8         | 9.0          | **7.5**  |
 
 v1's 8/16-byte latency wins come from special-cased paths that are also
 part of why it fails SMHasher3; among the two functions that pass,
-hayahash is fastest at every size, and the bulk rate is ~1.5x
-ChibiHash v2.
+hayahash is fastest at every size, and the bulk rate is ~1.6x
+ChibiHash v2. The 32..128-byte rows reflect the fifth pass's
+dispatch choice: clang targets take the compact dispatch, giving up
+5..9% at these fixed sizes to run 2..10% faster on mixed-size
+workloads, which single-size tables cannot show (see
+`OPTIMIZATION_NOTES.md`).
 
 The same comparison on native x86-64 (AMD Zen 5, GCC 16,
-`-march=native`) gives the same ordering: hayahash leads ChibiHash v2
-at every size below 320 bytes (128-byte keys: 5.2 vs 6.5 ns
-independent, 25.0 vs 19.7 GB/s streamed) and in sustained bulk
-(35.4 vs 31.5 GB/s at 1 MiB), with v2 ahead 2..8% only in the
-320..512-byte band where hayahash's eight-lane bulk loop is still
-amortizing its setup. Dispatch shapes are tuned per architecture and
+`-march=native`) now shows hayahash ahead of both ChibiHash versions
+at every measured size: 128-byte keys 5.2 vs 6.6 ns independent and
+24.7 vs 19.5 GB/s streamed, the 320..512-byte band that v2 led after
+the fourth pass flipped to a 27..47% hayahash lead (512 bytes: 42.2
+vs 28.6 GB/s), and sustained bulk essentially doubled to 61.3 vs
+31.2 GB/s at 1 MiB after the fifth pass taught GCC to auto-vectorize
+the bulk loop for AVX-512 (builds without AVX-512DQ keep the previous
+35 GB/s scalar rate). Dispatch shapes are tuned per architecture and
 compiler; `OPTIMIZATION_NOTES.md` documents the measurements.
 
 ### SMHasher3 shootout
@@ -248,7 +254,10 @@ upstream commit; [`docs/smhasher3.md`](docs/smhasher3.md) covers how to
 reproduce all of this. Small-key numbers are cycles per hash over 1-31-byte
 keys (lower is better); bulk is bytes per cycle on 256 KiB keys (higher
 is better). Full-suite results are our own runs at that pinned commit,
-not upstream's published tables.
+not upstream's published tables. hayahash's Zen 5 bulk cell was
+re-measured after the fifth pass's GCC vectorization change; every
+other cell is from the fourth-pass session, whose code paths the fifth
+pass left bit-identical.
 
 | hash | M1 small | M1 bulk | Zen 5 small | Zen 5 bulk | full suite | peak-performance requirement |
 |---|---:|---:|---:|---:|---|---|
@@ -258,7 +267,7 @@ not upstream's published tables.
 | komihash v5.27 | 25.0 | 7.5 | 10.7 | 19.9 | pass | 64x64-to-128-bit multiply |
 | XXH3-64 | 25.6 | **12.6** | 10.1 | 49.1 | fail (22) | SIMD for peak bulk speed |
 | gxhash-64 | - | - | 16.4 | **64.8** | fail (23) | AES instructions |
-| **hayahash64** | 33.3 | 9.7 | 12.0 | 17.7 | pass | ordinary 64x64-to-64-bit multiply |
+| **hayahash64** | 33.3 | 9.7 | 12.0 | 31.1 | pass | ordinary 64x64-to-64-bit multiply |
 | ChibiHash v2 | 37.4 | 6.1 | 9.2 | 15.8 | pass | ordinary 64x64-to-64-bit multiply |
 | mx3.v3 | 45.1 | 4.1 | 16.9 | 10.1 | fail (26) | ordinary 64x64-to-64-bit multiply |
 | SpookyHash2-64 | 52.2 | 4.1 | 18.1 | 15.4 | fail (5) | ordinary 64-bit operations |
@@ -279,18 +288,20 @@ fallback rather than gxhash.
 
 The results fall into distinct instruction classes:
 
-- **Wide multiply:** rapidhash v3 passes and is faster than hayahash on
-  both axes on both hosts. It is the honest recommendation when a native
-  128-bit multiply result is available - exactly the instruction
-  hayahash's portability rules exclude.
+- **Wide multiply:** rapidhash v3 passes and stays ahead of hayahash on
+  small keys everywhere and on both axes on the M1; it remains the
+  honest recommendation when a native 128-bit multiply result is
+  available - exactly the instruction hayahash's portability rules
+  exclude. Its Zen 5 bulk lead did not survive the fifth pass, though:
+  28.7 bytes/cycle against hayahash's 31.1.
 - **SIMD or hardware acceleration:** these win bulk decisively where the
   hardware provides them. XXH3-64 reaches 49.1 B/cy on Zen 5 with AVX-512
   and 12.6 B/cy on the M1 with NEON, and gxhash reaches 64.8 B/cy on Zen 5
-  with AES-NI, against hayahash's 17.7 and 9.7. Both fail the suite, but
+  with AES-NI, against hayahash's 31.1 and 9.7. Both fail the suite, but
   they are not beaten on speed.
 - **Portable 64-bit scalar:** the only other hash here that meets
   hayahash's constraints *and* passes is ChibiHash v2. hayahash leads it
-  in bulk on both hosts, by 1.59x on the M1 and 1.12x on Zen 5. On small
+  in bulk on both hosts, by 1.59x on the M1 and 1.97x on Zen 5. On small
   keys the two split: hayahash takes 11% less time on the M1, but 30%
   more on Zen 5, where ChibiHash v2's simpler short path wins the
   8-15-byte band by about 5.3 cycles. mx3.v3 is the remaining
@@ -298,7 +309,10 @@ The results fall into distinct instruction classes:
 
 Taken together: within the portable scalar class, hayahash is the fastest
 hash we found in sustained bulk that passes the complete SMHasher3 suite,
-on both hosts. It does not hold that lead on small-key latency
+on both hosts - and on Zen 5 it is now the fastest passing hash in bulk
+of any instruction class measured here, wide multiplies included; only
+XXH3-64 and gxhash stream faster, and both fail the suite. It does not
+hold that lead on small-key latency
 everywhere - ChibiHash v2 is ahead on Zen 5 - so the small-key advantage
 is architecture-dependent, not general. This is a deliberately scoped
 claim, not a universal record: two hosts, one compiler each, bounded by
