@@ -74,3 +74,28 @@ pythonVersion = "3.9"
 typeCheckingMode = "standard"
 # The _hayahash module is a C extension; only the .pyi stub is typed.
 reportMissingModuleSource = false
+
+# Portable binary wheels for PyPI. The release workflow runs cibuildwheel
+# from the repository root with package-dir=python so {package} is this
+# directory. Skip interpreters and ABIs this CPython extension does not
+# target; keep manylinux + musllinux (and the host macOS/Windows builds).
+[tool.cibuildwheel]
+build = "cp*"
+skip = [
+  "pp*",
+  "gp*",
+  "cp3??t-*",
+  "*-win32",
+  "*-win_arm64",
+  "*-*linux_i686",
+  "*-musllinux_i686",
+  "*-*linux_ppc64le",
+  "*-*linux_s390x",
+  "*-*linux_armv7l",
+  "*-*linux_riscv64",
+]
+test-requires = ["pytest>=8"]
+test-command = "pytest {package}/tests"
+
+[tool.cibuildwheel.macos]
+archs = ["x86_64", "arm64"]
