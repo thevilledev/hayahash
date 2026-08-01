@@ -12,6 +12,23 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
+  zizmor:
+    name: GitHub Actions security
+    runs-on: avrea-ubuntu-latest-2-vcpu
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Run zizmor
+        uses: zizmorcore/zizmor-action@6fc4b006235f201fdab3722e17240ab420d580e5 # v0.6.1
+        with:
+          version: 1.28.0
+          advanced-security: false
+          annotations: true
+
   c:
     name: C (${{ matrix.compiler }})
     runs-on: avrea-ubuntu-latest-2-vcpu
@@ -61,7 +78,7 @@ jobs:
           persist-credentials: false
 
       - name: Build and run conformance checks
-        shell: cmd
+        shell: cmd # zizmor: ignore[misfeature] -- required for vcvars64.bat
         run: |
           for /f "usebackq tokens=*" %%i in (`"%ProgramFiles(x86)%\Microsoft Visual Studio\Installer\vswhere.exe" -latest -property installationPath`) do call "%%i\VC\Auxiliary\Build\vcvars64.bat"
           if errorlevel 1 exit /b 1
