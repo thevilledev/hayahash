@@ -267,3 +267,25 @@ jobs:
       - name: Test
         run: npm test
         working-directory: js
+
+  # Cross-compile the MIPS64 assembly port and run the shared KAT under
+  # qemu-user. Pins endian-independent LE loads and the n64 ABI entry.
+  mips:
+    name: MIPS64 assembly
+    runs-on: avrea-ubuntu-latest-2-vcpu
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Install mips64el toolchain and qemu-user
+        run: >-
+          sudo apt-get update &&
+          sudo apt-get install -y
+          gcc-mips64el-linux-gnuabi64
+          qemu-user
+
+      - name: Build and run known-answer tests
+        run: make -C mips test

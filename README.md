@@ -42,6 +42,8 @@ The reference implementation is the single C header
   Java 17+)
 - `js/` - JavaScript/TypeScript port for npm (`hayahash` package): the
   reference header compiled to WebAssembly, plus a pure-JS fallback
+- `mips/` - MIPS64 assembly port (`hayahash.S`, n64 ABI); tested under
+  qemu-mips64el against the shared known-answer vectors
 - `tests/` - C quality and benchmark harnesses; ChibiHash v1/v2
   reference sources are vendored there so the comparisons are
   self-contained
@@ -61,7 +63,7 @@ Each port lives in its own top-level directory and is verified against
 the reference implementation via the SMHasher3 verification value and
 the shared known-answer vectors (see `rust/tests/kat.rs`,
 `go/kat_test.go`, `zig/tests/kat.zig`, the Java `KatTest` under
-`java/src/test`, and `js/test/hayahash.test.mjs`).
+`java/src/test`, `js/test/hayahash.test.mjs`, and `make -C mips test`).
 
 ## Usage
 
@@ -111,6 +113,14 @@ module, with a pure-JS fallback:
 import { hayahash64 } from "hayahash";
 
 const h = hayahash64(buf, seed); // unsigned 64-bit bigint
+```
+
+MIPS64 assembly - the port lives in [`mips/`](mips/):
+
+```c
+#include "hayahash.h" /* mips/hayahash.h */
+
+uint64_t h = hayahash64(buf, len, seed);
 ```
 
 ## Design
@@ -166,8 +176,8 @@ Each fix is documented in the header where it lives.
   criterion over input and seed bits, plus exact-collision tests over
   23 structured key sets, including reproductions of the SMHasher3
   keysets that broke earlier iterations. All clean.
-- The Rust, Go, Zig, Java, and JavaScript ports are bit-exact against
-  the C reference:
+- The Rust, Go, Zig, Java, JavaScript, and MIPS64 assembly ports are
+  bit-exact against the C reference:
   each port's test suite checks the SMHasher3 verification value and a
   shared table of known-answer vectors generated from `hayahash.h`.
   (The JavaScript package checks both of its engines: the wasm build
