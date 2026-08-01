@@ -47,6 +47,6 @@
 		"bench": "npm run build && node bench/bench.mjs"
 	},
 	"devDependencies": {
-		"typescript": "^5.9.0"
+		"typescript": "^7.0.2"
 	}
 }
