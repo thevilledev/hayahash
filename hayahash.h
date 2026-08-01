@@ -126,8 +126,18 @@ static inline uint64_t hayahash64_internal_rotl(uint64_t x, int n)
 	return (x << n) | (x >> (-n & 63));
 }
 
-// Keep an already-computed product opaque so Clang does not distribute
-// a following rotate into two independent multiplies.
+// Keep an already-computed product opaque. The original reason was to
+// stop clang distributing a following rotate into two independent
+// multiplies; neither Apple clang 21 nor stock clang 22 still applies
+// that transform, but the barriers now earn their keep another way and
+// removal was re-measured as a loss on both. On the M1 the guarded
+// schedule is simply faster (removal costs 2..15% independent
+// throughput at 17..319 bytes and 2..4% of 320..1024-byte
+// throughput despite fewer instructions). On Zen 5, clang 22 without
+// the guards auto-vectorizes the mid/tail paths, which lifts
+// independent throughput 15..50% but collapses seed-chained latency
+// 20..42%; the barrier is what keeps the latency chain scalar and
+// short. GCC never needed them (third pass).
 #if defined(__clang__)
 #define HAYAHASH64_INTERNAL_COMPILER_GUARD(v) __asm__("" : "+r" (v))
 #else
@@ -154,17 +164,22 @@ static inline uint64_t hayahash64_internal_rotl(uint64_t x, int n)
 
 // Dispatch shape for 17..319-byte keys: straight-line length tiers,
 // plus 64-byte mid-loop rounds so the 256..319-byte keys left in the
-// loop recover the tier dispatch compares. Wins 5..15% independent-
-// hash throughput with flat chained latency on AArch64/Apple M1
-// (clang) and on x86-64 Zen 5 under GCC 16. x86-64 clang keeps the
-// compact dispatch, re-measured on stock clang 22/glibc: the wide
-// shape now wins 4..16% at fixed sizes with flat chained latency
-// (clang 21's callee-saved chained-latency collapse is gone from
-// the current long path), but mixed-size workloads whose per-hash
-// branch targets are unpredictable lose 8..15% with the whole tier
-// chain live, and a general-purpose default cannot assume
-// single-band input sizes.
-#if defined(__aarch64__) || (defined(__x86_64__) && !defined(__clang__))
+// loop recover the tier dispatch compares. This is a GCC shape: GCC
+// shrink-wraps the tier chain and wins with it on every measured
+// workload (Zen 5: compact costs 3..13% fixed-size independent
+// throughput and 2..10% on mixed-size runs). Both measured clangs
+// lose with the chain live once per-hash branch targets are
+// unpredictable: mixed-size workloads on Apple clang 21 (M1) run
+// 3..13% faster independent and up to 9% faster chained under the
+// compact dispatch (which gives back 6..11% at fixed 32..192-byte
+// sizes), and stock clang 22 on Zen 5 collapses chained latency
+// 9..20% when forced wide. A general-purpose default cannot assume
+// single-band input sizes, so clang gets the compact dispatch.
+// Jump-table dispatch over the same tier bodies (switch and computed
+// goto) was measured and rejected on every compiler/arch pair: one
+// indirect branch predicts worse than the short compare chain on
+// mixed sizes (GCC/Zen 5 -16..-35%, Apple clang/M1 -4..-15%).
+#if (defined(__aarch64__) || defined(__x86_64__)) && !defined(__clang__)
 #define HAYAHASH64_INTERNAL_TIERS 1
 #else
 #define HAYAHASH64_INTERNAL_TIERS 0
