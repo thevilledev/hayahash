@@ -267,7 +267,7 @@ jobs:
           dotnet-version: 8.0.x
 
       - name: Check formatting
-        run: dotnet format --verify-no-changes --severity minimal
+        run: dotnet format --verify-no-changes --verbosity minimal
         working-directory: csharp
 
       - name: Test
