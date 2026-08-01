@@ -54,6 +54,13 @@ Python
     HAYAHASH_CORPUS=... pytest -q tests/test_differential.py
   result: PASS; 129 KAT/API tests; 4096 differential corpus cases matched
 
+Swift
+  toolchain: Swift 6.0.3
+  commands:
+    cd swift; swift test
+    HAYAHASH_CORPUS=... swift test --filter DifferentialTests
+  result: PASS; 6 XCTest cases; 4096 differential corpus cases matched
+
 JavaScript
   toolchain: Node 26.5.0, locked TypeScript 5.9.3
   commands:

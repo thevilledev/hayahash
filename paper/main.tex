@@ -707,13 +707,13 @@ The source uses straight-line length tiers on selected targets, outlines the
 native bulk path to manage register pressure, unrolls two bulk blocks on
 AArch64 and x86-64, and keeps the WebAssembly bulk path inline.  These are
 implementation choices rather than separate algorithms.  A compact
-transcription is used in the Rust, Go, Zig, Java, C\#, and pure JavaScript
-ports; the Python and WebAssembly fast paths compile the C header.
+transcription is used in the Rust, Go, Zig, Java, C\#, Swift, and pure
+JavaScript ports; the Python and WebAssembly fast paths compile the C header.
 
 The paper check program contains 17 known-answer vectors covering the short,
 medium, bulk, and boundary paths.  It also recomputes the direct-interface
 verification value.  At this snapshot, the Rust, Go, Zig, Java, C\#, Python,
-WebAssembly, and pure JavaScript suites all passed their checked-in
+Swift, WebAssembly, and pure JavaScript suites all passed their checked-in
 conformance vectors.
 The commands, tool versions, and result counts are archived in
 \path{paper/results/conformance.txt}.  A generator for a single

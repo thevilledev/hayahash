@@ -74,6 +74,11 @@ jobs:
           python -m pip install -e ".[test]"
         working-directory: python
 
+      - name: Install Swift
+        uses: swift-actions/setup-swift@7ca6abe6b3b0e8b5421b88be48feee39cbf52c6a # v2.4.0
+        with:
+          swift-version: "6.0.3"
+
       - name: Install Node.js
         uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
         with:
@@ -153,6 +158,12 @@ jobs:
         run: pytest -q tests/test_differential.py
         working-directory: python
 
+      - name: Check Swift port
+        id: swift
+        continue-on-error: true
+        run: swift test --filter DifferentialTests
+        working-directory: swift
+
       - name: Check JavaScript wasm and pure ports
         id: js
         continue-on-error: true
@@ -170,15 +181,16 @@ jobs:
           JS_RESULT: ${{ steps.js.outcome }}
           PYTHON_RESULT: ${{ steps.python.outcome }}
           RUST_RESULT: ${{ steps.rust.outcome }}
+          SWIFT_RESULT: ${{ steps.swift.outcome }}
           ZIG_RESULT: ${{ steps.zig.outcome }}
         run: |
-          printf 'Rust=%s Go=%s Zig=%s Java=%s C#=%s Python=%s JavaScript=%s\n' \
+          printf 'Rust=%s Go=%s Zig=%s Java=%s C#=%s Python=%s Swift=%s JavaScript=%s\n' \
             "$RUST_RESULT" "$GO_RESULT" "$ZIG_RESULT" "$JAVA_RESULT" \
-            "$CSHARP_RESULT" "$PYTHON_RESULT" "$JS_RESULT"
+            "$CSHARP_RESULT" "$PYTHON_RESULT" "$SWIFT_RESULT" "$JS_RESULT"
           if [[ "$RUST_RESULT" != success || "$GO_RESULT" != success || \
                 "$ZIG_RESULT" != success || "$JAVA_RESULT" != success || \
                 "$CSHARP_RESULT" != success || "$PYTHON_RESULT" != success || \
-                "$JS_RESULT" != success ]]; then
+                "$SWIFT_RESULT" != success || "$JS_RESULT" != success ]]; then
             echo "::error::Differential conformance failed; replay PRNG seed $HAYAHASH_PRNG_SEED"
             exit 1
           fi

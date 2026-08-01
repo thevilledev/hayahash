@@ -12,6 +12,7 @@
 - `csharp/` - C# / .NET port (NuGet package `Hayahash`, .NET 8+)
 - `python/` - Python port (PyPI package `hayahash`, CPython C
   extension over the reference header, CPython 3.9+)
+- `swift/` - Swift port (SwiftPM package `Hayahash`, Swift 5.9+)
 - `js/` - JavaScript/TypeScript port for npm (`hayahash` package): the
   reference header compiled to WebAssembly, plus a pure-JS fallback
 - `mips/` - MIPS64 assembly port (`hayahash.S`, n64 ABI); tested under
@@ -40,7 +41,8 @@ the reference implementation via the SMHasher3 verification value and
 the shared known-answer vectors (see `rust/tests/kat.rs`,
 `go/kat_test.go`, `zig/tests/kat.zig`, the Java `KatTest` under
 `java/src/test`, the C# `KatTests` under `csharp/tests`,
-`python/tests`, `js/test/hayahash.test.mjs`, and `make -C mips test`).
+`python/tests`, `swift/Tests`, `js/test/hayahash.test.mjs`, and
+`make -C mips test`).
 All ports share one version number, so a given version denotes the
 same algorithm everywhere.
 
@@ -99,6 +101,14 @@ extension wraps `hayahash.h` directly:
 from hayahash import hayahash64
 
 h = hayahash64(buf, seed)
+```
+
+Swift - the SwiftPM package lives in [`swift/`](../swift/):
+
+```swift
+import Hayahash
+
+let h = Hayahash.hash64(buf, seed: 0)
 ```
 
 JavaScript/TypeScript - the npm package lives in [`js/`](../js/); the

@@ -1,0 +1,218 @@
+/*
+ * Conformance tests against the C reference implementation.
+ *
+ * The vector table is generated from hayahash.h; regenerate with the
+ * same key-byte formula if the algorithm ever changes on purpose.
+ */
+
+import XCTest
+@testable import Hayahash
+
+final class KatTests: XCTestCase {
+    // Deterministic key material shared with the C generator:
+    // byte(i) = (i*K + 0x2545F4914F6CDD1D) >> 56.
+    private static func byteAt(_ i: UInt64) -> UInt8 {
+        UInt8(truncatingIfNeeded: (i &* 0x9E3779B97F4A7C15 &+ 0x2545F4914F6CDD1D) >> 56)
+    }
+
+    private static func katBuffer() -> [UInt8] {
+        (0..<1024).map { byteAt(UInt64($0)) }
+    }
+
+    // (input length, seed, expected digest) triples generated from the
+    // C reference on a little-endian host. Lengths cover every dispatch
+    // path: empty, 1..3 byte, 4..7 byte, 8..16 byte, tail-only,
+    // mid-loop, and bulk-loop (>= 320) inputs, including all boundary
+    // values.
+    private static let vectors: [(Int, UInt64, UInt64)] = [
+        (0, 0x0000000000000000, 0xC4F85F43D5A9985E),
+        (0, 0x9E3779B97F4A7C15, 0x68AC507CF298CA3F),
+        (0, 0xDEADBEEFCAFEBABE, 0x4B9E2D31E2F3BE1A),
+        (1, 0x0000000000000000, 0x01A6BDFC8C3D62DB),
+        (1, 0x9E3779B97F4A7C15, 0x9D50F14E915849CE),
+        (1, 0xDEADBEEFCAFEBABE, 0xCCCC62AC48D47C24),
+        (2, 0x0000000000000000, 0xDADF7DA717BFE154),
+        (2, 0x9E3779B97F4A7C15, 0xC89A133687D95091),
+        (2, 0xDEADBEEFCAFEBABE, 0x30F0C4A46F6AD806),
+        (3, 0x0000000000000000, 0xEA21F17856742557),
+        (3, 0x9E3779B97F4A7C15, 0xE58B6749C35ABE5C),
+        (3, 0xDEADBEEFCAFEBABE, 0x6D72E08B53427EE0),
+        (4, 0x0000000000000000, 0x7C58CF3C18F9B496),
+        (4, 0x9E3779B97F4A7C15, 0x99AAF1833279AA9D),
+        (4, 0xDEADBEEFCAFEBABE, 0xA1B22F8158CFD63F),
+        (5, 0x0000000000000000, 0x517724B9853C566C),
+        (5, 0x9E3779B97F4A7C15, 0x250ACB4274262E38),
+        (5, 0xDEADBEEFCAFEBABE, 0x31760EE78A0023EF),
+        (6, 0x0000000000000000, 0xE1D10A4FBBE1DBC7),
+        (6, 0x9E3779B97F4A7C15, 0xC93F66BF5463FFF0),
+        (6, 0xDEADBEEFCAFEBABE, 0x8C20FD5F52DCE3CF),
+        (7, 0x0000000000000000, 0x56A3989BDDD7CBE5),
+        (7, 0x9E3779B97F4A7C15, 0xD7D254EE5D533404),
+        (7, 0xDEADBEEFCAFEBABE, 0xC1D3AB0CC35936B9),
+        (8, 0x0000000000000000, 0xDFD74858772B0E91),
+        (8, 0x9E3779B97F4A7C15, 0x9BB51F7D28C94379),
+        (8, 0xDEADBEEFCAFEBABE, 0x600552A3FF515FAE),
+        (9, 0x0000000000000000, 0x0D246B6B3127404E),
+        (9, 0x9E3779B97F4A7C15, 0x96A02B773AF52564),
+        (9, 0xDEADBEEFCAFEBABE, 0x691BF2C6A9EEF2E0),
+        (10, 0x0000000000000000, 0x940CED4143CCCB2B),
+        (10, 0x9E3779B97F4A7C15, 0x6D653DB391FBCACC),
+        (10, 0xDEADBEEFCAFEBABE, 0x24169BD3021086AC),
+        (11, 0x0000000000000000, 0x00F4C1EB06392F40),
+        (11, 0x9E3779B97F4A7C15, 0xA239C14889BA224A),
+        (11, 0xDEADBEEFCAFEBABE, 0x29D070B34AF489CE),
+        (12, 0x0000000000000000, 0x35985EE7C1DFC292),
+        (12, 0x9E3779B97F4A7C15, 0xC65A041E835E8250),
+        (12, 0xDEADBEEFCAFEBABE, 0x310DFF6EFCE0F6BD),
+        (13, 0x0000000000000000, 0xFEA35C4B388EC02B),
+        (13, 0x9E3779B97F4A7C15, 0xAA3CEFED2E20869E),
+        (13, 0xDEADBEEFCAFEBABE, 0xF478BC0F8259144C),
+        (14, 0x0000000000000000, 0x08524E7E5AA2CE93),
+        (14, 0x9E3779B97F4A7C15, 0x5D380960C8653731),
+        (14, 0xDEADBEEFCAFEBABE, 0x8887680638A97434),
+        (15, 0x0000000000000000, 0xE82F8F2F83E24DC3),
+        (15, 0x9E3779B97F4A7C15, 0xA55CC72365471962),
+        (15, 0xDEADBEEFCAFEBABE, 0xAF5A8128D9513D53),
+        (16, 0x0000000000000000, 0xC6C3B656C926EF2B),
+        (16, 0x9E3779B97F4A7C15, 0x348B4B44E949A4A5),
+        (16, 0xDEADBEEFCAFEBABE, 0x8B444516C3FCE921),
+        (17, 0x0000000000000000, 0xA90B41F0B4D835FB),
+        (17, 0x9E3779B97F4A7C15, 0xEB9CF0A2219A8A79),
+        (17, 0xDEADBEEFCAFEBABE, 0x2B0BCB27D533F29D),
+        (20, 0x0000000000000000, 0xD71BDC0ADCA8ADF8),
+        (20, 0x9E3779B97F4A7C15, 0x1DED18E5D2C6641D),
+        (20, 0xDEADBEEFCAFEBABE, 0x50E620AA5892FC5E),
+        (24, 0x0000000000000000, 0x6982F8BDFE69F930),
+        (24, 0x9E3779B97F4A7C15, 0xFB5432EF4D039215),
+        (24, 0xDEADBEEFCAFEBABE, 0xB7A4906D498A9857),
+        (31, 0x0000000000000000, 0xB01CADA4E3595061),
+        (31, 0x9E3779B97F4A7C15, 0xBB07CE100EF1ACE7),
+        (31, 0xDEADBEEFCAFEBABE, 0xD0B87A0842A08418),
+        (32, 0x0000000000000000, 0x242FD3F914303C1D),
+        (32, 0x9E3779B97F4A7C15, 0x343BA63D7E4FC2F6),
+        (32, 0xDEADBEEFCAFEBABE, 0x66D7EF7DA4627549),
+        (33, 0x0000000000000000, 0xE87DE7C9F18E3D9D),
+        (33, 0x9E3779B97F4A7C15, 0x548C908A58A6CDF1),
+        (33, 0xDEADBEEFCAFEBABE, 0xC115EA8FBA551490),
+        (47, 0x0000000000000000, 0x696428DD947DF322),
+        (47, 0x9E3779B97F4A7C15, 0x39BE535C74585AC5),
+        (47, 0xDEADBEEFCAFEBABE, 0x52811A1D01562807),
+        (48, 0x0000000000000000, 0x1059B4E24C8CFDF0),
+        (48, 0x9E3779B97F4A7C15, 0x643BA76560D01C09),
+        (48, 0xDEADBEEFCAFEBABE, 0xA537F4069657C426),
+        (63, 0x0000000000000000, 0x4471E159CA7F1AA1),
+        (63, 0x9E3779B97F4A7C15, 0xE979866C4F557390),
+        (63, 0xDEADBEEFCAFEBABE, 0xB026D08EC12753F1),
+        (64, 0x0000000000000000, 0x62BC7D33C15657E9),
+        (64, 0x9E3779B97F4A7C15, 0x0078437E7D379478),
+        (64, 0xDEADBEEFCAFEBABE, 0x765229403E95673B),
+        (65, 0x0000000000000000, 0xA57F09711AE70C77),
+        (65, 0x9E3779B97F4A7C15, 0xA5F941F9895FAF8D),
+        (65, 0xDEADBEEFCAFEBABE, 0x74F19F9600A6C10F),
+        (96, 0x0000000000000000, 0x2186FDC93E032C9C),
+        (96, 0x9E3779B97F4A7C15, 0x4164E090EA0C5DF9),
+        (96, 0xDEADBEEFCAFEBABE, 0x967410100E8C7C8A),
+        (127, 0x0000000000000000, 0xDAA46CC2E67CF5C3),
+        (127, 0x9E3779B97F4A7C15, 0x1D78B9BCE14CF66F),
+        (127, 0xDEADBEEFCAFEBABE, 0x7CC9599ACC50F32B),
+        (128, 0x0000000000000000, 0xD4C430490D0CE9D1),
+        (128, 0x9E3779B97F4A7C15, 0xAE0594746A45D322),
+        (128, 0xDEADBEEFCAFEBABE, 0xC777BD88BF800192),
+        (191, 0x0000000000000000, 0xAB4EB4F6A214AB26),
+        (191, 0x9E3779B97F4A7C15, 0x2F01EEFE05F61681),
+        (191, 0xDEADBEEFCAFEBABE, 0x0AC11D2D060A6D39),
+        (192, 0x0000000000000000, 0xBD4668FD0E37A0D8),
+        (192, 0x9E3779B97F4A7C15, 0xB33BD21C20D7F1EE),
+        (192, 0xDEADBEEFCAFEBABE, 0x2C05041A563EFC0A),
+        (255, 0x0000000000000000, 0x3F35C5137D9DDD92),
+        (255, 0x9E3779B97F4A7C15, 0xB3450BEEA6A88C0E),
+        (255, 0xDEADBEEFCAFEBABE, 0x10EEAFB383803642),
+        (319, 0x0000000000000000, 0xFB6F356631C62298),
+        (319, 0x9E3779B97F4A7C15, 0x82A92D2F3C0D3FC2),
+        (319, 0xDEADBEEFCAFEBABE, 0xC187B939C37F8EC7),
+        (320, 0x0000000000000000, 0xAAB4DE0105C41715),
+        (320, 0x9E3779B97F4A7C15, 0x24747E138240D684),
+        (320, 0xDEADBEEFCAFEBABE, 0xD908512F166E3CD2),
+        (321, 0x0000000000000000, 0xD58DE26140651F72),
+        (321, 0x9E3779B97F4A7C15, 0xAE8B28A6EF04CC35),
+        (321, 0xDEADBEEFCAFEBABE, 0xAA4EFD9BA8E0C810),
+        (383, 0x0000000000000000, 0x6FBC1354616B9257),
+        (383, 0x9E3779B97F4A7C15, 0x09A754CB4921EAB0),
+        (383, 0xDEADBEEFCAFEBABE, 0xF1548B3D85DA380E),
+        (512, 0x0000000000000000, 0x2968882331191FDB),
+        (512, 0x9E3779B97F4A7C15, 0x143C166BDE64236D),
+        (512, 0xDEADBEEFCAFEBABE, 0x5E7F7FF6C918FE7F),
+        (1023, 0x0000000000000000, 0xDA47A412C97502BE),
+        (1023, 0x9E3779B97F4A7C15, 0x003D27583FDEE215),
+        (1023, 0xDEADBEEFCAFEBABE, 0x80F98032FDB103FD),
+        (1024, 0x0000000000000000, 0xD3594D0A25CB043B),
+        (1024, 0x9E3779B97F4A7C15, 0xED0E2941D2F3D593),
+        (1024, 0xDEADBEEFCAFEBABE, 0xF00E1771AB6A3869),
+    ]
+
+    func testMatchesCReference() {
+        let buf = Self.katBuffer()
+        for (len, seed, digest) in Self.vectors {
+            let slice = Array(buf.prefix(len))
+            XCTAssertEqual(
+                Hayahash.hash64(slice, seed: seed),
+                digest,
+                "len=\(len) seed=0x\(String(seed, radix: 16))"
+            )
+            XCTAssertEqual(
+                Hayahash.hash64(buf, offset: 0, length: len, seed: seed),
+                digest,
+                "len=\(len) seed=0x\(String(seed, radix: 16)) range"
+            )
+        }
+    }
+
+    // Reproduces SMHasher3's self-test: hash the key prefix of length i
+    // with seed 256-i for i in 0..=255, concatenating the little-endian
+    // digests (key byte i is set to i after round i), then hash that
+    // buffer with seed 0. The low 32 bits must match the registered
+    // verification value.
+    func testSmhasher3VerificationValue() {
+        var key = [UInt8](repeating: 0, count: 256)
+        var hashes = [UInt8](repeating: 0, count: 256 * 8)
+        for i in 0..<256 {
+            let h = Hayahash.hash64(key, offset: 0, length: i, seed: UInt64(256 - i))
+            withUnsafeBytes(of: h.littleEndian) { raw in
+                hashes.replaceSubrange(i * 8..<(i * 8 + 8), with: raw)
+            }
+            key[i] = UInt8(i)
+        }
+        let total = Hayahash.hash64(hashes, seed: 0)
+        XCTAssertEqual(UInt32(truncatingIfNeeded: total), 0xF3C4A9B4)
+    }
+
+    func testHelloWorldExample() {
+        XCTAssertEqual(
+            Hayahash.hash64(Array("hello world".utf8), seed: 0),
+            0xF2172C5BD68EC576
+        )
+    }
+
+    func testDefaultSeedIsZero() {
+        let input = Array("hello world".utf8)
+        XCTAssertEqual(Hayahash.hash64(input), Hayahash.hash64(input, seed: 0))
+    }
+
+    func testRangeOverloadMatchesCopy() {
+        let buf = Self.katBuffer()
+        let offsets = [0, 1, 7, 13, 64, 401]
+        let lengths = [0, 1, 2, 3, 5, 8, 13, 16, 17, 31, 32, 33, 63, 64, 65, 127, 319, 320, 321, 512]
+        let seeds: [UInt64] = [0x0000000000000000, 0x9E3779B97F4A7C15, 0xDEADBEEFCAFEBABE]
+        for off in offsets {
+            for len in lengths where off + len <= buf.count {
+                let copy = Array(buf[off..<(off + len)])
+                for seed in seeds {
+                    XCTAssertEqual(
+                        Hayahash.hash64(copy, seed: seed),
+                        Hayahash.hash64(buf, offset: off, length: len, seed: seed)
+                    )
+                }
+            }
+        }
+    }
+}

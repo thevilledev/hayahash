@@ -68,9 +68,15 @@ edit python/pyproject.toml -e "s/^version = \".*\"/version = \"${version}\"/"
 edit python/src/hayahash/__init__.py \
 	-e "s/__version__ = \".*\"/__version__ = \"${version}\"/"
 
+# SwiftPM has no package version field; the lockstep marker lives in a
+# comment at the top of Package.swift.
+edit swift/Package.swift \
+	-e "s/^\/\/ hayahash-version: .*/\/\/ hayahash-version: ${version}/"
+
 printf 'js:     %s\n' "$(sed -n 's/.*"version": "\(.*\)".*/\1/p' js/package.json | head -n1)"
 printf 'rust:   %s\n' "$(sed -n 's/^version = "\(.*\)"$/\1/p' rust/Cargo.toml)"
 printf 'zig:    %s\n' "$(sed -n 's/^[[:space:]]*\.version = "\(.*\)",$/\1/p' zig/build.zig.zon)"
 printf 'java:   %s\n' "$(sed -n 's:.*<version>\(.*\)</version>.*:\1:p' java/pom.xml | head -n1)"
 printf 'csharp: %s\n' "$(sed -n 's:.*<Version>\(.*\)</Version>.*:\1:p' csharp/src/Hayahash/Hayahash.csproj | head -n1)"
 printf 'python: %s\n' "$(sed -n 's/^version = "\(.*\)"$/\1/p' python/pyproject.toml)"
+printf 'swift:  %s\n' "$(sed -n 's/^\/\/ hayahash-version: \(.*\)$/\1/p' swift/Package.swift)"

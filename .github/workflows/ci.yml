@@ -356,6 +356,25 @@ jobs:
           version: "1.1.411"
           working-directory: python
 
+  swift:
+    name: Swift
+    runs-on: avrea-ubuntu-latest-2-vcpu
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Install Swift
+        uses: swift-actions/setup-swift@7ca6abe6b3b0e8b5421b88be48feee39cbf52c6a # v2.4.0
+        with:
+          swift-version: "6.0.3"
+
+      - name: Test
+        run: swift test
+        working-directory: swift
+
   js:
     name: JavaScript
     runs-on: avrea-ubuntu-latest-2-vcpu
