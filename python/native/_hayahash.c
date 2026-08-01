@@ -68,7 +68,9 @@ hayahash_hayahash64(PyObject *self, PyObject *args, PyObject *kwargs)
 static PyMethodDef hayahash_methods[] = {
 	{
 		"hayahash64",
-		(PyCFunction)hayahash_hayahash64,
+		/* METH_KEYWORDS functions take three args; cast via void(*)(void)
+		   is the portable pattern used throughout CPython itself. */
+		(PyCFunction)(void (*)(void))hayahash_hayahash64,
 		METH_VARARGS | METH_KEYWORDS,
 		"hayahash64(data, seed=0) -> int\n"
 		"\n"
