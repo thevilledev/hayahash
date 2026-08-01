@@ -272,11 +272,19 @@ enum { hayahash64_internal_bulk_min = 320 };
 // array + loop force real stores; GCC 16 then emits the same 4+4
 // split and sustained bulk goes from 35 to 62 GB/s on Zen 5, with
 // the 320..512-byte transition band up 30..46% and every sub-320
-// path bit-identical in code as well as output. Without AVX-512DQ
-// the gate is off and this preprocesses to the plain spelling
-// token for token, so default x86-64 builds are untouched.
+// path bit-identical in code as well as output.
+//
+// The win is a Zen 4/5 property, not an AVX-512 property: the loop
+// vectorizes to 32-byte vpmullq, which those cores run as one uop
+// but Skylake-X-class servers microcode (3 uops, ~15-cycle latency,
+// landed on each lane's xor-add-mul chain). Gated on AVX-512DQ
+// alone, GCC 13 and 14 on Cascade Lake both vectorize anyway and
+// lose ~30% sustained bulk and ~35% chained latency from 320 bytes
+// up versus the plain spelling. So the gate also requires a Zen 4/5
+// target; everywhere else (generic x86-64-v4 included) this
+// preprocesses to the plain spelling token for token.
 #if defined(__x86_64__) && defined(__GNUC__) && !defined(__clang__) && \
-    defined(__AVX512DQ__)
+    defined(__AVX512DQ__) && (defined(__znver4__) || defined(__znver5__))
 #define HAYAHASH64_INTERNAL_VECGCC 1
 #else
 #define HAYAHASH64_INTERNAL_VECGCC 0
