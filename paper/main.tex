@@ -483,8 +483,8 @@ serve different roles.  The control output is archived in
 \label{sec:smhasher}
 
 Release \texttt{\SnapshotVersion} passes SMHasher3's default suite, 188 of
-188 tests, on four builds spanning two architectures and every dispatch
-shape the header compiles.  SMHasher3 was pinned at upstream commit
+188 tests, on nine builds spanning four hosts, two architectures, five
+compilers, and every dispatch shape the header compiles.  SMHasher3 was pinned at upstream commit
 \texttt{6ab43433}.  The verification values it computes for the function are
 \texttt{0xF3C4A9B4} for the canonical little-endian reading and
 \texttt{0x01E3C68D} for the byte-swapped one.
@@ -494,10 +494,15 @@ shape the header compiles.  SMHasher3 was pinned at upstream commit
 \toprule
 Host & Compiler & Tiers & Vec & Result & Time \\
 \midrule
-Apple M1 & Apple Clang 21 & 0 & 0 & 188/188 & 408\,s \\
-Zen 5    & GCC 16.1.1     & 1 & 1 & 188/188 & 258\,s \\
-Zen 5    & GCC 16.1.1     & 1 & 0 & 188/188 & 237\,s \\
-Zen 5    & Clang 22.1.8   & 0 & 0 & 188/188 & 232\,s \\
+Apple M1        & Apple Clang 21 & 0 & 0 & 188/188 & 408\,s \\
+Zen 5 mobile    & GCC 16.1.1     & 1 & 1 & 188/188 & 258\,s \\
+Zen 5 mobile    & GCC 16.1.1     & 1 & 0 & 188/188 & 237\,s \\
+Zen 5 mobile    & Clang 22.1.8   & 0 & 0 & 188/188 & 232\,s \\
+EPYC 7B13       & GCC 13.3.0     & 1 & 0 & 188/188 & 613\,s \\
+EPYC 7B13       & Clang 18.1.3   & 0 & 0 & 188/188 & 591\,s \\
+EPYC 9655       & GCC 13.3.0     & 1 & 1 & 188/188 & 300\,s \\
+EPYC 9655       & GCC 13.3.0     & 1 & 0 & 188/188 & 327\,s \\
+EPYC 9655       & Clang 18.1.3   & 0 & 0 & 188/188 & 284\,s \\
 \bottomrule
 \end{tabular}
 \end{center}
@@ -507,11 +512,13 @@ Two independent compile-time switches select between these shapes.
 straight-line length tiers and is 1 unless the compiler is Clang.
 \texttt{HAYAHASH64\_\allowbreak INTERNAL\_\allowbreak VECGCC}, new in this
 release, selects a bulk spelling that GCC's vectorizer can seed from, and is
-1 on x86-64 under GCC when AVX-512DQ is available.  The third row disables
+1 on x86-64 under GCC when AVX-512DQ is available.  Two rows disable
 that gate deliberately, with \texttt{-U\_\_AVX512DQ\_\_}, because it is the
-shape an ordinary GCC build without AVX-512 receives.
+shape an ordinary GCC build without AVX-512 receives; the EPYC 7B13 reaches
+that shape without being asked, having no AVX-512 at all.  The two EPYC hosts
+are shared virtual machines and contribute conformance only, not timing.
 
-Every line of the four outputs that does not report a time is identical,
+Every line of the nine outputs that does not report a time is identical,
 including each individual p-value and collision count.  That is direct
 evidence for the exactness claim discussed in
 Section~\ref{sec:implementation}, and it is stronger than a boundary-vector

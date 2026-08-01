@@ -1,0 +1,82 @@
+snapshot: v0.4.0, commit 24b8d58cc17cf7048e6b792153ab52ba4a50315f
+hayahash.h sha256: d7c67c1e697a16b119810655e08f039d51f0a43e937eb5cd3db0ec59b22d06d4
+smhasher3 commit: 6ab4343396fbe0f7a1c7ac4f01d0eb9acffe4202 (+ the two patches)
+host: AMD EPYC 9655 (Zen 5 "Turin"), 4 vCPU KVM guest, Ubuntu 24.04.4
+compiler: GCC 13.3.0, Release, -O3 -march=native (TIERS=1 VECGCC=1)
+command: ./SMHasher3 --test=Speed --verbose <hash>, 5 replicates round-robin
+date: 2026-08-01
+
+READ THESE FIGURES AS INDICATIVE, NOT AS A CROSS-HOST COMPARISON
+
+Four vCPUs, no cpufreq control, no dedicated cores, and a virtualized TSC
+whose relationship to the actual core clock is not controlled here. Absolute
+values are not comparable with the bare-metal M1 and Zen 5 records. Ratios
+between hashes measured on this host in one session are what to read.
+
+Precision is good: after the overhead correction the replicate spread is at
+most 0.04 cycles on the small-key column and 0.21 bytes/cycle on bulk. The
+numbers are repeatable; their calibration against real core cycles is not
+established.
+
+Small-key figures are corrected for the once-per-process overhead
+calibration, which ranged 2.29..3.44 cycles here; baseline used 2.29. The
+small-key column is dependent latency over 1..31-byte keys, not throughput.
+
+RESULTS
+
+hash             small keys (cy/hash)   bulk (B/cy)
+a5hash                            8.9           4.7
+wyhash                           13.0          13.2
+ChibiHash2                       13.5          10.7
+rapidhash                        14.5          19.8
+XXH3-64                          14.8          23.7
+komihash                         15.9          13.5
+HayaHash64                       17.7          21.3
+gxhash-64                        24.3          44.3
+mx3.v3                           25.0           6.9
+SpookyHash2-64                   26.9          10.4
+
+WHAT THIS HOST CONFIRMS
+
+It reproduces, on different silicon and two compiler generations back, the
+two findings the bare-metal Zen 5 box produced.
+
+hayahash's bulk lead over ChibiHash v2 is 1.99x here (21.3 against 10.7).
+On the bare-metal Zen 5 box it is also 1.99x (31.2 against 15.7). Different
+absolute scale, same ratio.
+
+hayahash is ahead of rapidhash v3 in bulk here too, 21.3 against 19.8, the
+same ordering the Zen 5 box shows at 31.2 against 28.6. XXH3-64 remains
+ahead of both at 23.7, by a narrower margin than on the Zen 5 box.
+
+And ChibiHash v2 is ahead on small-key latency, 13.5 against 17.7, matching
+both other x86 hosts. That split is now seen on three separate x86 machines.
+
+THE VECTORIZATION GATE, MEASURED ON A SECOND MACHINE
+
+This host reaches all three shapes, so the AVX-512 dependency can be measured
+here rather than inferred:
+
+  gcc -march=native   (tiers 1, vecgcc 1)   small 17.7 cy   bulk 21.3 B/cy
+  gcc -U__AVX512DQ__  (tiers 1, vecgcc 0)   small 17.7 cy   bulk 11.8 B/cy
+  clang++             (tiers 0, vecgcc 0)   small 17.6 cy   bulk 21.3 B/cy
+
+Vectorized bulk is 1.81x the unvectorized rate. The bare-metal Zen 5 box gives
+1.77x for the same comparison. Clang again reaches the vectorized rate without
+the special spelling, so the constraint is the instruction set rather than the
+compiler, confirmed now on two machines and two compiler generations.
+
+PER-REPLICATE DETAIL
+
+
+spread after correction (max-min across reps):
+  rapidhash        small 0.01 cy   bulk 0.02 B/cy
+  wyhash           small 0.04 cy   bulk 0.08 B/cy
+  a5hash           small 0.02 cy   bulk 0.00 B/cy
+  komihash         small 0.01 cy   bulk 0.01 B/cy
+  XXH3-64          small 0.00 cy   bulk 0.21 B/cy
+  HayaHash64       small 0.03 cy   bulk 0.01 B/cy
+  ChibiHash2       small 0.01 cy   bulk 0.01 B/cy
+  mx3.v3           small 0.01 cy   bulk 0.02 B/cy
+  SpookyHash2-64   small 0.01 cy   bulk 0.02 B/cy
+  gxhash-64        small 0.00 cy   bulk 0.17 B/cy

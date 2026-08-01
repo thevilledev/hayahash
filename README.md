@@ -309,7 +309,10 @@ five replicates per hash.
     five-replicate sweep across the three shapes on the same host gives
     31.1 B/cy under GCC with `-march=native`, 31.1 under Clang, and
     **17.6 under GCC without AVX-512DQ** (the 31.2 above is the same
-    quantity from the main sweep; the 0.1 is run-to-run). The source stays portable
+    quantity from the main sweep; the 0.1 is run-to-run). An EPYC 9655
+    reproduces the same 1.8x gap under GCC 13 and Clang 18, and an EPYC
+    7B13 with no AVX-512 at all cannot reach the vectorized shape however
+    it is tuned. The source stays portable
     scalar C either way - nothing here is hand-vectorized - but a machine
     without AVX-512 gets the lower rate. Small-key figures are unaffected.
 
@@ -329,6 +332,17 @@ reports both raw and outlier-trimmed dispersion.
 gxhash is measured on Zen 5 only. Its SMHasher3 port takes the hardware
 path solely under x86 AES, so an ARM number would describe a software-AES
 fallback rather than gxhash.
+
+The table above is the two bare-metal hosts. Two further machines, an EPYC
+7B13 (Zen 3) and an EPYC 9655 (Zen 5 Turin), were measured as well but are
+shared KVM guests with no frequency control, so their absolute rates are not
+comparable and are archived as indicative only. Their *within-host* ratios
+are worth reporting, because they reproduce the conclusions below on
+different silicon and two compiler generations back: on the EPYC 9655,
+hayahash leads ChibiHash v2 in bulk by 1.99x, exactly the bare-metal Zen 5
+ratio, and leads rapidhash v3 21.3 to 19.8. On the Zen 3 host, which has no
+AVX-512 and so cannot vectorize, that lead over ChibiHash v2 collapses to
+1.05x. All three x86 hosts agree that ChibiHash v2 is ahead on small keys.
 
 The results fall into distinct instruction classes:
 

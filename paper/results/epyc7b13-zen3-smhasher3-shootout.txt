@@ -1,0 +1,79 @@
+snapshot: v0.4.0, commit 24b8d58cc17cf7048e6b792153ab52ba4a50315f
+hayahash.h sha256: d7c67c1e697a16b119810655e08f039d51f0a43e937eb5cd3db0ec59b22d06d4
+smhasher3 commit: 6ab4343396fbe0f7a1c7ac4f01d0eb9acffe4202 (+ the two patches)
+host: AMD EPYC 7B13 (Zen 3), 4 vCPU KVM guest, Ubuntu 24.04.4
+compiler: GCC 13.3.0, Release, -O3 -march=native (TIERS=1 VECGCC=0)
+command: ./SMHasher3 --test=Speed --verbose <hash>, 5 replicates round-robin
+date: 2026-08-01
+
+READ THESE FIGURES AS INDICATIVE, NOT AS A CROSS-HOST COMPARISON
+
+This is a shared virtual machine: four vCPUs, no cpufreq control, no
+dedicated cores, and a virtualized TSC whose relationship to the actual core
+clock is not controlled here. SMHasher3 derives cycles from that counter, so
+the absolute bytes-per-cycle and cycles-per-hash values are not comparable
+with the bare-metal M1 and Zen 5 records. Ratios between hashes measured on
+this host in the same session are the part worth reading.
+
+The scale of the offset is visible in the data: every hash here, including
+ones with no relationship to each other, lands roughly 2.4 to 2.9 times lower
+in bytes/cycle than on the bare-metal Zen 5 box (XXH3-64 19.1 against 48.9,
+rapidhash 10.0 against 28.6, ChibiHash2 6.5 against 15.7). A uniform shift
+across unrelated implementations is a property of the measurement setup, not
+of the hashes.
+
+Precision is nevertheless good. The overhead calibration was constant at 3.63
+cycles across all 50 runs, and after correction the replicate spread is at
+most 0.15 cycles on the small-key column. The numbers are repeatable; it is
+their calibration against real core cycles that is uncertain.
+
+Small-key figures are corrected for SMHasher3's once-per-process overhead
+calibration; baseline used 3.63 cycles. See the Zen 5 shootout record for the
+full explanation. The small-key column is dependent latency over 1..31-byte
+keys, not independent throughput.
+
+RESULTS
+
+hash             small keys (cy/hash)   bulk (B/cy)
+a5hash                           11.2           3.7
+ChibiHash2                       17.1           6.5
+wyhash                           17.4          10.6
+rapidhash                        19.9          10.0
+XXH3-64                          20.6          19.1
+komihash                         21.8           8.8
+HayaHash64                       24.6           6.8
+gxhash-64                        31.6          28.0
+mx3.v3                           33.1           4.1
+SpookyHash2-64                   36.0           6.1
+
+WHAT THIS HOST ADDS
+
+It is the only machine in the set with no AVX-512, so it shows what the
+vectorization gate being off costs in practice rather than by simulation.
+hayahash's bulk lead over ChibiHash v2 collapses to 1.05x here (6.8 against
+6.5), where the same comparison on the vectorized Zen 5 build is 1.99x. The
+small-key picture matches the other x86 host: ChibiHash v2 is ahead, 17.1
+against 24.6.
+
+hayahash64 across the two shapes this host can reach:
+
+  gcc   (tiers 1, vecgcc 0)   small 24.7 cy   bulk 6.8 B/cy
+  clang (tiers 0, vecgcc 0)   small 24.6 cy   bulk 6.3 B/cy
+
+Both are unvectorized, so this pair isolates the tier dispatch rather than
+the vectorization, and the two are close.
+
+PER-REPLICATE DETAIL
+
+
+spread after correction (max-min across reps):
+  rapidhash        small 0.02 cy   bulk 0.02 B/cy
+  wyhash           small 0.03 cy   bulk 0.99 B/cy
+  a5hash           small 0.04 cy   bulk 0.00 B/cy
+  komihash         small 0.15 cy   bulk 0.03 B/cy
+  XXH3-64          small 0.00 cy   bulk 0.51 B/cy
+  HayaHash64       small 0.06 cy   bulk 0.11 B/cy
+  ChibiHash2       small 0.08 cy   bulk 0.29 B/cy
+  mx3.v3           small 0.00 cy   bulk 0.00 B/cy
+  SpookyHash2-64   small 0.01 cy   bulk 0.00 B/cy
+  gxhash-64        small 0.03 cy   bulk 2.80 B/cy

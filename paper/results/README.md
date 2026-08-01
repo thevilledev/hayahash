@@ -17,6 +17,22 @@ These files hold the records used by the working paper.
   non-timing line of all four is identical, so the shapes differ only in speed.
   Note that the M1 compiles the compact shape as of `v0.4.0`; it compiled the
   wide one at `v0.3.0`.
+- `epyc7b13-zen3-smhasher3.txt` and `epyc9655-turin-smhasher3.txt` are the
+  conformance records for two further hosts, an EPYC 7B13 (Zen 3) and an EPYC
+  9655 (Zen 5 Turin), both KVM guests. They are consolidated rather than full
+  raw dumps: all nine `v0.4.0` conformance runs are byte-identical once timing
+  lines are removed, so these carry provenance, the verbatim sanity and summary
+  sections, and a checksum of the normalized output that matches the others.
+  Between them the four hosts cover two architectures, five compilers, and
+  every dispatch shape. The Zen 3 host is the only one with no AVX-512, so it
+  reaches the unvectorized GCC shape without being asked.
+- `epyc7b13-zen3-smhasher3-shootout.txt` and
+  `epyc9655-turin-smhasher3-shootout.txt` hold those hosts' speed figures.
+  Both are shared virtual machines with no frequency control, so the records
+  state plainly that absolute rates are not comparable with the bare-metal
+  hosts and only within-host ratios should be read. On that basis the EPYC
+  9655 reproduces the bare-metal Zen 5 ratios, and the Zen 3 host shows what
+  losing the vectorized bulk path costs.
 - `apple-m1-smhasher3-shootout.txt` and `zen5-smhasher3-shootout.txt` are the
   competitor speed comparisons behind the table in `README.md`. They record
   the overhead-calibration correction their numbers depend on, why the M1

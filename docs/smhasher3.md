@@ -59,13 +59,48 @@ cover all of them:
 
 | shape | how to build it |
 |---|---|
-| tiers 1, vecgcc 1 | `make run BUILD=build-gcc` on x86-64 with GCC (CMake adds `-march=native`) |
-| tiers 1, vecgcc 0 | `make run BUILD=build-gccnv EXTRA_CXXFLAGS=-U__AVX512DQ__` - the plain GCC spelling, what a build without AVX-512 gets |
+| tiers 1, vecgcc 1 | `make run BUILD=build-gcc` on x86-64 with GCC, on a part with AVX-512DQ |
+| tiers 1, vecgcc 0 | GCC on x86-64 without AVX-512DQ. Force it anywhere with `make run BUILD=build-gccnv EXTRA_CXXFLAGS=-U__AVX512DQ__` |
 | tiers 0, vecgcc 0 | `make run BUILD=build-clang CXX=clang++`, and any Clang build including Apple clang on the M1 |
 
-Note that Apple Silicon under Apple clang is `tiers 0` as of `v0.4.0`; it was
-`tiers 1` in `v0.3.0`, when the condition keyed off the architecture rather
-than the compiler. Never assume the M1 covers the wide shape.
+### What the reference hosts actually reach
+
+Which shape a machine gives you is not obvious, so the hosts behind
+`paper/results/` are recorded here. Probe rather than infer.
+
+| host | compiler | shape |
+|---|---|---|
+| Apple M1, macOS (bare metal) | Apple clang 21 | tiers 0, vecgcc 0 |
+| Ryzen AI 9 HX PRO 370, Zen 5 mobile, Manjaro (bare metal) | GCC 16.1 | tiers 1, vecgcc **1** |
+| " | GCC 16.1 `-U__AVX512DQ__` | tiers 1, vecgcc 0 |
+| " | clang 22.1 | tiers 0, vecgcc 0 |
+| EPYC 7B13, Zen 3, Ubuntu (KVM guest) | GCC 13.3 | tiers 1, vecgcc 0 |
+| " | clang 18.1 | tiers 0, vecgcc 0 |
+| EPYC 9655, Zen 5 Turin, Ubuntu (KVM guest) | GCC 13.3 | tiers 1, vecgcc **1** |
+| " | GCC 13.3 `-U__AVX512DQ__` | tiers 1, vecgcc 0 |
+| " | clang 18.1 | tiers 0, vecgcc 0 |
+
+All nine of those builds pass 188/188 at `v0.4.0` and produce byte-identical
+output once timing lines are removed. Three traps are visible in the table.
+
+**Apple Silicon is `tiers 0`** as of `v0.4.0`, though it was `tiers 1` in
+`v0.3.0`, when the condition keyed off the architecture rather than the
+compiler. Never assume the M1 covers the wide shape.
+
+**`-march=native` does not imply `vecgcc 1`.** The Zen 3 host has no AVX-512
+at all, so GCC there gets the plain spelling however aggressively you tune it,
+while the two AVX-512 hosts get the vectorized one from the same flag. The
+gate is the instruction set, not the tuning.
+
+**The shape does not follow from the vendor or the microarchitecture family.**
+Both EPYC hosts are AMD server parts running the same distro and compilers,
+and they land on different shapes. The two Zen 5 parts, one mobile and one
+datacenter, land on the same shape despite different compilers.
+
+Only the two bare-metal hosts are suitable for timing. The KVM guests have
+four vCPUs, no `cpufreq` control, and a virtualized TSC; they are used for
+conformance, which is deterministic and unaffected, and their speed figures
+are recorded as indicative with within-host ratios rather than absolute rates.
 
 To read the shape out of a build:
 
