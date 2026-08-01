@@ -1,0 +1,44 @@
+[build-system]
+requires = ["setuptools>=68", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "hayahash"
+version = "0.4.0"
+description = "hayahash64, a small, fast, portable 64-bit hash function; CPython C extension over the C reference"
+readme = "README.md"
+license = { text = "Unlicense" }
+requires-python = ">=3.9"
+authors = [
+  { name = "Ville Vesilehto", email = "ville@vesilehto.fi" },
+]
+keywords = ["hash", "hashing", "non-cryptographic", "hayahash", "hayahash64"]
+classifiers = [
+  "Development Status :: 4 - Beta",
+  "Intended Audience :: Developers",
+  "License :: OSI Approved :: The Unlicense (Unlicense)",
+  "Operating System :: OS Independent",
+  "Programming Language :: C",
+  "Programming Language :: Python :: 3",
+  "Programming Language :: Python :: 3 :: Only",
+  "Programming Language :: Python :: Implementation :: CPython",
+  "Topic :: Software Development :: Libraries",
+]
+dependencies = []
+
+[project.urls]
+Homepage = "https://github.com/thevilledev/hayahash"
+Repository = "https://github.com/thevilledev/hayahash"
+Issues = "https://github.com/thevilledev/hayahash/issues"
+
+[project.optional-dependencies]
+test = ["pytest>=8"]
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.setuptools.package-data]
+hayahash = ["py.typed"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]

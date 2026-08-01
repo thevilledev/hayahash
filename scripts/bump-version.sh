@@ -63,8 +63,14 @@ edit java/pom.xml \
 edit csharp/src/Hayahash/Hayahash.csproj \
 	-e "s|<Version>.*</Version>|<Version>${version}</Version>|"
 
+# PyPA project version plus the editable-install fallback in __init__.py.
+edit python/pyproject.toml -e "s/^version = \".*\"/version = \"${version}\"/"
+edit python/src/hayahash/__init__.py \
+	-e "s/__version__ = \".*\"/__version__ = \"${version}\"/"
+
 printf 'js:     %s\n' "$(sed -n 's/.*"version": "\(.*\)".*/\1/p' js/package.json | head -n1)"
 printf 'rust:   %s\n' "$(sed -n 's/^version = "\(.*\)"$/\1/p' rust/Cargo.toml)"
 printf 'zig:    %s\n' "$(sed -n 's/^[[:space:]]*\.version = "\(.*\)",$/\1/p' zig/build.zig.zon)"
 printf 'java:   %s\n' "$(sed -n 's:.*<version>\(.*\)</version>.*:\1:p' java/pom.xml | head -n1)"
 printf 'csharp: %s\n' "$(sed -n 's:.*<Version>\(.*\)</Version>.*:\1:p' csharp/src/Hayahash/Hayahash.csproj | head -n1)"
+printf 'python: %s\n' "$(sed -n 's/^version = "\(.*\)"$/\1/p' python/pyproject.toml)"

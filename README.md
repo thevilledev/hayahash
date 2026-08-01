@@ -9,6 +9,7 @@
 [![zig](https://img.shields.io/github/v/release/thevilledev/hayahash?logo=zig&logoColor=white&label=zig)](https://github.com/thevilledev/hayahash/releases/latest)
 [![Maven Central](https://img.shields.io/maven-central/v/io.github.thevilledev/hayahash?logo=openjdk&logoColor=white&label=maven%20central)](https://central.sonatype.com/artifact/io.github.thevilledev/hayahash)
 [![NuGet](https://img.shields.io/nuget/v/Hayahash?logo=nuget&logoColor=white&label=nuget)](https://www.nuget.org/packages/Hayahash)
+[![PyPI](https://img.shields.io/pypi/v/hayahash?logo=pypi&logoColor=white&label=pypi)](https://pypi.org/project/hayahash/)
 [![npm](https://img.shields.io/npm/v/hayahash?logo=npm&logoColor=white&label=npm)](https://www.npmjs.com/package/hayahash)
 
 A small 64-bit hash function that passes the full
@@ -42,6 +43,8 @@ The reference implementation is the single C header
 - `java/` - Java port (Maven module `io.github.thevilledev:hayahash`,
   Java 17+)
 - `csharp/` - C# / .NET port (NuGet package `Hayahash`, .NET 8+)
+- `python/` - Python port (PyPI package `hayahash`, CPython C
+  extension over the reference header)
 - `js/` - JavaScript/TypeScript port for npm (`hayahash` package): the
   reference header compiled to WebAssembly, plus a pure-JS fallback
 - `mips/` - MIPS64 assembly port (`hayahash.S`, n64 ABI); tested under
@@ -66,7 +69,7 @@ the reference implementation via the SMHasher3 verification value and
 the shared known-answer vectors (see `rust/tests/kat.rs`,
 `go/kat_test.go`, `zig/tests/kat.zig`, the Java `KatTest` under
 `java/src/test`, the C# `KatTests` under `csharp/tests`,
-`js/test/hayahash.test.mjs`, and `make -C mips test`).
+`python/tests`, `js/test/hayahash.test.mjs`, and `make -C mips test`).
 
 
 ## Usage
@@ -115,6 +118,15 @@ C# / .NET - the NuGet package lives in [`csharp/`](csharp/):
 using Hayahash;
 
 ulong h = Hayahash.Hash64(buf, seed);
+```
+
+Python - the PyPI package lives in [`python/`](python/); a CPython C
+extension wraps `hayahash.h` directly:
+
+```python
+from hayahash import hayahash64
+
+h = hayahash64(buf, seed)
 ```
 
 JavaScript/TypeScript - the npm package lives in [`js/`](js/); the
@@ -188,8 +200,8 @@ Each fix is documented in the header where it lives.
   criterion over input and seed bits, plus exact-collision tests over
   23 structured key sets, including reproductions of the SMHasher3
   keysets that broke earlier iterations. All clean.
-- The Rust, Go, Zig, Java, C#, JavaScript, and MIPS64 assembly ports are
-  bit-exact against the C reference:
+- The Rust, Go, Zig, Java, C#, Python, JavaScript, and MIPS64 assembly
+  ports are bit-exact against the C reference:
   each port's test suite checks the SMHasher3 verification value and a
   shared table of known-answer vectors generated from `hayahash.h`.
   (The JavaScript package checks both of its engines: the wasm build
