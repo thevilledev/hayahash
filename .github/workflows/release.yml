@@ -192,7 +192,10 @@ jobs:
     needs: check
     # Flip the repository variable PUBLISH_NUGET to 'true' once a
     # nuget.org Trusted Publishing policy is configured for this
-    # workflow and the NUGET_USER secret holds the nuget.org username.
+    # workflow, the NUGET_USER secret holds the nuget.org username,
+    # NUGET_SIGNING_CERT / NUGET_SIGNING_CERT_PASSWORD hold a
+    # code-signing PFX (base64) and its password, and the matching
+    # public certificate (.cer) is registered on nuget.org.
     if: vars.PUBLISH_NUGET == 'true'
     # NuGet trusted publishing, like npm's, is designed for
     # GitHub-hosted runners.
@@ -222,6 +225,41 @@ jobs:
           --configuration Release
           --output "$RUNNER_TEMP/nuget"
         working-directory: csharp
+
+      # Author-sign every package before upload. nuget.org rejects
+      # unsigned submissions once a certificate is registered on the
+      # publishing account, so fail closed if the PFX secret is missing.
+      # The leaf must chain to a CA in the SDK codesign trust bundle
+      # (codesignctl.pem); typical public code-signing CAs do.
+      - name: Sign packages
+        env:
+          NUGET_SIGNING_CERT: ${{ secrets.NUGET_SIGNING_CERT }}
+          NUGET_SIGNING_CERT_PASSWORD: ${{ secrets.NUGET_SIGNING_CERT_PASSWORD }}
+        run: |
+          set -euo pipefail
+          if [ -z "${NUGET_SIGNING_CERT:-}" ]; then
+            echo "::error::repository secret NUGET_SIGNING_CERT is not set"
+            exit 1
+          fi
+          cert="$RUNNER_TEMP/nuget-signing.pfx"
+          cleanup() { rm -f "$cert"; }
+          trap cleanup EXIT
+          printf '%s' "$NUGET_SIGNING_CERT" | tr -d '\n\r' | base64 -d > "$cert"
+          chmod 600 "$cert"
+          shopt -s nullglob
+          pkgs=("$RUNNER_TEMP/nuget"/*.nupkg "$RUNNER_TEMP/nuget"/*.snupkg)
+          if [ "${#pkgs[@]}" -eq 0 ]; then
+            echo "::error::no packages to sign under $RUNNER_TEMP/nuget"
+            exit 1
+          fi
+          for pkg in "${pkgs[@]}"; do
+            dotnet nuget sign "$pkg" \
+              --certificate-path "$cert" \
+              --certificate-password "$NUGET_SIGNING_CERT_PASSWORD" \
+              --timestamper http://timestamp.digicert.com \
+              --overwrite
+            dotnet nuget verify "$pkg"
+          done
 
       - name: NuGet login
         id: login
