@@ -2,10 +2,11 @@ name: Release
 
 # One annotated tag (vX.Y.Z) releases every port: npm and crates.io
 # via trusted publishing, the Go module via a derived go/vX.Y.Z tag,
-# Zig and C via GitHub release assets, and (once enabled) Maven
-# Central, NuGet, and PyPI. Versions are kept in lockstep across all
-# ports; the check job refuses to release if any manifest disagrees
-# with the tag.
+# Zig and C via GitHub release assets, Python sdist + cibuildwheel
+# binary wheels (PyPI once PUBLISH_PYPI is enabled), and (once
+# enabled) Maven Central and NuGet. Versions are kept in lockstep
+# across all ports; the check job refuses to release if any manifest
+# disagrees with the tag.
 
 on:
   push:
@@ -198,17 +199,13 @@ jobs:
               "hayahash-swift-${version}.tar.gz"
           fi
 
-  pypi:
-    name: Publish to PyPI
+  # Source distribution only. Binary wheels are produced by cibuildwheel
+  # below so PyPI gets portable manylinux/musllinux (and Win/macOS) tags
+  # instead of a host-local linux_x86_64 wheel that PyPI would reject.
+  pypi-sdist:
+    name: Build Python sdist
     needs: check
-    # Flip the repository variable PUBLISH_PYPI to 'true' once a PyPI
-    # Trusted Publisher is configured for this workflow (release.yml).
-    if: vars.PUBLISH_PYPI == 'true'
-    # PyPI trusted publishing is designed for GitHub-hosted runners.
     runs-on: ubuntu-latest
-    permissions:
-      contents: read
-      id-token: write
 
     steps:
       - name: Check out repository
@@ -221,27 +218,84 @@ jobs:
         with:
           python-version: "3.12"
 
-      - name: Sync vendored header and build
+      - name: Sync vendored header and build sdist
         run: |
           diff -q ../hayahash.h include/hayahash.h
           python -m pip install -U pip build
           python -m pip install -e ".[test]"
           pytest -q
-          python -m build
+          python -m build --sdist
         working-directory: python
 
-      # `python -m build` produces a wheel tagged for the exact build host,
-      # linux_x86_64, and PyPI rejects that tag: binary wheels must be
-      # manylinux or musllinux so they are portable. Ship the sdist only,
-      # which pip compiles on install. The wheel is still built above, so it
-      # stays a smoke test of the extension build.
-      - name: Drop the non-portable wheel
-        run: rm -f python/dist/*.whl
+      - name: Upload sdist
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: python-sdist
+          path: python/dist/*.tar.gz
+          if-no-files-found: error
+
+  pypi-wheels:
+    name: Build Python wheels (${{ matrix.os }})
+    needs: check
+    # cibuildwheel needs Docker on Linux and the native toolchains on
+    # macOS/Windows; GitHub-hosted runners provide all of that.
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os:
+          - ubuntu-latest
+          - ubuntu-24.04-arm
+          - windows-latest
+          - macos-14
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Check vendored header matches the C reference
+        run: diff -q hayahash.h python/include/hayahash.h
+        shell: bash
+
+      - name: Build wheels
+        uses: pypa/cibuildwheel@4726cd35bb13f7bde50cf2761f2499ac7b3aa32c # v4.1.1
+        with:
+          package-dir: python
+          output-dir: wheelhouse
+
+      - name: Upload wheels
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: python-wheels-${{ matrix.os }}
+          path: wheelhouse/*.whl
+          if-no-files-found: error
+
+  pypi:
+    name: Publish to PyPI
+    needs: [pypi-sdist, pypi-wheels]
+    # Flip the repository variable PUBLISH_PYPI to 'true' once a PyPI
+    # Trusted Publisher is configured for this workflow (release.yml).
+    if: vars.PUBLISH_PYPI == 'true'
+    # PyPI trusted publishing is designed for GitHub-hosted runners.
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      id-token: write
+
+    steps:
+      - name: Download sdist and wheels
+        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
+        with:
+          pattern: python-*
+          path: dist
+          merge-multiple: true
 
       - name: Publish
         uses: pypa/gh-action-pypi-publish@dc37677b2e1c63e2034f94d8a5b11f265b73ba33 # v1.14.2
         with:
-          packages-dir: python/dist/
+          packages-dir: dist/
 
   nuget:
     name: Publish to NuGet

@@ -356,6 +356,30 @@ jobs:
           version: "1.1.411"
           working-directory: python
 
+  # Smoke one manylinux wheel so the cibuildwheel path (auditwheel tags,
+  # extension build inside the container) stays green without waiting for
+  # a release tag. The full matrix lives in release.yml.
+  python-wheels:
+    name: Python wheels (manylinux smoke)
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Check vendored header matches the C reference
+        run: diff -q hayahash.h python/include/hayahash.h
+
+      - name: Build cp312 manylinux_x86_64
+        uses: pypa/cibuildwheel@4726cd35bb13f7bde50cf2761f2499ac7b3aa32c # v4.1.1
+        env:
+          CIBW_BUILD: cp312-manylinux_x86_64
+        with:
+          package-dir: python
+          output-dir: wheelhouse
+
   swift:
     name: Swift
     runs-on: avrea-ubuntu-latest-2-vcpu

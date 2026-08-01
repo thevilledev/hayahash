@@ -14,6 +14,11 @@ h = hayahash64(data, seed=0x9E3779B97F4A7C15)
 Requires CPython 3.9+. Package version tracks the shared algorithm
 version across every language port in this repository.
 
+PyPI releases ship manylinux/musllinux (and Windows/macOS) wheels built
+with [cibuildwheel](https://cibuildwheel.pypa.io/), so `pip install`
+does not need a local compiler. The sdist remains available as a
+fallback and still builds the extension from source.
+
 ```sh
 python -m pip install -e ".[test]"
 pytest
