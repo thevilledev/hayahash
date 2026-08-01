@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import shutil
 import sys
+import sysconfig
 from pathlib import Path
 
 from setuptools import Extension, setup
@@ -30,7 +31,14 @@ def header_include_dir() -> str:
 def extra_compile_args() -> list[str]:
     """Match the C CI warning gates on both MSVC and gcc/clang."""
     if sys.platform == "win32":
-        return ["/W4", "/WX"]
+        # Keep /W4 /WX for our sources. CPython headers are not clean under
+        # /W4 with current MSVC (e.g. C4115 in pytime.h on 3.9), so mark the
+        # interpreter include tree as external and silence those warnings.
+        args = ["/W4", "/WX", "/external:W0"]
+        py_include = sysconfig.get_path("include")
+        if py_include:
+            args.append(f"/external:I{py_include}")
+        return args
     return ["-Wall", "-Wextra", "-Werror"]
 
 

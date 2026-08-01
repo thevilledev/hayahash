@@ -81,9 +81,8 @@ reportMissingModuleSource = false
 # target; keep manylinux + musllinux (and the host macOS/Windows builds).
 [tool.cibuildwheel]
 build = "cp*"
+# PyPy/GraalPy are off by default; only skip selectors for enabled groups.
 skip = [
-  "pp*",
-  "gp*",
   "cp3??t-*",
   "*-win32",
   "*-win_arm64",
