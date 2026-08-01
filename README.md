@@ -19,8 +19,11 @@ per-architecture code, no UB, and endianness-independent output.
 
 That suits wasm, JVM, .NET, and portable C targets where only ordinary
 64-bit multiplication is available. On native x86-64 or ARM64, where a
-wide multiply is available, `rapidhash v3` is decisively faster and is
-the better choice unless that portability matters to you.
+wide multiply is available, `rapidhash v3` is still the better default
+unless that portability matters to you: it leads on small keys
+everywhere and on both axes on the M1, although its sustained-bulk
+lead on Zen 5 did not survive hayahash's auto-vectorized bulk loop
+(see the [shootout](#smhasher3-shootout) below).
 
 [ChibiHash](https://github.com/N-R-K/ChibiHash) sets out to do a
 similar thing, which makes it the most useful baseline to measure
@@ -31,195 +34,14 @@ trick, the header says so.
 *Haya* (速) is Japanese for "fast".
 
 The reference implementation is the single C header
-[`hayahash.h`](hayahash.h) at the repository root.
+[`hayahash.h`](hayahash.h) at the repository root. Bit-exact ports to
+Rust, Go, Zig, Java, C#, Python, JavaScript/TypeScript, and MIPS64
+assembly live in this repository; see [Usage](#usage).
 
-## Repository layout
-
-- `hayahash.h` - reference implementation (C99, single header, public
-  domain)
-- `rust/` - Rust port (`hayahash` crate, `no_std` compatible)
-- `go/` - Go port (`github.com/thevilledev/hayahash/go` module)
-- `zig/` - Zig port (`hayahash` module, Zig 0.16)
-- `java/` - Java port (Maven module `io.github.thevilledev:hayahash`,
-  Java 17+)
-- `csharp/` - C# / .NET port (NuGet package `Hayahash`, .NET 8+)
-- `python/` - Python port (PyPI package `hayahash`, CPython C
-  extension over the reference header)
-- `js/` - JavaScript/TypeScript port for npm (`hayahash` package): the
-  reference header compiled to WebAssembly, plus a pure-JS fallback
-- `mips/` - MIPS64 assembly port (`hayahash.S`, n64 ABI); tested under
-  qemu-mips64el against the shared known-answer vectors
-- `tests/` - C quality and benchmark harnesses; ChibiHash v1/v2
-  reference sources are vendored there so the comparisons are
-  self-contained
-- `tests/smhasher3/` - SMHasher3 adapter and pinned build harness; the
-  suite is cloned at test time, never vendored. See
-  [`docs/smhasher3.md`](docs/smhasher3.md)
-- `docs/` - how to run and reproduce the external test suites
-- `tests/differential/` - reproducible randomized corpus generator for
-  nightly cross-port differential conformance against the C reference
-- `tests/wasm/` - baseline-wasm32 shootout and wasm-vs-native
-  bit-exactness check (zig cc + Node); run on demand in CI via the
-  "Wasm bench" workflow, or locally with `make -C tests/wasm run-kat
-  run-bench`. Competitor headers (rapidhash, xxHash) are fetched
-  pinned to exact upstream commits at build time
-
-Each port lives in its own top-level directory and is verified against
-the reference implementation via the SMHasher3 verification value and
-the shared known-answer vectors (see `rust/tests/kat.rs`,
-`go/kat_test.go`, `zig/tests/kat.zig`, the Java `KatTest` under
-`java/src/test`, the C# `KatTests` under `csharp/tests`,
-`python/tests`, `js/test/hayahash.test.mjs`, and `make -C mips test`).
-
-
-## Usage
-
-C - copy `hayahash.h` into your project:
-
-```c
-#include "hayahash.h"
-
-uint64_t h = hayahash64(buf, len, seed);
-```
-
-Rust - the `hayahash` crate lives in [`rust/`](rust/):
-
-```rust
-let h = hayahash::hayahash64(buf, seed);
-```
-
-Go - the module lives in [`go/`](go/):
-
-```go
-import hayahash "github.com/thevilledev/hayahash/go"
-
-h := hayahash.Hash64(buf, seed)
-```
-
-Zig - the package lives in [`zig/`](zig/):
-
-```zig
-const hayahash = @import("hayahash");
-
-const h = hayahash.hayahash64(buf, seed);
-```
-
-Java - the Maven module lives in [`java/`](java/):
-
-```java
-import io.github.thevilledev.hayahash.Hayahash;
-
-long h = Hayahash.hash64(buf, seed);
-```
-
-C# / .NET - the NuGet package lives in [`csharp/`](csharp/):
-
-```csharp
-using Hayahash;
-
-ulong h = Hayahash.Hash64(buf, seed);
-```
-
-Python - the PyPI package lives in [`python/`](python/); a CPython C
-extension wraps `hayahash.h` directly:
-
-```python
-from hayahash import hayahash64
-
-h = hayahash64(buf, seed)
-```
-
-JavaScript/TypeScript - the npm package lives in [`js/`](js/); the
-fast path is `hayahash.h` itself, compiled to a ~1.5 KB WebAssembly
-module, with a pure-JS fallback:
-
-```js
-import { hayahash64 } from "hayahash";
-
-const h = hayahash64(buf, seed); // unsigned 64-bit bigint
-```
-
-MIPS64 assembly - the port lives in [`mips/`](mips/):
-
-```c
-#include "hayahash.h" /* mips/hayahash.h */
-
-uint64_t h = hayahash64(buf, len, seed);
-```
-
-## Design
-
-Four ideas, explained in detail at the top of the header:
-
-1. **A short bulk dependency chain.** The bulk loop runs 8 independent
-   lanes over 64-byte blocks with nothing longer than `add -> mul`
-   (~4 cycles) on the loop-carried path, and no cross-lane ALU work
-   there. For scale, ChibiHash v2 carries a ~5-cycle
-   `add -> mul -> xor` chain per 8-byte stripe across 4 lanes.
-2. **A chained, injective absorb.** Each lane absorbs
-   `t = w + rotl(w_prev, 27)`, where `w_prev` is the previous stripe.
-   At the first stripe where two inputs differ, `w_prev` is still
-   equal, so `t` differs: the absorb sequence is injective by
-   induction. The rotated copy also plants every stripe bit at a low
-   position in the next lane, where `+` and `rotl` commute with
-   neither GF(2) nor mod-2^64 algebra. The rotation amount, the fold
-   rotations, and a final "wall" absorb of the last stripe's dangling
-   copy are all chosen against difference-ladder attacks; see the
-   header notes. The rotation applies to an already-loaded register,
-   off the loop-carried path, and is cheaper than a second load on
-   wide cores.
-3. **Derived lane constants.** Seed and length are premixed into one
-   value `s`, and all lane IVs are derived from `s` plus shifted copies
-   of the single multiplier constant. No big per-lane literals are
-   materialized (on AArch64 a 64-bit literal costs 4 instructions), and
-   full-state seeding comes for free.
-4. **Overlapping tail reads, two-multiply short path.** Tails read
-   whole (overlapping) words from the end of the input, wyhash-style,
-   so no byte-at-a-time loop exists for any length. Inputs of at most
-   16 bytes take a dedicated path: both loaded words are spread with
-   bijective 3-rotation injections (a different one per word, so the
-   two multiply terms cannot be erased simultaneously) and passed
-   through independent multiplies into a strong finalizer.
-
-Getting the details right was the hard part: SMHasher3 found five
-distinct structural collision classes in earlier iterations of this
-design:
-
-- a GF(2) nullspace in a staggered-load absorb
-- seed-copy erasure by aligned key bits - twice
-- top-window carry-luck ladders, and
-- a fold rotation resonating with the absorb rotation
-
-Each fix is documented in the header where it lives.
-
-## Quality
-
-- SMHasher3: **188/188 tests passed**, verification value `0x6B558D9D`.
-  (ChibiHash v2 also passes 188/188; v1 fails.)
-- Local harness (`make -C tests run-quality`): strict avalanche
-  criterion over input and seed bits, plus exact-collision tests over
-  23 structured key sets, including reproductions of the SMHasher3
-  keysets that broke earlier iterations. All clean.
-- The Rust, Go, Zig, Java, C#, Python, JavaScript, and MIPS64 assembly
-  ports are bit-exact against the C reference:
-  each port's test suite checks the SMHasher3 verification value and a
-  shared table of known-answer vectors generated from `hayahash.h`.
-  (The JavaScript package checks both of its engines: the wasm build
-  of the reference header and the pure-JS fallback.)
-- Nightly differential conformance fuzzing generates one C-reference
-  corpus with random input bytes, random 64-bit hash seeds, exhaustive
-  lengths 0..384, and boundary-biased random lengths through the
-  128 KiB edge.
-  Every port consumes the identical corpus (including both JavaScript
-  engines). The logged PRNG seed or the failure artifact reproduces a
-  run exactly; the workflow can also be dispatched manually with a
-  chosen seed.
-- Endianness is tested in CI: the shared KAT is also produced on
-  s390x (big-endian, via `zig cc` + qemu-user) and must match the
-  little-endian reference. wasm32 covers the ILP32 case; MSVC x64
-  covers the Windows ABI.
-- The absorb sequence is injective by construction (first-difference
-  induction), and all tail injections are bijective.
+Documentation: [design](docs/design.md) ·
+[quality](docs/quality.md) · [ports & layout](docs/ports.md) ·
+[running SMHasher3](docs/smhasher3.md) ·
+[optimization log](docs/optimization/)
 
 ## Performance
 
@@ -264,11 +86,11 @@ Small-input throughput (ns/hash, independent hashes, lower is better):
 v1's 8/16-byte latency wins come from special-cased paths that are also
 part of why it fails SMHasher3; among the two functions that pass,
 hayahash is fastest at every size, and the bulk rate is ~1.6x
-ChibiHash v2. The 32..128-byte rows reflect the fifth pass's
-dispatch choice: clang targets take the compact dispatch, giving up
-5..9% at these fixed sizes to run 2..10% faster on mixed-size
-workloads, which single-size tables cannot show (see
-`OPTIMIZATION_NOTES.md`).
+ChibiHash v2. The 32..128-byte rows reflect the fifth optimization
+pass's dispatch choice: clang targets take the compact dispatch, giving
+up 5..9% at these fixed sizes to run 2..10% faster on mixed-size
+workloads, which single-size tables cannot show (see the
+[optimization log](docs/optimization/)).
 
 The same comparison on native x86-64 (AMD Zen 5, GCC 16,
 `-march=native`) now shows hayahash ahead of both ChibiHash versions
@@ -279,7 +101,8 @@ vs 28.6 GB/s), and sustained bulk essentially doubled to 61.3 vs
 31.2 GB/s at 1 MiB after the fifth pass taught GCC to auto-vectorize
 the bulk loop for AVX-512 (builds without AVX-512DQ keep the previous
 35 GB/s scalar rate). Dispatch shapes are tuned per architecture and
-compiler; `OPTIMIZATION_NOTES.md` documents the measurements.
+compiler; the [optimization log](docs/optimization/) documents the
+measurements.
 
 ### SMHasher3 shootout
 
@@ -323,11 +146,10 @@ not comparable to the independent-hash figures in the ChibiHash tables
 above. It also needed correcting: SMHasher3 measures call overhead once
 per process and subtracts it from all 31 lengths, and that calibration
 varied by ~2 cycles between runs, which is 10-40% on Zen 5. The archived
-records explain the correction. After it the five Zen 5 replicates agree
-to within 0.35 cycles. The fanless M1 is noisier: one replicate per hash
-came out uniformly fast, consistent with the core clocking above the rate
-the cycle timer assumes, so its figures are medians and the archived record
-reports both raw and outlier-trimmed dispersion.
+records explain the correction; after it the five Zen 5 replicates agree
+to within 0.35 cycles. The fanless M1 is noisier, so its figures are
+medians and the archived record reports both raw and outlier-trimmed
+dispersion.
 
 gxhash is measured on Zen 5 only. Its SMHasher3 port takes the hardware
 path solely under x86 AES, so an ARM number would describe a software-AES
@@ -379,6 +201,72 @@ ChibiHash v2 is ahead on Zen 5 - so that advantage is
 architecture-dependent, not general. And this is a deliberately scoped
 claim rather than a universal record: two hosts, bounded by the roughly
 250 hashes SMHasher3 tracks.
+
+## Quality
+
+- SMHasher3: **188/188 tests passed**, verification value `0xF3C4A9B4`,
+  re-verified at `v0.4.0` on nine builds spanning four hosts, five
+  compilers, and all three dispatch shapes the header compiles.
+  (ChibiHash v2 also passes 188/188; v1 fails.)
+- Local harness (`make -C tests run-quality`): strict avalanche
+  criterion over input and seed bits, plus exact-collision tests over
+  24 structured key sets, including reproductions of the SMHasher3
+  keysets that broke earlier iterations. All clean.
+- All eight ports are bit-exact against the C reference: shared
+  known-answer vectors and the SMHasher3 verification value in every
+  port's test suite, plus nightly differential fuzzing that replays a
+  fresh randomized C-reference corpus through every language port
+  (both JavaScript engines included; the MIPS64 assembly port relies
+  on the shared vectors instead).
+- Endianness and ABI are tested in CI: big-endian s390x, ILP32 wasm32,
+  MSVC x64, and MIPS64 under qemu must all reproduce the shared KAT.
+
+[`docs/quality.md`](docs/quality.md) details each of these;
+[`paper/AUDIT.md`](paper/AUDIT.md) tracks claim-by-claim evidence.
+
+## Usage
+
+C - copy [`hayahash.h`](hayahash.h) into your project:
+
+```c
+#include "hayahash.h"
+
+uint64_t h = hayahash64(buf, len, seed);
+```
+
+| language | package | call |
+|---|---|---|
+| [Rust](rust/) | `hayahash` on crates.io (`no_std`) | `hayahash::hayahash64(buf, seed)` |
+| [Go](go/) | `github.com/thevilledev/hayahash/go` | `hayahash.Hash64(buf, seed)` |
+| [Zig](zig/) | `hayahash` module (Zig 0.16) | `hayahash.hayahash64(buf, seed)` |
+| [Java](java/) | `io.github.thevilledev:hayahash` (17+) | `Hayahash.hash64(buf, seed)` |
+| [C#](csharp/) | `Hayahash` on NuGet (.NET 8+) | `Hayahash.Hash64(buf, seed)` |
+| [Python](python/) | `hayahash` on PyPI (3.9+) | `hayahash64(buf, seed)` |
+| [JS/TS](js/) | `hayahash` on npm (wasm + pure JS) | `hayahash64(buf, seed)` |
+| [MIPS64](mips/) | `hayahash.S` (n64 ABI) | `hayahash64(buf, len, seed)` |
+
+Per-language examples and the full repository layout are in
+[`docs/ports.md`](docs/ports.md).
+
+## Design
+
+Four ideas, explained in detail at the top of the header and in
+[`docs/design.md`](docs/design.md):
+
+1. **A short bulk dependency chain** - 8 independent lanes, nothing
+   longer than `add -> mul` on the loop-carried path.
+2. **A chained, injective absorb** - each lane absorbs
+   `w + rotl(w_prev, 27)`; injective by first-difference induction.
+3. **Derived lane constants** - seed and length premixed once; all
+   lane IVs derived from it, no big per-lane literals.
+4. **Overlapping tail reads, two-multiply short path** - wyhash-style
+   whole-word tails, no byte loops; a dedicated <= 16-byte path.
+
+The hard part was keeping speed while closing every structural
+collision class SMHasher3 found in earlier iterations; those are
+documented in [`docs/design.md`](docs/design.md), and the measured
+history of every optimization (including rejected ideas) is in the
+[optimization log](docs/optimization/).
 
 ## Status
 

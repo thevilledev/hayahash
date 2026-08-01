@@ -41,8 +41,8 @@ Evidence states:
 | The local quality harness passes, with worst observed input bias 0.0403, seed bias 0.0338, and 24 clean collision sets. | reproduced, archived | `make -C tests run-quality`; `paper/results/quality.txt` | Rerun after every digest change and record compiler and snapshot. |
 | The local rotation-orbit control produces 512 colliding ChibiHash v2 pairs. | reproduced, archived | `./tests/quality v2`; `paper/results/quality-chibihash-v2.txt` | Keep this result scoped to the constructed set; it is not a general quality ranking. |
 | The Apple M1 ChibiHash comparison uses the median of three idle process runs, each using nine calibrated samples per cell. | reproduced, archived | `tests/bench.c`; `paper/results/apple-m1-chibihash.txt` | Retain all nine raw samples in a future harness revision; the current harness retains one median per process and cell. |
-| The Zen 5 ChibiHash comparison used GCC 16 on a core pinned near 5.16 GHz. | archived | `OPTIMIZATION_NOTES.md`; `paper/results/zen5-chibihash.txt` | Add an environment manifest and raw sample values before release. |
-| Compiler-specific dispatch changes preserve output. | reproduced, archived | The nine SMHasher3 runs under `paper/results/` cover every shape the header compiles (`TIERS` 1 and 0, `VECGCC` 1 and 0) across four hosts, two architectures and five compilers, and agree on both verification values and on every one of 2187 non-timing output lines | The strongest case is the vectorized build: disassembly confirms it issues packed 64-bit multiplies (`vpmullq`) where the others are scalar, so the agreement is between genuinely different machine code, not two spellings the compiler collapsed. Does not cover the historical A/B candidates in `OPTIMIZATION_NOTES.md`; archive those source pairs separately if the paper keeps citing them. |
+| The Zen 5 ChibiHash comparison used GCC 16 on a core pinned near 5.16 GHz. | archived | `docs/optimization/pass-3-zen5.md`; `paper/results/zen5-chibihash.txt` | Add an environment manifest and raw sample values before release. |
+| Compiler-specific dispatch changes preserve output. | reproduced, archived | The nine SMHasher3 runs under `paper/results/` cover every shape the header compiles (`TIERS` 1 and 0, `VECGCC` 1 and 0) across four hosts, two architectures and five compilers, and agree on both verification values and on every one of 2187 non-timing output lines | The strongest case is the vectorized build: disassembly confirms it issues packed 64-bit multiplies (`vpmullq`) where the others are scalar, so the agreement is between genuinely different machine code, not two spellings the compiler collapsed. Does not cover the historical A/B candidates in the optimization log (`docs/optimization/`); archive those source pairs separately if the paper keeps citing them. |
 | Rust, Go, Zig, Java, C#, Python, WebAssembly, and pure JavaScript implementations pass their checked-in conformance vectors at this snapshot. | reproduced, archived | `paper/results/conformance.txt`; current tests in each port | A single generated machine-readable vector file is still needed. The present suites share copied tables. |
 
 ## Historical notes
@@ -57,10 +57,11 @@ construction specified by the paper.
   release since has independently reached 188 of 188 with verification value
   `0xF3C4A9B4`; the test count matching is a coincidence of the default
   suite's size, not evidence that the old run transfers.
-- `README.md` and `js/README.md` still show the `v0.2.1` verification value
-  `0x6B558D9D` as if it applied to current code, and `js/README.md`
-  contradicts the test file it cites, which asserts `0xF3C4A9B4`. Correct the
-  package documentation separately; the paper does not rely on it.
+- `README.md` and `js/README.md` showed the `v0.2.1` verification value
+  `0x6B558D9D` as if it applied to current code until after `v0.4.0`, and
+  `js/README.md` contradicted the test file it cites, which asserts
+  `0xF3C4A9B4`. Both files have since been corrected to `0xF3C4A9B4`; the
+  paper never relied on them.
 
 ## Deliberate exclusions
 

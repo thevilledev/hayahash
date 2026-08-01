@@ -1,0 +1,66 @@
+# Quality and verification
+
+What is tested, where it runs, and how to reproduce it. The
+claim-by-claim evidence register for the working paper is
+[`paper/AUDIT.md`](../paper/AUDIT.md); the archived raw runs are under
+[`paper/results/`](../paper/results/).
+
+## SMHasher3
+
+- Full default suite: **188/188 tests passed**, verification value
+  `0xF3C4A9B4` (canonical little-endian reading; the byte-swapped
+  value is `0x01E3C68D`). ChibiHash v2 also passes 188/188; v1 fails.
+- Release `v0.4.0` was verified on nine builds spanning four hosts,
+  two architectures, and five compilers, covering all three dispatch
+  shapes the header compiles; every non-timing output line of all
+  nine runs is identical.
+- The adapter lives in [`tests/smhasher3/`](../tests/smhasher3/); it
+  includes `hayahash.h` directly, so the suite tests the shipped
+  header rather than a transcription. [`smhasher3.md`](smhasher3.md)
+  covers running, reproducing, and re-deriving the verification
+  values after a digest change.
+
+## Local harness
+
+`make -C tests run-quality` runs a strict avalanche criterion over
+input and seed bits, plus exact-collision tests over 24 structured key
+sets, including reproductions of the SMHasher3 keysets that broke
+earlier iterations of the design. All clean. The same harness can run
+the constructed rotation-orbit set against ChibiHash v2
+(`./tests/quality v2`), where it finds 512 colliding pairs by design -
+an expected-failure control, not a general quality ranking.
+
+## Cross-port conformance
+
+The Rust, Go, Zig, Java, C#, Python, JavaScript, and MIPS64 assembly
+ports are bit-exact against the C reference: each port's test suite
+checks the SMHasher3 verification value and a shared table of
+known-answer vectors generated from `hayahash.h`. (The JavaScript
+package checks both of its engines: the wasm build of the reference
+header and the pure-JS fallback.)
+
+Nightly differential conformance fuzzing generates one C-reference
+corpus with random input bytes, random 64-bit hash seeds, exhaustive
+lengths 0..384, and boundary-biased random lengths through the
+128 KiB edge. Every language port consumes the identical corpus
+(including both JavaScript engines); the MIPS assembly port is not in
+the nightly matrix and relies on the shared known-answer vectors
+instead. The logged PRNG seed or the failure artifact reproduces a run
+exactly; the workflow can also be dispatched manually with a chosen
+seed. See [`tests/differential/`](../tests/differential/) for local
+replay commands.
+
+## Endianness and ABI coverage
+
+Endianness is tested in CI: the shared KAT is also produced on s390x
+(big-endian, via `zig cc` + qemu-user) and must match the
+little-endian reference. wasm32 covers the ILP32 case; MSVC x64 covers
+the Windows ABI; the MIPS64 port runs under qemu-mips64el.
+
+## Structural arguments
+
+The absorb sequence is injective by construction (first-difference
+induction), and all tail injections are bijective. These are
+structural arguments about the absorb, not collision-resistance proofs
+for the complete hash; [`design.md`](design.md) and the header notes
+state their scope.

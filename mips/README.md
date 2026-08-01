@@ -15,9 +15,9 @@ MIPS64 n64 calling convention: `key` in `$a0`, `len` in `$a1`, `seed`
 in `$a2`, result in `$v0`. The implementation is in [`hayahash.S`](hayahash.S);
 [`hayahash.h`](hayahash.h) is the C declaration for linking.
 
-The compact absorb sequence is used (same as the Go/Zig/Java/wasm
-ports). The C header's architecture-specific length tiers are omitted
-on purpose; they do not change digests.
+The compact dispatch shape is used (same absorb sequence as the
+Go/Zig/Java/wasm ports). The C header's architecture-specific length
+tiers are omitted on purpose; they do not change digests.
 
 ## Build and test
 
