@@ -58,7 +58,7 @@ jobs:
     name: Publish to npm
     needs: check
     # npm trusted publishing only works on GitHub-hosted runners.
-    runs-on: ubuntu-latest
+    runs-on: avrea-ubuntu-latest-2-vcpu
     permissions:
       contents: read
       id-token: write
@@ -97,7 +97,7 @@ jobs:
     needs: check
     # crates.io trusted publishing, like npm's, is designed for
     # GitHub-hosted runners.
-    runs-on: ubuntu-latest
+    runs-on: avrea-ubuntu-latest-2-vcpu
     permissions:
       contents: read
       id-token: write
@@ -235,7 +235,7 @@ jobs:
     if: vars.PUBLISH_NUGET == 'true'
     # NuGet trusted publishing, like npm's, is designed for
     # GitHub-hosted runners.
-    runs-on: ubuntu-latest
+    runs-on: avrea-ubuntu-latest-2-vcpu
     permissions:
       contents: read
       id-token: write

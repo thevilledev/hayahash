@@ -73,7 +73,7 @@ jobs:
   # so MSVC performance measurement stays a documented open item.
   msvc:
     name: C (MSVC x64)
-    runs-on: windows-latest
+    runs-on: avrea-windows-2025-2-vcpu
 
     steps:
       - name: Check out repository
@@ -84,7 +84,7 @@ jobs:
       - name: Build and run conformance checks
         shell: cmd # zizmor: ignore[misfeature] -- required for vcvars64.bat
         run: |
-          for /f "usebackq tokens=*" %%i in (`"%ProgramFiles(x86)%\Microsoft Visual Studio\Installer\vswhere.exe" -latest -property installationPath`) do call "%%i\VC\Auxiliary\Build\vcvars64.bat"
+          for /f "usebackq tokens=*" %%i in (`"%ProgramFiles(x86)%\Microsoft Visual Studio\Installer\vswhere.exe" -latest -products * -property installationPath`) do call "%%i\VC\Auxiliary\Build\vcvars64.bat"
           if errorlevel 1 exit /b 1
           cl /nologo /std:c11 /O2 /W4 /I. /DKAT_HAYA_ONLY tests\wasm\kat_native.c /Fe:kat_msvc.exe || exit /b 1
           kat_msvc.exe > kat_msvc.txt || exit /b 1
