@@ -68,7 +68,7 @@ correctness everywhere, not speed.
 
 Both engines are verified against the known-answer vectors shared by
 all ports in this repository and reproduce SMHasher3's verification
-value `0x6B558D9D` (see [`test/hayahash.test.mjs`](test/hayahash.test.mjs)).
+value `0xF3C4A9B4` (see [`test/hayahash.test.mjs`](test/hayahash.test.mjs)).
 
 ## Edge runtimes (Cloudflare Workers)
 

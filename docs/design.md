@@ -1,0 +1,63 @@
+# Design
+
+Four ideas carry the design. Each is explained in detail at the top of
+[`hayahash.h`](../hayahash.h), which remains the authoritative
+commentary; this page is the overview.
+
+1. **A short bulk dependency chain.** The bulk loop runs 8 independent
+   lanes over 64-byte blocks with nothing longer than `add -> mul`
+   (~4 cycles) on the loop-carried path, and no cross-lane ALU work
+   there. For scale, ChibiHash v2 carries a ~5-cycle
+   `add -> mul -> xor` chain per 8-byte stripe across 4 lanes.
+2. **A chained, injective absorb.** Each lane absorbs
+   `t = w + rotl(w_prev, 27)`, where `w_prev` is the previous stripe.
+   At the first stripe where two inputs differ, `w_prev` is still
+   equal, so `t` differs: the absorb sequence is injective by
+   induction. The rotated copy also plants every stripe bit at a low
+   position in the next lane, where `+` and `rotl` commute with
+   neither GF(2) nor mod-2^64 algebra. The rotation amount, the fold
+   rotations, and a final "wall" absorb of the last stripe's dangling
+   copy are all chosen against difference-ladder attacks; see the
+   header notes. The rotation applies to an already-loaded register,
+   off the loop-carried path, and is cheaper than a second load on
+   wide cores.
+3. **Derived lane constants.** Seed and length are premixed into one
+   value `s`, and all lane IVs are derived from `s` plus shifted copies
+   of the single multiplier constant. No big per-lane literals are
+   materialized (on AArch64 a 64-bit literal costs 4 instructions), and
+   full-state seeding comes for free.
+4. **Overlapping tail reads, two-multiply short path.** Tails read
+   whole (overlapping) words from the end of the input, wyhash-style,
+   so no byte-at-a-time loop exists for any length. Inputs of at most
+   16 bytes take a dedicated path: both loaded words are spread with
+   bijective 3-rotation injections (a different one per word, so the
+   two multiply terms cannot be erased simultaneously) and passed
+   through independent multiplies into a strong finalizer.
+
+## The collision classes that shaped it
+
+Getting the details right was the hard part: SMHasher3 found five
+distinct structural collision classes in earlier iterations of this
+design:
+
+- a GF(2) nullspace in a staggered-load absorb
+- seed-copy erasure by aligned key bits - twice
+- top-window carry-luck ladders, and
+- a fold rotation resonating with the absorb rotation
+
+Each fix is documented in the header where it lives. A deterministic
+regression for the rotation-orbit family is kept in
+[`tests/quality.c`](../tests/quality.c), and the
+[optimization log](optimization/) records the ideas that were rejected
+because they reopened one of these classes.
+
+## Fixed algorithm parameters
+
+The 320-byte bulk threshold is an algorithm parameter, not a tuning
+knob: digests change with it, and keeping the four-lane mid path below
+320 bytes bounds it to fewer than the absorb rotation's 64-stripe
+orbit. Dispatch shape (straight-line length tiers, bulk-loop
+unrolling, the vectorizable bulk spelling) is chosen per architecture
+and compiler, but every shape is specified to produce identical
+output; [`smhasher3.md`](smhasher3.md#covering-every-dispatch-shape)
+lists the shapes and how to cover them all in a conformance run.
