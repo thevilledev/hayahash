@@ -8,7 +8,7 @@
     <RootNamespace>Hayahash</RootNamespace>
     <AssemblyName>Hayahash</AssemblyName>
     <PackageId>Hayahash</PackageId>
-    <Version>0.3.0</Version>
+    <Version>0.4.0</Version>
     <Authors>Ville Vesilehto</Authors>
     <Company>Ville Vesilehto</Company>
     <Description>hayahash64, a small, fast, portable 64-bit hash function; bit-exact .NET port of the C reference implementation</Description>

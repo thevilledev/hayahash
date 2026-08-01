@@ -1,6 +1,6 @@
 {
 	"name": "hayahash",
-	"version": "0.3.0",
+	"version": "0.4.0",
 	"description": "hayahash64, a small, fast, portable 64-bit hash function: the reference C header compiled to WebAssembly, with a pure-JS fallback",
 	"keywords": [
 		"hash",
