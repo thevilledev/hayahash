@@ -25,5 +25,9 @@ zig/zig-out/
 # Java
 java/target/
 
+# MIPS64 assembly port build outputs
+mips/kat
+mips/*.o
+
 # Paper build outputs
 output/
