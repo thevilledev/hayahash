@@ -1,14 +1,18 @@
 name: CI
 
+# push is limited to main so same-repo PR branches do not also fire a
+# duplicate push run alongside pull_request. Fork PRs only ever see
+# pull_request, which is unchanged.
 on:
   push:
+    branches: [main]
   pull_request:
 
 permissions:
   contents: read
 
 concurrency:
-  group: ${{ github.workflow }}-${{ github.ref }}
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
   cancel-in-progress: true
 
 jobs:
