@@ -59,13 +59,35 @@ complete construction and no cryptographic security claim.
 \section{Status and scope}
 
 This is a living paper for a working algorithm.  The normative artifact for
-this draft is the C header at release \texttt{\SnapshotVersion}, Git commit
-\texttt{\SnapshotCommit} \cite{vesilehto2026hayahash}.
-The SHA-256 digest of that header is
-\texttt{\SnapshotHeaderSha}.
+this draft is the C header \cite{vesilehto2026hayahash} at the Git commit
+and SHA-256 digest below, a development snapshot after release
+\texttt{\SnapshotRelease}:
+
+\begin{center}
+\texttt{\SnapshotCommit}\\
+\texttt{\SnapshotHeaderSha}
+\end{center}
+
 The digest, not the commit, is what identifies the audited artifact: a
 commit that leaves the header byte-identical carries every result in this
 paper forward unchanged.
+
+The archived evaluation records under \path{paper/results} were produced
+against the header at release \texttt{\SnapshotRelease}, whose SHA-256 was
+\texttt{d7c67c1e\ldots}, and the header has moved since.  Those records
+still describe the header specified here, for a reason stronger than an
+unchanged digest.  The two intervening commits narrow the conditions under
+which the bulk loop is offered to the compiler's vectorizer, and every
+condition they change is false on every host in the evaluation set.  The
+compiled machine code is therefore byte-identical before and after on all
+of them.  That was checked rather than assumed: the object code was compared
+on the Apple M1 under Apple Clang, on the Zen 5 host under both GCC and
+Clang, and on the Zen 3 host under both, and found identical in each case.
+The remaining recorded builds target Zen 5, where the changed conditions
+reduce to the previous ones by inspection.  The commits do change code
+generation for AVX-512 targets that are not Zen 4 or Zen 5, which no host in
+this set is; see Section~\ref{sec:platforms}.
+
 These values are defined once, in the register file
 \path{paper/snapshot.tex}; an algorithm change updates the register, the
 evaluation records, and this text as one reviewable change.
@@ -482,8 +504,7 @@ serve different roles.  The control output is archived in
 \subsection{SMHasher3}
 \label{sec:smhasher}
 
-Release \texttt{\SnapshotVersion} passes SMHasher3's default suite, 188 of
-188 tests, on nine builds spanning four hosts, two architectures, five
+The snapshot passes SMHasher3's default suite, 188 of 188 tests, on nine builds spanning four hosts, two architectures, five
 compilers, and every dispatch shape the header compiles.  SMHasher3 was pinned at upstream commit
 \texttt{6ab43433}.  The verification values it computes for the function are
 \texttt{0xF3C4A9B4} for the canonical little-endian reading and
@@ -530,7 +551,7 @@ two spellings the compiler collapsed.
 
 The shapes are not stable across releases and should be probed rather than
 assumed.  At \texttt{v0.3.0} the tier switch keyed off the architecture, so
-the Apple M1 compiled the wide shape; at \texttt{\SnapshotVersion} it keys off
+the Apple M1 compiled the wide shape; at \texttt{\SnapshotRelease} it keys off
 the compiler, and that host now compiles the compact one.
 
 The adapter, \path{tests/smhasher3/hayahash.cpp}, includes the specified
@@ -587,7 +608,7 @@ revisions pinned and archived as well.
 
 A run for the earlier release \texttt{v0.2.1} reported the same 188 of 188
 with verification value \texttt{0x6B558D9D}.  The digest changed between that
-release and \texttt{\SnapshotVersion}, so the older result is superseded; it
+release and \texttt{\SnapshotRelease}, so the older result is superseded; it
 was also never accompanied by an adapter or raw output in this repository.
 The matching test counts reflect the size of the suite's default set, not a
 result carried over.

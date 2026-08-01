@@ -1,7 +1,8 @@
 # Claim and evidence register
 
-This register belongs to the working paper at release `v0.4.0`, source
-snapshot `24b8d58cc17cf7048e6b792153ab52ba4a50315f`. The authoritative
+This register belongs to the working paper at source snapshot
+`2a4ef58e3d2e18b01ae67dd1ed4af207e3a79130`, a development snapshot after
+release `v0.4.0`. The authoritative
 snapshot identity lives in `paper/snapshot.tex`; `make -C paper
 check-snapshot` verifies that this file, the checkout, and the header digest
 agree.
@@ -14,6 +15,17 @@ intermediate commits are output-identical optimizations, new language ports,
 documentation, and release commits. `v0.4.0`'s fifth optimization pass changed
 83 lines of `hayahash.h` and rewrote its per-compiler dispatch, and the
 verification value is still `0xF3C4A9B4`.
+
+Since `v0.4.0` the header has moved again, from `d7c67c1e...` to
+`ede45489...`, by two commits that narrow when the bulk loop is offered to
+the vectorizer. Every condition they change is false on every host in the
+evaluation set, so the compiled code is byte-identical before and after on
+all of them. That was verified by comparing object code on the M1 under
+Apple Clang, and on the Zen 5 and Zen 3 hosts under both GCC and Clang; the
+remaining recorded builds target Zen 5, where the new conditions reduce to
+the old ones by inspection. The archived runs therefore still describe the
+current header. The commits do change code generation for AVX-512 targets
+that are not Zen 4 or Zen 5, and no host in this set is one.
 
 The register covers the paper's claims about the current snapshot. It does
 not audit historical project artifacts; the few historical facts the paper
@@ -37,7 +49,7 @@ Evidence states:
 | The tail injection maps are bijections on 64-bit words. | code-derived | `hayahash64_internal_inj` and `inj2`; polynomial argument in the paper | Recheck if the word width or rotation counts change. |
 | The known-answer vectors match the C reference. | reproduced | `make -C paper check-reference` | Update vectors intentionally whenever the digest changes. |
 | The direct-call verification procedure returns `0xF3C4A9B4`. | reproduced, archived | `paper/tools/reference_check.c`; language-port test files; SMHasher3 reports the same value as its canonical-endian verification value in all three archived runs | The self-test reimplements SMHasher3's procedure over the direct interface. Their agreement was an assumption until the runs archived under `paper/results/` checked it; recheck on every digest change. |
-| Release `v0.4.0` passes SMHasher3's default suite, 188 of 188, on nine builds spanning four hosts, two architectures, five compilers, and all three dispatch shapes the header compiles, with verification values `0xF3C4A9B4` (LE) and `0x01E3C68D` (BE). | reproduced, archived | `tests/smhasher3` adapter and Makefile at upstream commit `6ab43433`; `paper/results/apple-m1-smhasher3.txt`, `zen5-smhasher3-gcc.txt`, `zen5-smhasher3-gcc-novec.txt`, `zen5-smhasher3-clang.txt`, `epyc7b13-zen3-smhasher3.txt`, `epyc9655-turin-smhasher3.txt`. The last two are consolidated records rather than full raw dumps: they carry provenance, the verbatim sanity and summary sections, and a checksum of the normalized output matching the others, since all nine outputs are identical and further verbatim copies would add bulk without evidence | Rerun on every digest change; the verification values change with the digest. Also rerun when either dispatch condition moves, and re-derive which builds are needed rather than reusing this list: `v0.4.0` changed the tier condition from architecture-keyed to compiler-keyed, which silently flipped the Apple M1 from the wide shape to the compact one. |
+| The current snapshot passes SMHasher3's default suite, 188 of 188, on nine builds spanning four hosts, two architectures, five compilers, and all three dispatch shapes the header compiles, with verification values `0xF3C4A9B4` (LE) and `0x01E3C68D` (BE). | reproduced, archived | `tests/smhasher3` adapter and Makefile at upstream commit `6ab43433`; `paper/results/apple-m1-smhasher3.txt`, `zen5-smhasher3-gcc.txt`, `zen5-smhasher3-gcc-novec.txt`, `zen5-smhasher3-clang.txt`, `epyc7b13-zen3-smhasher3.txt`, `epyc9655-turin-smhasher3.txt`. The last two are consolidated records rather than full raw dumps: they carry provenance, the verbatim sanity and summary sections, and a checksum of the normalized output matching the others, since all nine outputs are identical and further verbatim copies would add bulk without evidence | Rerun on every digest change; the verification values change with the digest. Also rerun when either dispatch condition moves, and re-derive which builds are needed rather than reusing this list: `v0.4.0` changed the tier condition from architecture-keyed to compiler-keyed, which silently flipped the Apple M1 from the wide shape to the compact one. |
 | The local quality harness passes, with worst observed input bias 0.0403, seed bias 0.0338, and 24 clean collision sets. | reproduced, archived | `make -C tests run-quality`; `paper/results/quality.txt` | Rerun after every digest change and record compiler and snapshot. |
 | The local rotation-orbit control produces 512 colliding ChibiHash v2 pairs. | reproduced, archived | `./tests/quality v2`; `paper/results/quality-chibihash-v2.txt` | Keep this result scoped to the constructed set; it is not a general quality ranking. |
 | The Apple M1 ChibiHash comparison uses the median of three idle process runs, each using nine calibrated samples per cell. | reproduced, archived | `tests/bench.c`; `paper/results/apple-m1-chibihash.txt` | Retain all nine raw samples in a future harness revision; the current harness retains one median per process and cell. |

@@ -1,5 +1,12 @@
 snapshot: v0.4.0, commit 24b8d58cc17cf7048e6b792153ab52ba4a50315f
 hayahash.h sha256: d7c67c1e697a16b119810655e08f039d51f0a43e937eb5cd3db0ec59b22d06d4
+header note: the header has since moved to
+  ede45489d8e4dc523a97b4bb1565c8b2167d4caf84902ebb35c5645b622208c8 by two commits
+  that narrow when the bulk loop is offered to the vectorizer. Every condition they
+  change is false on this host, so its compiled code is byte-identical before and
+  after and this run still describes the current header. Verified by comparing
+  object code. Those commits do change codegen for AVX-512 targets that are not
+  Zen 4/5; no host in this set is one.
 smhasher3 commit: 6ab4343396fbe0f7a1c7ac4f01d0eb9acffe4202 (+ the two patches
   in tests/smhasher3, submitted upstream as merge requests !31 and !32)
 host: AMD Ryzen AI 9 HX PRO 370 (Zen 5), 12 cores / 24 threads, CPU max
