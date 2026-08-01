@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import shutil
+import sys
 from pathlib import Path
 
 from setuptools import Extension, setup
@@ -26,6 +27,13 @@ def header_include_dir() -> str:
     return str(LOCAL_INCLUDE)
 
 
+def extra_compile_args() -> list[str]:
+    """Match the C CI warning gates on both MSVC and gcc/clang."""
+    if sys.platform == "win32":
+        return ["/W4", "/WX"]
+    return ["-Wall", "-Wextra", "-Werror"]
+
+
 setup(
     ext_modules=[
         Extension(
@@ -33,6 +41,7 @@ setup(
             sources=["native/_hayahash.c"],
             include_dirs=[header_include_dir()],
             language="c",
+            extra_compile_args=extra_compile_args(),
         )
     ]
 )

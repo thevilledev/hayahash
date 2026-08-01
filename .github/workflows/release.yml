@@ -327,6 +327,10 @@ jobs:
           echo "::error::public key ${FINGERPRINT} is not published to a keyserver Central checks"
           exit 1
 
+      - name: Test
+        run: mvn --batch-mode --no-transfer-progress verify
+        working-directory: java
+
       - name: Deploy
         run: mvn --batch-mode --no-transfer-progress -Prelease deploy
         working-directory: java

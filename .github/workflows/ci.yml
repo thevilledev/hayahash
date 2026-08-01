@@ -67,6 +67,39 @@ jobs:
           CFLAGS="-O2 -std=c11 -Wall -Wextra -Werror"
           check-kat-haya
 
+  # ASan + UBSan pin the "no UB" claim on the reference header. Keep
+  # recover-off so the first finding fails the job instead of logging.
+  c-sanitize:
+    name: C (clang ASan+UBSan)
+    runs-on: avrea-ubuntu-latest-2-vcpu
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Build and run quality checks under sanitizers
+        run: >-
+          make -C tests
+          CC=clang
+          ARCH=
+          CFLAGS="-O1 -g -std=c11 -Wall -Wextra -Werror
+          -fsanitize=address,undefined
+          -fno-omit-frame-pointer
+          -fno-sanitize-recover=all"
+          run-quality
+
+      - name: Check digests match the committed KAT under sanitizers
+        run: >-
+          make -C tests/wasm
+          CC=clang
+          CFLAGS="-O1 -g -std=c11 -Wall -Wextra -Werror
+          -fsanitize=address,undefined
+          -fno-omit-frame-pointer
+          -fno-sanitize-recover=all"
+          check-kat-haya
+
   # MSVC x64 takes the compact dispatch and the one-block bulk loop;
   # this job pins its digests to the committed KAT and runs the
   # quality harness. Timing on shared runners is too noisy to gate,
@@ -86,9 +119,9 @@ jobs:
         run: |
           for /f "usebackq tokens=*" %%i in (`"%ProgramFiles(x86)%\Microsoft Visual Studio\Installer\vswhere.exe" -latest -products * -property installationPath`) do call "%%i\VC\Auxiliary\Build\vcvars64.bat"
           if errorlevel 1 exit /b 1
-          cl /nologo /std:c11 /O2 /W4 /I. /DKAT_HAYA_ONLY tests\wasm\kat_native.c /Fe:kat_msvc.exe || exit /b 1
+          cl /nologo /std:c11 /O2 /W4 /WX /I. /DKAT_HAYA_ONLY tests\wasm\kat_native.c /Fe:kat_msvc.exe || exit /b 1
           kat_msvc.exe > kat_msvc.txt || exit /b 1
-          cl /nologo /std:c11 /O2 /W4 /I. tests\quality.c tests\chibihash_v1.c /Fe:quality.exe || exit /b 1
+          cl /nologo /std:c11 /O2 /W4 /WX /I. tests\quality.c tests\chibihash_v1.c /Fe:quality.exe || exit /b 1
           quality.exe haya || exit /b 1
 
       - name: Check MSVC digests match the committed KAT
@@ -248,8 +281,12 @@ jobs:
           java-version: 17
           cache: maven
 
+      - name: Check formatting
+        run: mvn --batch-mode --no-transfer-progress spotless:check
+        working-directory: java
+
       - name: Test
-        run: mvn --batch-mode --no-transfer-progress test
+        run: mvn --batch-mode --no-transfer-progress verify
         working-directory: java
 
   csharp:
@@ -329,6 +366,11 @@ jobs:
         with:
           persist-credentials: false
 
+      - name: Install Zig
+        uses: mlugg/setup-zig@d1434d08867e3ee9daa34448df10607b98908d29 # v2.2.1
+        with:
+          version: 0.16.0
+
       - name: Install Node.js
         uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
         with:
@@ -340,10 +382,12 @@ jobs:
         run: npm ci
         working-directory: js
 
-      - name: Check committed wasm embed is current
+      # Rebuild from hayahash.h so a stale committed wasm binary cannot
+      # stay green after the C reference changes.
+      - name: Check committed wasm is rebuilt from the C reference
         run: |
-          npm run build:embed
-          git diff --exit-code -- src/wasm-module.ts
+          npm run build:wasm
+          git diff --exit-code -- wasm/hayahash.wasm src/wasm-module.ts
         working-directory: js
 
       - name: Test
