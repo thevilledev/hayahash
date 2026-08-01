@@ -3,8 +3,9 @@ name: Release
 # One annotated tag (vX.Y.Z) releases every port: npm and crates.io
 # via trusted publishing, the Go module via a derived go/vX.Y.Z tag,
 # Zig and C via GitHub release assets, and (once enabled) Maven
-# Central. Versions are kept in lockstep across all ports; the check
-# job refuses to release if any manifest disagrees with the tag.
+# Central and NuGet. Versions are kept in lockstep across all ports;
+# the check job refuses to release if any manifest disagrees with the
+# tag.
 
 on:
   push:
@@ -47,6 +48,8 @@ jobs:
           # The first <version> element in the pom is the project version.
           check java/pom.xml \
             "$(sed -n 's:.*<version>\(.*\)</version>.*:\1:p' java/pom.xml | head -n1)"
+          check csharp/src/Hayahash/Hayahash.csproj \
+            "$(sed -n 's:.*<Version>\(.*\)</Version>.*:\1:p' csharp/src/Hayahash/Hayahash.csproj | head -n1)"
           exit "$fail"
 
   npm:
@@ -183,6 +186,57 @@ jobs:
               --title "hayahash ${GITHUB_REF_NAME}" --generate-notes \
               hayahash.h "hayahash-zig-${version}.tar.gz"
           fi
+
+  nuget:
+    name: Publish to NuGet
+    needs: check
+    # Flip the repository variable PUBLISH_NUGET to 'true' once a
+    # nuget.org Trusted Publishing policy is configured for this
+    # workflow and the NUGET_USER secret holds the nuget.org username.
+    if: vars.PUBLISH_NUGET == 'true'
+    # NuGet trusted publishing, like npm's, is designed for
+    # GitHub-hosted runners.
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      id-token: write
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Install .NET
+        uses: actions/setup-dotnet@a98b56852c35b8e3190ac28c8c2271da59106c68 # v6.0.0
+        with:
+          dotnet-version: 8.0.x
+
+      - name: Test
+        run: dotnet test --configuration Release --verbosity minimal
+        working-directory: csharp
+
+      - name: Pack
+        run: >-
+          dotnet pack src/Hayahash/Hayahash.csproj
+          --configuration Release
+          --output "$RUNNER_TEMP/nuget"
+        working-directory: csharp
+
+      - name: NuGet login
+        id: login
+        uses: NuGet/login@8d196754b4036150537f80ac539e15c2f1028841 # v1.2.0
+        with:
+          user: ${{ secrets.NUGET_USER }}
+
+      - name: Publish
+        run: >-
+          dotnet nuget push "$RUNNER_TEMP/nuget/*.nupkg"
+          --api-key "$NUGET_API_KEY"
+          --source https://api.nuget.org/v3/index.json
+          --skip-duplicate
+        env:
+          NUGET_API_KEY: ${{ steps.login.outputs.NUGET_API_KEY }}
 
   maven:
     name: Publish to Maven Central

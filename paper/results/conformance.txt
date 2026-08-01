@@ -40,6 +40,13 @@ Java
   command: cd java; mvn --batch-mode --no-transfer-progress test
   result: PASS; 5 JUnit tests
 
+C#
+  toolchain: .NET SDK 8.0.423
+  commands:
+    dotnet test csharp/Hayahash.sln --configuration Release
+    HAYAHASH_CORPUS=... dotnet test csharp/Hayahash.sln --filter RandomizedCReferenceCorpus
+  result: PASS; 6 xUnit tests; 4096 differential corpus cases matched
+
 JavaScript
   toolchain: Node 26.5.0, locked TypeScript 5.9.3
   commands:

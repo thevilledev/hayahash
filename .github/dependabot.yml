@@ -29,6 +29,13 @@ updates:
     cooldown:
       default-days: 7
 
+  - package-ecosystem: nuget
+    directory: /csharp
+    schedule:
+      interval: weekly
+    cooldown:
+      default-days: 7
+
   - package-ecosystem: github-actions
     directory: /
     schedule:

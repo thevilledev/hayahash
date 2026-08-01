@@ -45,8 +45,11 @@ edit() {
 # Only the package's own version sits at the start of a line; the
 # dependency versions live inside inline tables.
 edit rust/Cargo.toml -e "s/^version = \".*\"/version = \"${version}\"/"
-# Keep Cargo.lock's record of the package version in step.
-(cd rust && cargo update --offline --workspace >/dev/null 2>&1)
+# Keep Cargo.lock's record of the package version in step when a lockfile
+# is present (it is gitignored, so fresh checkouts often have none).
+if [ -f rust/Cargo.lock ]; then
+	(cd rust && cargo update --offline --workspace >/dev/null)
+fi
 
 edit zig/build.zig.zon \
 	-e "s/^\\([[:space:]]*\\)\\.version = \".*\",/\\1.version = \"${version}\",/"
@@ -56,7 +59,12 @@ edit zig/build.zig.zon \
 edit java/pom.xml \
 	-e "1,/<version>/s|<version>.*</version>|<version>${version}</version>|"
 
-printf 'js:   %s\n' "$(sed -n 's/.*"version": "\(.*\)".*/\1/p' js/package.json | head -n1)"
-printf 'rust: %s\n' "$(sed -n 's/^version = "\(.*\)"$/\1/p' rust/Cargo.toml)"
-printf 'zig:  %s\n' "$(sed -n 's/^[[:space:]]*\.version = "\(.*\)",$/\1/p' zig/build.zig.zon)"
-printf 'java: %s\n' "$(sed -n 's:.*<version>\(.*\)</version>.*:\1:p' java/pom.xml | head -n1)"
+# Package Version is a single-line MSBuild property in the library project.
+edit csharp/src/Hayahash/Hayahash.csproj \
+	-e "s|<Version>.*</Version>|<Version>${version}</Version>|"
+
+printf 'js:     %s\n' "$(sed -n 's/.*"version": "\(.*\)".*/\1/p' js/package.json | head -n1)"
+printf 'rust:   %s\n' "$(sed -n 's/^version = "\(.*\)"$/\1/p' rust/Cargo.toml)"
+printf 'zig:    %s\n' "$(sed -n 's/^[[:space:]]*\.version = "\(.*\)",$/\1/p' zig/build.zig.zon)"
+printf 'java:   %s\n' "$(sed -n 's:.*<version>\(.*\)</version>.*:\1:p' java/pom.xml | head -n1)"
+printf 'csharp: %s\n' "$(sed -n 's:.*<Version>\(.*\)</Version>.*:\1:p' csharp/src/Hayahash/Hayahash.csproj | head -n1)"
