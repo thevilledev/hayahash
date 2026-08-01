@@ -35,8 +35,8 @@ trick, the header says so.
 
 The reference implementation is the single C header
 [`hayahash.h`](hayahash.h) at the repository root. Bit-exact ports to
-Rust, Go, Zig, Java, C#, Python, JavaScript/TypeScript, and MIPS64
-assembly live in this repository; see [Usage](#usage).
+Rust, Go, Zig, Java, C#, Python, Swift, JavaScript/TypeScript, and
+MIPS64 assembly live in this repository; see [Usage](#usage).
 
 Documentation: [design](docs/design.md) ·
 [quality](docs/quality.md) · [ports & layout](docs/ports.md) ·
@@ -212,7 +212,7 @@ claim rather than a universal record: two hosts, bounded by the roughly
   criterion over input and seed bits, plus exact-collision tests over
   24 structured key sets, including reproductions of the SMHasher3
   keysets that broke earlier iterations. All clean.
-- All eight ports are bit-exact against the C reference: shared
+- All nine ports are bit-exact against the C reference: shared
   known-answer vectors and the SMHasher3 verification value in every
   port's test suite, plus nightly differential fuzzing that replays a
   fresh randomized C-reference corpus through every language port
@@ -242,6 +242,7 @@ uint64_t h = hayahash64(buf, len, seed);
 | [Java](java/) | `io.github.thevilledev:hayahash` (17+) | `Hayahash.hash64(buf, seed)` |
 | [C#](csharp/) | `Hayahash` on NuGet (.NET 8+) | `Hayahash.Hash64(buf, seed)` |
 | [Python](python/) | `hayahash` on PyPI (3.9+) | `hayahash64(buf, seed)` |
+| [Swift](swift/) | `Hayahash` SwiftPM package (5.9+) | `Hayahash.hash64(buf, seed: 0)` |
 | [JS/TS](js/) | `hayahash` on npm (wasm + pure JS) | `hayahash64(buf, seed)` |
 | [MIPS64](mips/) | `hayahash.S` (n64 ABI) | `hayahash64(buf, len, seed)` |
 

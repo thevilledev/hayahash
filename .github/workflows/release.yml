@@ -52,6 +52,8 @@ jobs:
             "$(sed -n 's:.*<Version>\(.*\)</Version>.*:\1:p' csharp/src/Hayahash/Hayahash.csproj | head -n1)"
           check python/pyproject.toml \
             "$(sed -n 's/^version = "\(.*\)"$/\1/p' python/pyproject.toml)"
+          check swift/Package.swift \
+            "$(sed -n 's/^\/\/ hayahash-version: \(.*\)$/\1/p' swift/Package.swift)"
           exit "$fail"
 
   npm:
@@ -171,9 +173,9 @@ jobs:
         with:
           persist-credentials: false
 
-      # The zig tarball exists because `zig fetch` cannot address a
-      # subdirectory inside a repository archive; the header is a
-      # courtesy for C users.
+      # The zig and swift tarballs exist because package managers cannot
+      # address a subdirectory inside a repository archive; the header
+      # is a courtesy for C users.
       - name: Create release with assets
         env:
           GH_TOKEN: ${{ github.token }}
@@ -181,12 +183,15 @@ jobs:
           version="${GITHUB_REF_NAME#v}"
           git archive --format=tar.gz --prefix="hayahash-zig-${version}/" \
             -o "hayahash-zig-${version}.tar.gz" "${GITHUB_REF_NAME}:zig"
+          git archive --format=tar.gz --prefix="hayahash-swift-${version}/" \
+            -o "hayahash-swift-${version}.tar.gz" "${GITHUB_REF_NAME}:swift"
           if gh release view "$GITHUB_REF_NAME" >/dev/null 2>&1; then
             echo "release ${GITHUB_REF_NAME} already exists"
           else
             gh release create "$GITHUB_REF_NAME" --verify-tag \
               --title "hayahash ${GITHUB_REF_NAME}" --generate-notes \
-              hayahash.h "hayahash-zig-${version}.tar.gz"
+              hayahash.h "hayahash-zig-${version}.tar.gz" \
+              "hayahash-swift-${version}.tar.gz"
           fi
 
   pypi:

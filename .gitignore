@@ -45,5 +45,10 @@ python/.pytest_cache/
 python/src/hayahash/*.so
 python/src/hayahash/*.pyd
 
+# Swift
+swift/.build/
+swift/.swiftpm/
+swift/Packages/
+
 # Paper build outputs
 output/

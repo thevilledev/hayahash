@@ -32,9 +32,9 @@ an expected-failure control, not a general quality ranking.
 
 ## Cross-port conformance
 
-The Rust, Go, Zig, Java, C#, Python, JavaScript, and MIPS64 assembly
-ports are bit-exact against the C reference: each port's test suite
-checks the SMHasher3 verification value and a shared table of
+The Rust, Go, Zig, Java, C#, Python, Swift, JavaScript, and MIPS64
+assembly ports are bit-exact against the C reference: each port's test
+suite checks the SMHasher3 verification value and a shared table of
 known-answer vectors generated from `hayahash.h`. (The JavaScript
 package checks both of its engines: the wasm build of the reference
 header and the pure-JS fallback.)
