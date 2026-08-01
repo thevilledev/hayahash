@@ -22,3 +22,27 @@ TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE
 SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 
 For more information, please refer to <https://unlicense.org/>
+
+----------------------------------------------------------------------
+
+Exception: the source files under tests/smhasher3/ are NOT covered by the
+above. SMHasher3's framework is licensed under the GNU General Public
+License, either version 3 or (at your option) any later version. The two
+patch files modify SMHasher3's own sources, and the adapter is written
+against SMHasher3's headers and macros and exists only to be compiled into
+that program. Conservatively, all three are GPL-3.0-or-later. Each carries
+an SPDX identifier, and the license text is in tests/smhasher3/COPYING.
+
+The affected files are:
+
+  tests/smhasher3/hayahash.cpp
+  tests/smhasher3/0001-macos-size_t-reference-binding.patch
+  tests/smhasher3/0002-cmake-detect-apple-silicon-as-arm.patch
+
+This does not affect hayahash64 itself. Everything else in this repository,
+including the reference implementation hayahash.h and every language port,
+is public domain under the Unlicense above, and the adapter's including of
+hayahash.h does not change that header's license. SMHasher3 is fetched at
+test time and is not part of any release artifact; building it locally does
+not affect the license of this software, though redistributing the
+resulting combined SMHasher3 executable must comply with the GPL.

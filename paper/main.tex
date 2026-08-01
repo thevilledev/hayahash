@@ -520,12 +520,24 @@ digest had moved.  SMHasher3 requires a second reader for the opposite byte
 order, so the header is included twice, the second time with the host byte
 order forced, which selects the header's own byte-swapping load path.
 \path{tests/smhasher3/Makefile} clones the pinned commit, applies the
-adapter and one portability patch, builds, and runs; the clone is not
-vendored, because SMHasher3 is GPL-3.0 and this repository is public domain.
-The patch fixes an unrelated \texttt{size\_t}-to-\texttt{uint64\_t\&} binding
-in the tool's own random-number code that does not compile under Clang on
-macOS.  It is applied on every host so that all three runs build identical
-source, and it is archived beside the adapter.
+adapter and two portability patches, builds, and runs.  The clone is
+fetched at test time rather than vendored, so SMHasher3 is not part of any
+release artifact; its framework is GPL-3.0-or-later, which does not affect
+the public-domain status of the header specified here, though a
+redistributed combined executable would carry the GPL.  The adapter and the
+two patches are themselves GPL-3.0-or-later and are excepted from this
+repository's Unlicense: the patches modify GPL-covered upstream files, and
+the adapter is written against SMHasher3's headers and macros and is only
+ever compiled into it.  Including \path{hayahash.h} from the adapter does
+not change that header's license.  One patch fixes a
+\texttt{size\_t}-to-\texttt{uint64\_t\&} binding in the tool's own
+random-number code that does not compile under Clang on macOS; the other
+makes its build system recognize Apple Silicon, which it otherwise
+classifies as an unknown processor family.  Both are applied on every host
+so that all three runs build identical source, and both are archived beside
+the adapter.  Both have also been submitted upstream, so the deviation from
+the pinned revision is intended to be temporary rather than a fork; a future
+snapshot should be able to advance the pin and drop them.
 
 The canonical value \texttt{0xF3C4A9B4} is the same number this paper
 already carried as \texttt{\SnapshotVerification}, the direct-interface

@@ -1,8 +1,24 @@
 /*
+ * SPDX-License-Identifier: GPL-3.0-or-later
+ *
  * SMHasher3 adapter for hayahash64.
  *
- * This is free and unencumbered software released into the public
- * domain under The Unlicense (http://unlicense.org/).
+ * Copyright (C) 2026 Ville Vesilehto
+ *
+ * This file is written against SMHasher3's headers and macros (Platform.h,
+ * Hashlib.h, REGISTER_HASH, PUT_U64, seed_t) and exists only to be compiled
+ * into that program, whose framework is licensed under the GNU General
+ * Public License, either version 3 or (at your option) any later version.
+ * It is therefore licensed GPL-3.0-or-later, and is NOT covered by the
+ * Unlicense that applies to the rest of this repository. See COPYING in
+ * this directory for the license text.
+ *
+ * This says nothing about hayahash64 itself. The algorithm and its
+ * reference implementation, ../../hayahash.h, are public domain under The
+ * Unlicense, and merely including that header here does not change its
+ * license. Only this glue file is GPL. That is also what the
+ * FLAG_IMPL_LICENSE_PUBLIC_DOMAIN below records: SMHasher3's impl_flags
+ * describe the license of the hash being tested, not of this adapter.
  *
  * The adapter deliberately #includes the shipped hayahash.h rather than
  * transcribing the algorithm into SMHasher3's house style. A transcription

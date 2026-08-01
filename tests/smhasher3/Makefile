@@ -1,20 +1,40 @@
 # SMHasher3 conformance run for hayahash64.
 #
-# SMHasher3 is cloned pinned to an exact upstream commit rather than
-# vendored: it is GPL-3.0 and this repository is public domain, so keeping
-# it out of the tree keeps the repository license-clean, and pinning keeps
-# runs reproducible. Same pattern as tests/wasm/Makefile, which fetches
-# competitor headers by commit.
+# SMHasher3 is fetched at test time and pinned to an exact upstream commit
+# for reproducibility. Its test framework is GPL-3.0-or-later and is not
+# included in Hayahash release artifacts. Local builds do not change
+# Hayahash's Unlicense/public-domain status. Redistribution of the resulting
+# combined SMHasher3 executable must comply with the GPL.
+#
+# The source files in this directory are GPL-3.0-or-later; see COPYING. That
+# covers the upstream-modifying patches and the adapter, which is written
+# against SMHasher3's headers and macros. It does not cover hayahash.h, which
+# stays public domain; the adapter merely includes it.
+#
+# Fetching rather than vendoring follows tests/wasm/Makefile, which pins
+# competitor headers by commit for the same reason.
 #
 # hayahash.cpp installs into the clone's hashes/ directory and #includes
 # ../../hayahash.h directly, so the suite tests the shipped header rather
 # than a transcription. See the comment at the top of hayahash.cpp.
 #
-# The pinned commit does not compile on macOS: util/Random.cpp binds a
-# size_t to a uint64_t& parameter, which are the same width but distinct
-# types there. PATCHES lists the fixes applied on top of the pin; they are
-# kept as files so the delta from upstream is reviewable and archivable,
-# and they are applied on every host so all runs build identical source.
+# PATCHES lists the fixes applied on top of the pin. They are kept as files
+# so the delta from upstream is reviewable and archivable, and they are
+# applied on every host so all runs build identical source. Like the adapter,
+# both carry their own SPDX headers and are excluded from this repository's
+# Unlicense; see the note in ../../LICENSE.
+#
+# Both are temporary. They have been submitted upstream, as merge requests
+# !31 (util/Random.cpp) and !32 (platform/family.cmake), and were open as of
+# 2026-08-01. When they merge, advance SMHASHER3_COMMIT past them and drop
+# the corresponding entry from PATCHES; the harness should then build from
+# unmodified upstream.
+#
+# Both fix macOS issues: the pinned commit does not compile there
+# (util/Random.cpp binds a size_t to a uint64_t&, which are the same width
+# but distinct types), and its CMake does not recognize Apple Silicon's
+# "arm64" as the Arm family, which silently disables NEON for every hash and
+# would make a speed comparison there unfair to SIMD hashes.
 #
 #   make build          configure and build (honors CXX)
 #   make verify         print SMHasher3's computed verification values
@@ -27,7 +47,8 @@
 SMHASHER3_URL    = https://gitlab.com/fwojcik/smhasher3.git
 SMHASHER3_COMMIT = 6ab4343396fbe0f7a1c7ac4f01d0eb9acffe4202
 
-PATCHES = 0001-macos-size_t-reference-binding.patch
+PATCHES = 0001-macos-size_t-reference-binding.patch \
+          0002-cmake-detect-apple-silicon-as-arm.patch
 
 SRC    = smhasher3
 BUILD ?= build

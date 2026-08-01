@@ -6,6 +6,14 @@ executed from: commit b35496aabdad2334cc92cfe0a40c7921e7ec997a, whose hayahash.h
   about the released header. The digest below is the check that matters.
 hayahash.h sha256: bfd314f30f21014035028f4e3e9e8f3a41e7145c7bb771ae89fb134449cee06f
 adapter: tests/smhasher3/hayahash.cpp sha256 6be74992b7470d7840e498b38beb03995040d7391581f7bf8a45c1d92b1aae38
+digest drift note: two files in tests/smhasher3 were later given SPDX license
+  headers. Neither change touches code or patch hunks, so this run still
+  reproduces, but the digests recorded here are the ones that produced it and
+  no longer match the working tree. Current values:
+    hayahash.cpp   ce659d6c92f8c3c860a99290af6d67ea994ac7573a829329a2000bf70d824ba1
+      (relicensed GPL-3.0-or-later; byte-identical from the first #include on)
+    0001-...patch  aad9255a4ef45f5de16e7a9376c521a483dc353bfadb071b8f3028a3b789bf84
+      (SPDX header plus an upstream merge-request reference above the diff)
 smhasher3 upstream: https://gitlab.com/fwojcik/smhasher3.git
 smhasher3 commit: 6ab4343396fbe0f7a1c7ac4f01d0eb9acffe4202
 smhasher3 modifications: three, all recorded in tests/smhasher3 and applied by its
@@ -16,6 +24,12 @@ smhasher3 modifications: three, all recorded in tests/smhasher3 and applied by i
   clang on macOS. Without it the pinned commit does not build on this host at all.
   The patch is applied on every host so all runs build identical source. These are
   why the tool reports its version as "-dirty" below.
+
+That patch has been submitted upstream as merge request !31, open as of
+2026-08-01, so the deviation from the pinned revision is meant to be
+temporary. Note this run predates the second patch (!32, Apple Silicon
+NEON detection), which affects only competitor build width and not
+hayahash; see the shootout records.
 host: Apple M1 MacBook Air, 8 cores, 16 GB, macOS 26.6 (Darwin 25.6.0), on battery
   idle; no fan, so sustained clocks are thermally limited
 compiler: Apple clang version 21.0.0 (clang-2100.1.1.101)

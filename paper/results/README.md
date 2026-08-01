@@ -14,6 +14,12 @@ These files hold the records used by the working paper.
   dispatch shapes: `HAYAHASH64_INTERNAL_TIERS` is 1 on the M1 and under GCC on
   x86-64, and 0 under Clang on x86-64. Every non-timing line of the three
   outputs is identical, so the shapes differ only in speed.
+- `apple-m1-smhasher3-shootout.txt` and `zen5-smhasher3-shootout.txt` are the
+  competitor speed comparisons behind the table in `README.md`. They record
+  the overhead-calibration correction their numbers depend on, why the M1
+  build needs the Apple Silicon patch before any SIMD hash can be compared
+  fairly there, and the full-suite pass/fail for every hash measured. The
+  paper itself makes no competitor-speed claim from them.
 - `quality.txt` is the current Hayahash local quality run.
 - `quality-chibihash-v2.txt` is the expected-failure control run for the
   constructed rotation-orbit set.

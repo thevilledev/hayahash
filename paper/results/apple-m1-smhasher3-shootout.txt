@@ -1,0 +1,75 @@
+snapshot: v0.3.0, commit 4e14b4c3c46b300aa6bb446fbeacb8e8c54326ee
+hayahash.h sha256: bfd314f30f21014035028f4e3e9e8f3a41e7145c7bb771ae89fb134449cee06f
+smhasher3 upstream: https://gitlab.com/fwojcik/smhasher3.git
+smhasher3 commit: 6ab4343396fbe0f7a1c7ac4f01d0eb9acffe4202
+smhasher3 modifications: the adapter and the two patches in tests/smhasher3,
+  applied by its Makefile.
+
+Both patches have been submitted upstream (merge requests !31 and !32,
+open as of 2026-08-01), so this deviation from the pinned revision is
+meant to be temporary. A later record should advance the pin and drop them.
+host: Apple M1 MacBook Air, 8 cores, 16 GB, macOS 26.6 (Darwin 25.6.0),
+  fanless, so sustained clocks are thermally limited
+compiler: Apple clang 21.0.0, cmake 4.4.1, Release, -O3 -march=native
+date: 2026-07-31
+
+COMPETITOR BUILD WIDTH: THIS IS WHY PATCH 0002 EXISTS
+
+Upstream SMHasher3 at the pinned commit does not enable NEON on Apple
+Silicon. platform/family.cmake matches CMAKE_SYSTEM_PROCESSOR against "arm"
+and "aarch64", but macOS reports "arm64", so PROCESSOR_FAMILY falls through
+to "Other", platform/isa.cmake never runs its ARM checks, and HAVE_ARM_NEON
+is left undefined. Every hash then builds without NEON: XXH3 takes its
+scalar path, and any comparison here would understate SIMD hashes.
+
+0002-cmake-detect-apple-silicon-as-arm.patch fixes that. With it XXH3-64
+reports impl "neon" rather than "scalar", and its bulk rate rises from about
+7.3 to 12.6 bytes/cycle. The figures below are the patched, NEON-enabled
+build. hayahash itself is unaffected either way: it contains no SIMD, and its
+verification values are identical across both builds.
+
+gxhash-64 is omitted on this host. That port only takes its hardware path
+under HAVE_X86_64_AES, so on ARM it falls back to SMHasher3's software AES
+and its ARM figure would describe that fallback rather than gxhash. See the
+Zen 5 record for gxhash.
+
+METHOD
+
+./SMHasher3 --test=Speed --verbose <hash>, run round-robin across hashes
+rather than five-in-a-row, so thermal drift on this fanless host affects
+every hash equally. Median reported.
+
+Replicate 1 is excluded: it ran while this machine was concurrently doing
+scp, ssh and result parsing for the Zen 5 half of the comparison, and it
+carries the only large outliers in the set (a5hash 17.34 against 25.6 in
+every other replicate). Replicates 2-5 are used for all hashes, plus five
+further idle back-to-back replicates for rapidhash, whose readings cluster at
+23.8 with occasional downward excursions to 21.7-22.7; its median over nine
+replicates is used.
+
+Small-key figures are corrected for SMHasher3's once-per-process overhead
+calibration, which ranged 2.64..2.99 cycles here; see the Zen 5 record for
+the full explanation of that correction. Baseline used: 2.64 cycles. After
+correction every hash except rapidhash has a replicate spread at or below
+0.25 cycles.
+
+The small-key column is dependent latency over 1..31-byte keys, not
+independent throughput: timehash_small() feeds each hash's output back into
+the key, so hashes cannot overlap. It is not comparable to the
+independent-hash figures from tests/bench.c.
+
+Full-suite pass/fail is not repeated here. The statistical tests are
+deterministic given the hash, so the Zen 5 record settles it for both hosts.
+
+RESULTS
+
+hash             small keys (cy/hash)   bulk (B/cy)   spread small / bulk
+rapidhash                        21.2          14.9   2.29 / 1.63 (9 reps)
+wyhash                           22.2           8.6   0.19 / 0.02
+a5hash                           23.0           3.0   0.06 / 0.01
+komihash                         25.0           7.5   0.05 / 0.02
+XXH3-64 (neon)                   25.6          12.6   0.02 / 0.01
+HayaHash64                       33.3           9.7   0.25 / 0.02
+ChibiHash2                       37.4           6.1   0.04 / 0.00
+mx3.v3                           45.1           4.1   0.08 / 0.01
+SpookyHash2-64                   52.2           4.1   0.05 / 0.00

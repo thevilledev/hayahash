@@ -1,3 +1,18 @@
+SPDX-License-Identifier: GPL-3.0-or-later
+
+This patch modifies files from SMHasher3, which are licensed under the GNU
+General Public License, either version 3 or (at your option) any later
+version. The modification is therefore also GPL-3.0-or-later, and is NOT
+covered by the Unlicense that applies to the rest of this repository.
+See COPYING in this directory for the license text.
+
+Submitted upstream as https://gitlab.com/fwojcik/smhasher3/-/merge_requests/31
+(open as of 2026-08-01). Drop this patch once it merges and the pin advances.
+
+Copyright (C) 2026 Ville Vesilehto
+
+---
+
 From 2e152e003b8538ca73b61931837c9ce932b386ab Mon Sep 17 00:00:00 2001
 From: Ville Vesilehto <ville@vesilehto.fi>
 Date: Thu, 30 Jul 2026 11:38:22 +0300

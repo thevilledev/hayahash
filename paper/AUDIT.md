@@ -64,7 +64,15 @@ construction specified by the paper.
 
 The paper does not claim cryptographic security, collision resistance
 against an adversary, universality, a proof for the complete construction, or
-a universal speed record. It also omits the broad SMHasher3 speed shootout
-until the raw output and exact competitor revisions are archived; the Speed
-and Hashmap sections inside the archived SMHasher3 runs are the tool's own
-timings and are not used for any performance claim in the paper.
+a universal speed record. The Speed and Hashmap sections inside the archived
+SMHasher3 runs are the tool's own timings and are not used for any
+performance claim in the paper.
+
+The broad SMHasher3 speed shootout now has archived raw output and pinned
+competitor revisions, under `paper/results/*-smhasher3-shootout.txt`, and it
+backs the table in the top-level `README.md`. The paper still makes no
+competitor-speed claim from it. Promoting it would need the two records to
+meet this paper's benchmark standard rather than the README's: SMHasher3's
+own timing harness measures dependent latency for small keys, its
+once-per-process overhead calibration required an explicit correction, and
+each host ran a single compiler.
