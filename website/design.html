@@ -46,7 +46,11 @@
         The bulk loop reads 64-byte blocks in 8 independent lanes. The
         loop-carried path for each lane is <code>add &rarr; mul</code>,
         approximately 4 cycles. No longer chain is on that path. No work
-        crosses the lanes inside the loop. For comparison, ChibiHash v2 has
+        crosses the lanes inside the loop. After the 8 stripes of a
+        block, lane 0 also adds the last raw word. This is the per-block
+        checkpoint. It is part of the digest, not a tuning choice.
+        AArch64 folds the add into one multiply-add, so the carried path
+        stays short. For comparison, ChibiHash v2 has
         an approximately 5-cycle <code>add &rarr; mul &rarr; xor</code>
         chain. That chain applies to each 8-byte stripe across 4 lanes.
       </p>
@@ -60,6 +64,8 @@
    v     v     v     v     v     v     v     v
  lane0 lane1 lane2 lane3 lane4 lane5 lane6 lane7
 
+ after the 8 stripes: lane0 += w7    (raw-word checkpoint)
+
  per lane, per block: add -> mul     (~4-cycle carried path)
  cross-lane mixing:   none in the loop. Lanes fold at the end.</code></pre>
 
@@ -70,7 +76,7 @@
         <code>w</code> is the current stripe. <code>w_prev</code> is the
         stripe before it. Compare two inputs that are not equal. Go to the
         first stripe where they differ. At that stripe,
-        <code>w_prev</code> is equal for the two inputs. Thus
+        <code>w_prev</code> is equal for the two inputs. So
         <code>t</code> differs. By induction, the absorb sequence is
         injective.
       </p>
@@ -79,9 +85,15 @@
         The rotated copy puts each stripe bit at a low position in the
         next lane. The combination of <code>+</code> and <code>rotl</code>
         is not linear over GF(2). It is not linear mod 2<sup>64</sup>. The
-        design sets three items against difference-ladder attacks: the
-        absorb rotation amount, the fold rotations, and a final "wall"
-        absorb. The wall absorb takes the last dangling stripe copy. The
+        design sets four items against difference-ladder attacks: the
+        absorb rotation amount, the fold rotations, a final "wall"
+        absorb, and the per-block checkpoint. The wall absorb takes the
+        last dangling stripe copy. The checkpoint adds the last raw word
+        of each block into lane 0. It stops a known 64-stripe
+        rotation-orbit ladder, which can delay a difference until the
+        rotation returns it to its starting lane. The checkpoint is also
+        one reason the vectorized bulk shape on Zen&nbsp;5 keeps lanes
+        0, 1, 6, and 7 scalar. The
         header notes give the details. The rotation applies to a register
         that is already loaded. It is off the loop-carried path. On wide
         cores, it costs less than a second load.
@@ -104,7 +116,7 @@
         words can overlap. This is the wyhash method. No length uses a
         byte-at-a-time loop. Keys of 16 bytes or less use a special path.
         This path spreads the two loaded words with bijective 3-rotation
-        injections. Each word gets a different injection. Thus one
+        injections. Each word gets a different injection. So one
         difference cannot remove the two multiply terms at the same time.
         The two words then go through independent multiplies into a strong
         finalizer.

@@ -135,7 +135,7 @@ let h = Hayahash.hash64(buf, seed: 0)</code></pre>
       <h2 id="js">JavaScript / TypeScript</h2>
       <p>The <a href="https://www.npmjs.com/package/hayahash"><code>hayahash</code></a>
         package is on npm. The fast path is the reference header compiled
-        to WebAssembly, approximately 1.5&nbsp;KB. A pure-JS fallback is
+        to WebAssembly, approximately 1.4&nbsp;KB. A pure-JS fallback is
         included. The tests and the nightly fuzz cover the two engines:</p>
       <pre><code>npm install hayahash</code></pre>
       <pre><code>import { hayahash64 } from "hayahash";
@@ -159,7 +159,7 @@ uint64_t h = hayahash64(buf, len, seed);</code></pre>
           <tbody>
             <tr><td><code>hayahash.h</code></td><td>The C99 reference. One header. Public domain.</td></tr>
             <tr><td><code>rust/ go/ zig/ java/ csharp/ python/ swift/ js/ mips/</code></td><td>One directory for each port. Each port has its own KAT test suite.</td></tr>
-            <tr><td><code>tests/</code></td><td>The quality and benchmark harnesses. The ChibiHash v1 and v2 sources are vendored here. Thus the comparisons are self-contained.</td></tr>
+            <tr><td><code>tests/</code></td><td>The quality and benchmark harnesses. The ChibiHash v1 and v2 sources are vendored here. So the comparisons are self-contained.</td></tr>
             <tr><td><code>tests/smhasher3/</code></td><td>The SMHasher3 adapter and the pinned build harness. GPL-3.0-or-later. Not in release artifacts.</td></tr>
             <tr><td><code>tests/differential/</code></td><td>The corpus generator for the nightly cross-port fuzz.</td></tr>
             <tr><td><code>tests/wasm/</code></td><td>The wasm32 shootout and the wasm-against-native bit-exactness check.</td></tr>

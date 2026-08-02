@@ -71,7 +71,7 @@ export function initWasmFromModule(module: WebAssembly.Module): Engine {
 // embedded bytes is blocked (a Content Security Policy without
 // 'wasm-unsafe-eval', or edge runtimes like Cloudflare Workers that
 // disallow runtime wasm compilation); index.ts then falls back to
-// the pure engine. The module is ~1.5 KB, below the 4 KB limit
+// the pure engine. The module is ~1.4 KB, below the 4 KB limit
 // browsers place on synchronous compilation, so no async
 // initialization is needed.
 export function initWasm(): Engine | null {

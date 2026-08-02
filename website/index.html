@@ -5,14 +5,14 @@
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <meta
       name="description"
-      content="hayahash64 is an experimental portable 64-bit hash function. It is not cryptographic. It passes all 188 SMHasher3 tests. It has a C reference and nine bit-exact ports."
+      content="hayahash64 is an experimental portable 64-bit hash function. It is not cryptographic. It passes all 188 default tests of a pinned SMHasher3 revision. It has a C reference and nine bit-exact ports."
     >
     <meta name="theme-color" content="#ffffff">
     <meta property="og:type" content="website">
     <meta property="og:title" content="hayahash64">
     <meta
       property="og:description"
-      content="An experimental portable 64-bit hash function. It passes all 188 SMHasher3 tests. Ten implementations make the same hash values."
+      content="An experimental portable 64-bit hash function. It passes all 188 default tests of a pinned SMHasher3 revision. Ten implementations make the same hash values."
     >
     <meta property="og:url" content="https://hayaha.sh/">
     <link rel="canonical" href="https://hayaha.sh/">
@@ -42,9 +42,9 @@
 
       <p>
         hayahash64 is a 64-bit hash function. It is not cryptographic. It
-        passes all 188 tests of the
-        <a href="https://gitlab.com/fwojcik/smhasher3">SMHasher3</a> suite.
-        It stays portable:
+        passes all 188 default tests of the
+        <a href="https://gitlab.com/fwojcik/smhasher3">SMHasher3</a> suite
+        at the project's pinned revision. It stays portable:
       </p>
 
       <ul>
@@ -64,7 +64,8 @@
         The reference implementation is one C99 header,
         <a href="https://github.com/thevilledev/hayahash/blob/main/hayahash.h"><code>hayahash.h</code></a>.
         The repository has bit-exact ports to nine other languages.
-        <em>Haya</em> (速) is Japanese for "fast".
+        <em>Haya</em> is the stem of Japanese <em>hayai</em> (速い),
+        "fast".
       </p>
 
       <p>
@@ -74,8 +75,11 @@
       </p>
 
       <p>
-        Use hayahash64 on platforms that have only the ordinary 64-bit
-        multiply. Examples: WebAssembly, the JVM, .NET, and portable C.
+        Use hayahash64 where the ordinary 64-bit multiply is the only
+        fast path. Scalar WebAssembly and portable C are the clear cases.
+        The JVM and .NET do expose the wide product, through
+        <code>Math.multiplyHigh</code> and <code>Math.BigMul</code>, but
+        how well a runtime lowers these calls varies by version.
         Native x86-64 and ARM64 CPUs have a wide multiply. On those CPUs,
         <a href="https://github.com/Nicoshev/rapidhash">rapidhash v3</a> is
         the better default. It is faster on small keys on each CPU we
@@ -228,10 +232,11 @@
 
       <p>
         * The 31.2 value needs vectorization. GCC vectorizes the bulk loop
-        only with AVX-512DQ. Without AVX-512DQ, the same scalar source runs
+        only when AVX-512DQ is available. Without AVX-512DQ, the same
+        scalar source runs
         at 17.6 bytes/cycle. That is less than rapidhash. No code is
         vectorized by hand. The small-key column shows dependent latency.
-        Each hash value goes into the next key. Thus do not compare this
+        Each hash value goes into the next key. So do not compare this
         column with independent-hash numbers. The data comes from our own
         runs at a pinned SMHasher3 commit. Each cell has five replicates,
         measured at v0.4.0. The <a href="benchmarks.html">benchmarks
@@ -354,8 +359,9 @@
           The nine ports are bit-exact. The test suite of each port checks
           the shared known-answer vectors and the verification value. A
           nightly differential fuzz sends a new random corpus through each
-          port. Each port must return the same hash values as the C
-          reference.
+          language port. Each of them must return the same hash values as
+          the C reference. The MIPS64 assembly port is not in the nightly
+          matrix. It relies on the shared vectors.
         </li>
         <li>
           CI tests byte order and ABI on big-endian s390x, ILP32 wasm32,

@@ -38,7 +38,7 @@
         full-suite results are our own runs. They are not the published
         tables from upstream. We measured each shootout cell at v0.4.0,
         with five replicates for each hash. The hash values did not change
-        since v0.4.0. Thus the numbers apply to the current release,
+        since v0.4.0. So the numbers apply to the current release,
         v0.4.5.
       </p>
 
@@ -55,7 +55,7 @@
           <tr>
             <th scope="row">Apple M1</th>
             <td>P-core, approximately 3.2&nbsp;GHz, bare metal. Apple clang
-              <code>-O3 -mcpu=native</code>. The machine has no fan. Thus
+              <code>-O3 -mcpu=native</code>. The machine has no fan. So
               its numbers are medians over the replicates.</td>
           </tr>
           <tr>
@@ -166,8 +166,8 @@
       <ul>
         <li>
           <strong>* The AVX-512 condition.</strong> The 31.2 value needs
-          vectorization. GCC vectorizes the bulk loop only with AVX-512DQ.
-          AVX-512DQ has the packed 64-bit multiply. A separate sweep with
+          vectorization. GCC vectorizes the bulk loop only when AVX-512DQ
+          is available. AVX-512DQ has the packed 64-bit multiply. A separate sweep with
           five replicates ran on the same host. It gives 31.1 bytes/cycle
           with GCC and 31.1 with Clang. Without AVX-512DQ, GCC gives
           <strong>17.6</strong>. That is less than the 28.6 of rapidhash.
@@ -180,7 +180,7 @@
         <li>
           <strong>The small-key column shows dependent latency, not
           throughput.</strong> SMHasher3 puts each hash value into the next
-          key. Thus the hashes cannot overlap. Do not compare this column
+          key. So the hashes cannot overlap. Do not compare this column
           with the independent-hash numbers in the ChibiHash tables below.
         </li>
         <li>
@@ -248,11 +248,11 @@
       <p>
         <a href="https://github.com/N-R-K/ChibiHash">ChibiHash</a> has a
         goal near to the hayahash goal: portable code with the ordinary
-        multiply. Thus it is the most useful baseline. hayahash is its own
+        multiply. So it is the most useful baseline. hayahash is its own
         design, not a fork. Where the header uses a ChibiHash trick, the
         header says so. Measure with <code>make -C tests run-bench</code>.
         The ChibiHash v1 and v2 reference sources are vendored in
-        <code>tests/</code>. Thus the comparison is self-contained.
+        <code>tests/</code>. So the comparison is self-contained.
       </p>
 
       <h3>Apple M1, clang -O3 -mcpu=native</h3>

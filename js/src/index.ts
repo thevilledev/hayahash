@@ -2,7 +2,7 @@
 //
 // npm port of the reference C implementation (hayahash.h at the
 // repository root); see that header for the full design notes. The
-// fast path runs the reference header itself, compiled to a ~1.5 KB
+// fast path runs the reference header itself, compiled to a ~1.4 KB
 // WebAssembly module; a pure-JS BigInt port takes over where wasm is
 // unavailable. Output is identical for every input and seed on every
 // platform and engine.
