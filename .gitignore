@@ -52,3 +52,7 @@ swift/Packages/
 
 # Paper build outputs
 output/
+
+# Claude and optimisation work
+.claude
+.optwork

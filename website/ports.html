@@ -5,19 +5,19 @@
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <meta
       name="description"
-      content="Install and use hayahash64 from C, Rust, Go, Zig, Java, C#, Python, Swift, JavaScript/TypeScript, or MIPS64 assembly. Ten implementations, one digest."
+      content="How to install and use hayahash64 in C, Rust, Go, Zig, Java, C#, Python, Swift, JavaScript/TypeScript, and MIPS64 assembly."
     >
     <meta name="theme-color" content="#ffffff">
     <meta property="og:type" content="article">
-    <meta property="og:title" content="Ports — hayahash64">
+    <meta property="og:title" content="hayahash64 ports">
     <meta
       property="og:description"
-      content="C reference plus nine bit-exact ports, all published and conformance-tested."
+      content="The C reference and nine bit-exact ports. Each port is published and tested."
     >
     <meta property="og:url" content="https://hayaha.sh/ports.html">
     <link rel="canonical" href="https://hayaha.sh/ports.html">
     <link rel="stylesheet" href="styles.css">
-    <title>Ports — hayahash64</title>
+    <title>hayahash64 ports</title>
   </head>
   <body>
     <a class="skip-link" href="#content">Skip to content</a>
@@ -34,45 +34,46 @@
 
       <p>
         The reference implementation is
-        <a href="https://github.com/thevilledev/hayahash/blob/main/hayahash.h"><code>hayahash.h</code></a>
-        (C99, single header). Nine bit-exact ports live in the same
-        repository. All ten share one version number &mdash; currently
-        v0.4.5 &mdash; so a given version is the same algorithm everywhere.
+        <a href="https://github.com/thevilledev/hayahash/blob/main/hayahash.h"><code>hayahash.h</code></a>.
+        It is one C99 header. The repository contains nine bit-exact
+        ports. All ten implementations share one version number, now
+        v0.4.5. One version is the same algorithm in each language.
       </p>
 
       <p>
-        Conformance is enforced, not assumed: every port's test suite checks
-        the SMHasher3 verification value (<code>0xF3C4A9B4</code>) and a
-        shared table of known-answer vectors generated from the C header.
-        Nightly differential fuzzing replays a fresh randomized C-reference
-        corpus &mdash; exhaustive lengths 0&ndash;384, boundary-biased
-        lengths up to 128&nbsp;KiB &mdash; through every language port, both
-        JavaScript engines included. The MIPS64 assembly port is not in the
-        nightly matrix and relies on the shared vectors instead.
+        We do not assume conformance. We test it. The test suite of each
+        port checks the SMHasher3 verification value
+        (<code>0xF3C4A9B4</code>). It checks a shared table of
+        known-answer vectors from the C reference. A nightly differential
+        fuzz makes a new random corpus from the C reference. The corpus
+        has all lengths from 0 to 384. It has boundary-biased lengths up
+        to 128&nbsp;KiB. Each port must return the same hash values as the
+        C reference. This includes the two JavaScript engines. The MIPS64
+        port is not in the nightly matrix. It uses the shared vectors.
       </p>
 
       <p>
-        Remember the status: experimental, digests may still change between
-        versions. Pin your version.
+        hayahash is experimental. Hash values can change between versions.
+        Pin your version.
       </p>
 
       <h2 id="c">C</h2>
-      <p>Copy the header into your project; there are no dependencies. It is
-        also attached to every release:</p>
+      <p>Copy the header into your project. It has no dependencies. Each
+        release includes the header as an asset:</p>
       <pre><code>curl -LO https://github.com/thevilledev/hayahash/releases/latest/download/hayahash.h</code></pre>
       <pre><code>#include "hayahash.h"
 
 uint64_t h = hayahash64(buf, len, seed);</code></pre>
 
       <h2 id="rust">Rust</h2>
-      <p><code>hayahash</code> on
-        <a href="https://crates.io/crates/hayahash">crates.io</a>,
+      <p>The <code>hayahash</code> crate is on
+        <a href="https://crates.io/crates/hayahash">crates.io</a>. It is
         <code>no_std</code> compatible:</p>
       <pre><code>cargo add hayahash</code></pre>
       <pre><code>let h = hayahash::hayahash64(buf, seed);</code></pre>
 
       <h2 id="go">Go</h2>
-      <p>Module
+      <p>The module is
         <a href="https://pkg.go.dev/github.com/thevilledev/hayahash/go"><code>github.com/thevilledev/hayahash/go</code></a>:</p>
       <pre><code>go get github.com/thevilledev/hayahash/go</code></pre>
       <pre><code>import hayahash "github.com/thevilledev/hayahash/go"
@@ -80,9 +81,9 @@ uint64_t h = hayahash64(buf, len, seed);</code></pre>
 h := hayahash.Hash64(buf, seed)</code></pre>
 
       <h2 id="zig">Zig</h2>
-      <p>Zig 0.16. Fetch the packaged module from the release:</p>
+      <p>The port needs Zig 0.16. Get the module from the release:</p>
       <pre><code>zig fetch --save https://github.com/thevilledev/hayahash/releases/download/v0.4.5/hayahash-zig-0.4.5.tar.gz</code></pre>
-      <p>Then in <code>build.zig</code>:</p>
+      <p>Then add this to <code>build.zig</code>:</p>
       <pre><code>const hayahash = b.dependency("hayahash", .{});
 exe.root_module.addImport("hayahash", hayahash.module("hayahash"));</code></pre>
       <pre><code>const hayahash = @import("hayahash");
@@ -91,7 +92,7 @@ const h = hayahash.hayahash64(buf, seed);</code></pre>
 
       <h2 id="java">Java</h2>
       <p><a href="https://central.sonatype.com/artifact/io.github.thevilledev/hayahash"><code>io.github.thevilledev:hayahash</code></a>
-        on Maven Central, Java 17+:</p>
+        is on Maven Central. It needs Java 17 or later:</p>
       <pre><code>&lt;dependency&gt;
   &lt;groupId&gt;io.github.thevilledev&lt;/groupId&gt;
   &lt;artifactId&gt;hayahash&lt;/artifactId&gt;
@@ -102,48 +103,50 @@ const h = hayahash.hayahash64(buf, seed);</code></pre>
 long h = Hayahash.hash64(buf, seed);</code></pre>
 
       <h2 id="csharp">C# / .NET</h2>
-      <p><a href="https://www.nuget.org/packages/Hayahash"><code>Hayahash</code></a>
-        on NuGet, .NET 8+:</p>
+      <p>The <a href="https://www.nuget.org/packages/Hayahash"><code>Hayahash</code></a>
+        package is on NuGet. It needs .NET 8 or later:</p>
       <pre><code>dotnet add package Hayahash</code></pre>
       <pre><code>using Hayahash;
 
 ulong h = Hayahash.Hash64(buf, seed);</code></pre>
 
       <h2 id="python">Python</h2>
-      <p><a href="https://pypi.org/project/hayahash/"><code>hayahash</code></a>
-        on PyPI, CPython 3.9+. A C extension wraps the reference header
-        directly; releases ship manylinux/musllinux, Windows, and macOS
-        wheels:</p>
+      <p>The <a href="https://pypi.org/project/hayahash/"><code>hayahash</code></a>
+        package is on PyPI. It needs CPython 3.9 or later. A C extension
+        wraps the reference header. Releases include wheels for Linux
+        (manylinux and musllinux), Windows, and macOS:</p>
       <pre><code>pip install hayahash</code></pre>
       <pre><code>from hayahash import hayahash64
 
 h = hayahash64(buf, seed)</code></pre>
 
       <h2 id="swift">Swift</h2>
-      <p>SwiftPM package, Swift 5.9+. The package lives in a monorepo
-        subdirectory, so consume it as a local path dependency or via the
+      <p>The port is a SwiftPM package. It needs Swift 5.9 or later. The
+        package is in a subdirectory of the repository. Use one of two
+        methods. Add the package as a local path dependency. Or use the
         <code>hayahash-swift-0.4.5.tar.gz</code>
-        <a href="https://github.com/thevilledev/hayahash/releases/tag/v0.4.5">release asset</a>,
-        which has <code>Package.swift</code> at its root:</p>
+        <a href="https://github.com/thevilledev/hayahash/releases/tag/v0.4.5">release asset</a>.
+        That archive has <code>Package.swift</code> at its root:</p>
       <pre><code>import Hayahash
 
 let h = Hayahash.hash64(buf, seed: 0)</code></pre>
 
       <h2 id="js">JavaScript / TypeScript</h2>
-      <p><a href="https://www.npmjs.com/package/hayahash"><code>hayahash</code></a>
-        on npm. The fast path is the reference header compiled to a
-        ~1.5&nbsp;KB WebAssembly module, with a pure-JS fallback; both
-        engines are tested and fuzzed:</p>
+      <p>The <a href="https://www.npmjs.com/package/hayahash"><code>hayahash</code></a>
+        package is on npm. The fast path is the reference header compiled
+        to WebAssembly, approximately 1.5&nbsp;KB. A pure-JS fallback is
+        included. The tests and the nightly fuzz cover the two engines:</p>
       <pre><code>npm install hayahash</code></pre>
       <pre><code>import { hayahash64 } from "hayahash";
 
 const h = hayahash64(buf, seed); // unsigned 64-bit BigInt</code></pre>
 
       <h2 id="mips">MIPS64 assembly</h2>
-      <p>Hand-written <code>hayahash.S</code>, n64 ABI, tested under
-        qemu-mips64el against the shared vectors. Copy
+      <p>The port is <code>hayahash.S</code>, written by hand for the n64
+        ABI. Copy
         <a href="https://github.com/thevilledev/hayahash/tree/main/mips"><code>mips/hayahash.S</code></a>
-        and its <code>hayahash.h</code> declaration into your build:</p>
+        and <code>mips/hayahash.h</code> into your build. The tests run it
+        under qemu-mips64el against the shared vectors:</p>
       <pre><code>#include "hayahash.h" /* mips/hayahash.h */
 
 uint64_t h = hayahash64(buf, len, seed);</code></pre>
@@ -153,13 +156,13 @@ uint64_t h = hayahash64(buf, len, seed);</code></pre>
       <div class="table-scroll">
         <table>
           <tbody>
-            <tr><td><code>hayahash.h</code></td><td>C99 reference, single header, public domain</td></tr>
-            <tr><td><code>rust/ go/ zig/ java/ csharp/ python/ swift/ js/ mips/</code></td><td>one directory per port, each with its own KAT test suite</td></tr>
-            <tr><td><code>tests/</code></td><td>quality and benchmark harnesses; ChibiHash v1/v2 sources vendored for self-contained comparisons</td></tr>
-            <tr><td><code>tests/smhasher3/</code></td><td>SMHasher3 adapter, pinned build harness (GPL-3.0-or-later, never in release artifacts)</td></tr>
-            <tr><td><code>tests/differential/</code></td><td>randomized corpus generator for the nightly cross-port fuzz</td></tr>
-            <tr><td><code>tests/wasm/</code></td><td>baseline-wasm32 shootout and wasm-vs-native bit-exactness check</td></tr>
-            <tr><td><code>docs/</code> <code>paper/</code></td><td>design/quality/ports docs; working paper, evidence register, archived runs</td></tr>
+            <tr><td><code>hayahash.h</code></td><td>The C99 reference. One header. Public domain.</td></tr>
+            <tr><td><code>rust/ go/ zig/ java/ csharp/ python/ swift/ js/ mips/</code></td><td>One directory for each port. Each port has its own KAT test suite.</td></tr>
+            <tr><td><code>tests/</code></td><td>The quality and benchmark harnesses. The ChibiHash v1 and v2 sources are vendored here. Thus the comparisons are self-contained.</td></tr>
+            <tr><td><code>tests/smhasher3/</code></td><td>The SMHasher3 adapter and the pinned build harness. GPL-3.0-or-later. Not in release artifacts.</td></tr>
+            <tr><td><code>tests/differential/</code></td><td>The corpus generator for the nightly cross-port fuzz.</td></tr>
+            <tr><td><code>tests/wasm/</code></td><td>The wasm32 shootout and the wasm-against-native bit-exactness check.</td></tr>
+            <tr><td><code>docs/</code> <code>paper/</code></td><td>The design, quality, and port documents. The working paper, the evidence register, and the archived runs.</td></tr>
           </tbody>
         </table>
       </div>
@@ -168,7 +171,7 @@ uint64_t h = hayahash64(buf, len, seed);</code></pre>
     <footer>
       <p>
         <a href="https://github.com/thevilledev/hayahash">github.com/thevilledev/hayahash</a>
-        &middot; <a href="./">back to overview</a>
+        &middot; <a href="./">back to the overview</a>
       </p>
     </footer>
   </body>

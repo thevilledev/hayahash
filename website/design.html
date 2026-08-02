@@ -5,19 +5,19 @@
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <meta
       name="description"
-      content="How hayahash64 works: an 8-lane bulk loop with a short dependency chain, a chained injective absorb, derived lane constants, and overlapping tail reads."
+      content="How hayahash64 works. An 8-lane bulk loop with a short dependency chain. A chained injective absorb. Derived lane constants. Overlapping tail reads."
     >
     <meta name="theme-color" content="#ffffff">
     <meta property="og:type" content="article">
-    <meta property="og:title" content="Design — hayahash64">
+    <meta property="og:title" content="hayahash64 design">
     <meta
       property="og:description"
-      content="Four ideas carry the design; five collision classes shaped it."
+      content="Four ideas make the design. Five collision classes formed the details."
     >
     <meta property="og:url" content="https://hayaha.sh/design.html">
     <link rel="canonical" href="https://hayaha.sh/design.html">
     <link rel="stylesheet" href="styles.css">
-    <title>Design — hayahash64</title>
+    <title>hayahash64 design</title>
   </head>
   <body>
     <a class="skip-link" href="#content">Skip to content</a>
@@ -33,20 +33,21 @@
       <h1>Design</h1>
 
       <p>
-        Four ideas carry the design. Each is explained in detail at the top
-        of <a href="https://github.com/thevilledev/hayahash/blob/main/hayahash.h"><code>hayahash.h</code></a>,
-        which remains the authoritative commentary; this page is the
-        overview.
+        Four ideas make the design. The top of
+        <a href="https://github.com/thevilledev/hayahash/blob/main/hayahash.h"><code>hayahash.h</code></a>
+        explains each idea in detail. The header stays the authoritative
+        commentary. This page is the overview.
       </p>
 
       <h2 id="bulk">1. A short bulk dependency chain</h2>
 
       <p>
-        The bulk loop runs 8 independent lanes over 64-byte blocks with
-        nothing longer than <code>add &rarr; mul</code> (~4 cycles) on the
-        loop-carried path, and no cross-lane ALU work there. For scale,
-        ChibiHash v2 carries a ~5-cycle <code>add &rarr; mul &rarr; xor</code>
-        chain per 8-byte stripe across 4 lanes.
+        The bulk loop reads 64-byte blocks in 8 independent lanes. The
+        loop-carried path for each lane is <code>add &rarr; mul</code>,
+        approximately 4 cycles. No longer chain is on that path. No work
+        crosses the lanes inside the loop. For comparison, ChibiHash v2 has
+        an approximately 5-cycle <code>add &rarr; mul &rarr; xor</code>
+        chain. That chain applies to each 8-byte stripe across 4 lanes.
       </p>
 
       <pre class="plain" aria-label="Bulk loop structure diagram"><code>one 64-byte block = 8 stripes  w0 .. w7   (64-bit words)
@@ -59,91 +60,99 @@
  lane0 lane1 lane2 lane3 lane4 lane5 lane6 lane7
 
  per lane, per block: add -> mul     (~4-cycle carried path)
- cross-lane mixing:   none inside the loop; folded at the end</code></pre>
+ cross-lane mixing:   none in the loop. Lanes fold at the end.</code></pre>
 
       <h2 id="absorb">2. A chained, injective absorb</h2>
 
       <p>
-        Each lane absorbs <code>t = w + rotl(w_prev, 27)</code>, where
-        <code>w_prev</code> is the previous stripe. At the first stripe where
-        two inputs differ, <code>w_prev</code> is still equal, so
-        <code>t</code> differs: the absorb sequence is injective by
-        induction. The rotated copy also plants every stripe bit at a low
-        position in the next lane, where <code>+</code> and <code>rotl</code>
-        commute with neither GF(2) nor mod-2<sup>64</sup> algebra. The
-        rotation amount, the fold rotations, and a final "wall" absorb of the
-        last stripe's dangling copy are all chosen against difference-ladder
-        attacks; see the header notes. The rotation applies to an
-        already-loaded register, off the loop-carried path, and is cheaper
-        than a second load on wide cores.
+        Each lane absorbs <code>t = w + rotl(w_prev, 27)</code>. Here
+        <code>w</code> is the current stripe. <code>w_prev</code> is the
+        stripe before it. Compare two inputs that are not equal. Go to the
+        first stripe where they differ. At that stripe,
+        <code>w_prev</code> is equal for the two inputs. Thus
+        <code>t</code> differs. By induction, the absorb sequence is
+        injective.
+      </p>
+
+      <p>
+        The rotated copy puts each stripe bit at a low position in the
+        next lane. The combination of <code>+</code> and <code>rotl</code>
+        is not linear over GF(2). It is not linear mod 2<sup>64</sup>. The
+        design sets three items against difference-ladder attacks: the
+        absorb rotation amount, the fold rotations, and a final "wall"
+        absorb. The wall absorb takes the last dangling stripe copy. The
+        header notes give the details. The rotation applies to a register
+        that is already loaded. It is off the loop-carried path. On wide
+        cores, it costs less than a second load.
       </p>
 
       <h2 id="constants">3. Derived lane constants</h2>
 
       <p>
-        Seed and length are premixed into one value <code>s</code>, and all
-        lane IVs are derived from <code>s</code> plus shifted copies of the
-        single multiplier constant. No big per-lane literals are
-        materialized (on AArch64 a 64-bit literal costs 4 instructions), and
-        full-state seeding comes for free.
+        The seed and the length premix into one value <code>s</code>. All
+        lane IVs come from <code>s</code> plus shifted copies of the one
+        multiplier constant. The code has no large per-lane literals. On
+        AArch64, a 64-bit literal costs 4 instructions. Full-state seeding
+        comes at no extra cost.
       </p>
 
       <h2 id="tails">4. Overlapping tail reads, two-multiply short path</h2>
 
       <p>
-        Tails read whole (overlapping) words from the end of the input,
-        wyhash-style, so no byte-at-a-time loop exists for any length.
-        Inputs of at most 16 bytes take a dedicated path: both loaded words
-        are spread with bijective 3-rotation injections &mdash; a different
-        one per word, so the two multiply terms cannot be erased
-        simultaneously &mdash; and passed through independent multiplies
-        into a strong finalizer.
+        The tail code reads whole words from the end of the input. The
+        words can overlap. This is the wyhash method. No length uses a
+        byte-at-a-time loop. Keys of 16 bytes or less use a special path.
+        This path spreads the two loaded words with bijective 3-rotation
+        injections. Each word gets a different injection. Thus one
+        difference cannot remove the two multiply terms at the same time.
+        The two words then go through independent multiplies into a strong
+        finalizer.
       </p>
 
-      <h2 id="collisions">The collision classes that shaped it</h2>
+      <h2 id="collisions">Five collision classes</h2>
 
       <p>
-        Getting the details right was the hard part: SMHasher3 found five
-        distinct structural collision classes in earlier iterations of this
-        design:
+        The hard part was to get the details right. SMHasher3 found five
+        structural collision classes in earlier versions of this design:
       </p>
 
       <ul>
         <li>a GF(2) nullspace in a staggered-load absorb</li>
-        <li>seed-copy erasure by aligned key bits &mdash; twice</li>
+        <li>seed-copy erasure by aligned key bits, found two times</li>
         <li>top-window carry-luck ladders</li>
-        <li>a fold rotation resonating with the absorb rotation</li>
+        <li>a fold rotation in resonance with the absorb rotation</li>
       </ul>
 
       <p>
-        Each fix is documented in the header where it lives. A deterministic
-        regression for the rotation-orbit family is kept in
-        <a href="https://github.com/thevilledev/hayahash/blob/main/tests/quality.c"><code>tests/quality.c</code></a>,
-        and the
+        The header documents each fix at its location.
+        <a href="https://github.com/thevilledev/hayahash/blob/main/tests/quality.c"><code>tests/quality.c</code></a>
+        keeps a deterministic regression test for the rotation-orbit
+        family. The
         <a href="https://github.com/thevilledev/hayahash/tree/main/docs/optimization">optimization log</a>
-        records the ideas that were rejected because they reopened one of
-        these classes.
+        records the rejected ideas. Each of those ideas opened one of
+        these classes again.
       </p>
 
       <h2 id="parameters">Fixed algorithm parameters</h2>
 
       <p>
-        The 320-byte bulk threshold is an algorithm parameter, not a tuning
-        knob: digests change with it, and keeping the four-lane mid path
-        below 320 bytes bounds it to fewer than the absorb rotation's
-        64-stripe orbit. Dispatch shape &mdash; straight-line length tiers,
-        bulk-loop unrolling, the vectorizable bulk spelling &mdash; is chosen
-        per architecture and compiler, but every shape is specified to
-        produce identical output.
+        The 320-byte bulk threshold is an algorithm parameter. It is not a
+        tuning knob. Hash values change with it. The four-lane mid path
+        stays below 320 bytes. This keeps it below the 64-stripe orbit of
+        the absorb rotation. The dispatch shape changes with the CPU and
+        the compiler. Dispatch shape means the length tiers, the loop
+        unrolling, and the bulk spelling. Each shape must make the same
+        hash values.
         <a href="https://github.com/thevilledev/hayahash/blob/main/docs/smhasher3.md">smhasher3.md</a>
-        lists the shapes and how to cover them all in a conformance run.
+        lists the shapes. It tells you how one conformance run covers all
+        of them.
       </p>
     </main>
 
     <footer>
       <p>
         <a href="https://github.com/thevilledev/hayahash">github.com/thevilledev/hayahash</a>
-        &middot; <a href="./">back to overview</a>
+        &middot; <a href="./">back to the overview</a>
       </p>
     </footer>
   </body>
