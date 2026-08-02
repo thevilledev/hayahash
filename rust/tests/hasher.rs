@@ -22,6 +22,25 @@ fn hasher_matches_one_shot_across_split_writes() {
 }
 
 #[test]
+fn hasher_matches_one_shot_past_inline_buffer() {
+    // The inline buffer holds 64 bytes; cover the spill boundary and
+    // well beyond it.
+    for len in [63, 64, 65, 128, 256, 320, 512] {
+        let data: Vec<u8> = (0..len).map(|i| i as u8).collect();
+        for seed in [0u64, 42, u64::MAX] {
+            let want = hayahash64(&data, seed);
+            let mut h = HayaHasher::new(seed);
+            h.write(&data);
+            assert_eq!(h.finish(), want, "one-shot len={len} seed={seed}");
+            let mut h = HayaHasher::new(seed);
+            h.write(&data[..len / 2]);
+            h.write(&data[len / 2..]);
+            assert_eq!(h.finish(), want, "split len={len} seed={seed}");
+        }
+    }
+}
+
+#[test]
 fn empty_hasher_matches_empty_input() {
     assert_eq!(HayaHasher::new(3).finish(), hayahash64(b"", 3));
     assert_eq!(HayaHasher::default().finish(), hayahash64(b"", 0));

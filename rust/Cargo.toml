@@ -21,7 +21,7 @@ hashbrown = { version = "0.17.1", default-features = false, optional = true }
 [features]
 default = ["std"]
 # Use std::collections for the HayaHashMap/HayaHashSet aliases and
-# enable the buffering HayaHasher (requires an allocator).
+# enable HayaHasher (spill buffer requires an allocator).
 std = []
 # Use hashbrown for the aliases instead; works on no_std targets with
 # an allocator. Takes precedence over "std" when both are enabled.
