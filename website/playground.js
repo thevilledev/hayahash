@@ -244,7 +244,11 @@ function makeRow(tbody, row, cols) {
 
 // Bar length is a rate, so a long bar is fast in both tables. For
 // ns/hash (betterAsc) the bar shows the reciprocal. The exact value
-// sits in the cells and in a title tooltip on the bar.
+// sits in the cells and in a title tooltip on the bar. Widths are in
+// em, not percent: Safari does not resolve percentage widths inside
+// auto-layout table cells, so percent bars come out empty there.
+const BAR_MAX_EM = 10;
+
 function finishTable(tbody, entries, barIndex, fmt, betterAsc) {
 	const done = entries.filter((e) => e.values[barIndex] !== null);
 	const barVal = (v) => (betterAsc ? 1 / v : v);
@@ -253,7 +257,8 @@ function finishTable(tbody, entries, barIndex, fmt, betterAsc) {
 		const v = e.values[barIndex];
 		const bar = document.createElement("div");
 		bar.className = "bar";
-		bar.style.width = `${Math.max(0.5, (barVal(v) / max) * 100)}%`;
+		const em = (barVal(v) / max) * BAR_MAX_EM;
+		bar.style.width = `${Math.max(0.08, em).toFixed(2)}em`;
 		e.barTd.title = fmt(v);
 		e.barTd.replaceChildren(bar);
 	}
