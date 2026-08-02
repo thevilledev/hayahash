@@ -161,8 +161,12 @@ tr.self {
   margin: 0.3em 0;
 }
 
-/* Playground: controls, status lines, result bars. */
+/* Playground: controls, status lines, result bars. Safari keeps the
+   native control look unless appearance is reset. */
 button {
+  -webkit-appearance: none;
+  appearance: none;
+  border-radius: 0;
   font-family: ui-monospace, "SF Mono", Menlo, Consolas, "Liberation Mono", monospace;
   font-size: 0.85em;
   color: #000;
@@ -185,6 +189,9 @@ button:disabled {
 }
 
 input[type="text"] {
+  -webkit-appearance: none;
+  appearance: none;
+  border-radius: 0;
   font-family: ui-monospace, "SF Mono", Menlo, Consolas, "Liberation Mono", monospace;
   font-size: 0.85em;
   color: #000;
