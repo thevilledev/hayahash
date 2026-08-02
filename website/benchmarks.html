@@ -1,0 +1,398 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <meta
+      name="description"
+      content="hayahash64 benchmark results: SMHasher3 shootout on Apple M1 and AMD Zen 5, head-to-head against ChibiHash, method, caveats, and reproduction commands."
+    >
+    <meta name="theme-color" content="#ffffff">
+    <meta property="og:type" content="article">
+    <meta property="og:title" content="Benchmarks — hayahash64">
+    <meta
+      property="og:description"
+      content="SMHasher3 shootout and ChibiHash head-to-head on Apple M1 and AMD Zen 5, with method and caveats."
+    >
+    <meta property="og:url" content="https://hayaha.sh/benchmarks.html">
+    <link rel="canonical" href="https://hayaha.sh/benchmarks.html">
+    <link rel="stylesheet" href="styles.css">
+    <title>Benchmarks — hayahash64</title>
+  </head>
+  <body>
+    <a class="skip-link" href="#content">Skip to content</a>
+    <nav class="top" aria-label="Primary navigation">
+      [ <a href="./">overview</a> |
+      benchmarks |
+      <a href="design.html">design</a> |
+      <a href="ports.html">ports</a> |
+      <a href="https://github.com/thevilledev/hayahash">source</a> ]
+    </nav>
+
+    <main id="content">
+      <h1>Benchmarks</h1>
+
+      <p>
+        Everything on this page is reproducible from the repository, and all
+        full-suite results are our own runs, not upstream's published
+        tables. Every shootout cell was re-measured at v0.4.0 with five
+        replicates per hash; the digest is unchanged since v0.4.0, so the
+        numbers describe the current release (v0.4.5).
+      </p>
+
+      <table>
+        <caption>Hosts</caption>
+        <tbody>
+          <tr>
+            <th scope="row">Apple M1</th>
+            <td>P-core, ~3.2&nbsp;GHz, bare metal, Apple clang <code>-O3
+              -mcpu=native</code>. Fanless machine, so its figures are
+              medians over replicates.</td>
+          </tr>
+          <tr>
+            <th scope="row">AMD Zen 5</th>
+            <td>bare metal, GCC 16, <code>-march=native</code>.</td>
+          </tr>
+          <tr>
+            <th scope="row">EPYC 7B13 (Zen 3), EPYC 9655 (Zen 5)</th>
+            <td>shared KVM guests with no frequency control; absolute rates
+              not comparable, archived as indicative. Their within-host
+              ratios reproduce the conclusions below: the 9655 gives the
+              same 1.99&times; bulk lead over ChibiHash v2 as bare-metal
+              Zen&nbsp;5, and the Zen&nbsp;3 host, with no AVX-512, collapses
+              it to 1.05&times;.</td>
+          </tr>
+        </tbody>
+      </table>
+
+      <h2 id="shootout">SMHasher3 shootout</h2>
+
+      <p>
+        Run with <code>make -C tests/smhasher3 run</code>, which pins
+        SMHasher3 to an exact upstream commit. Small keys are cycles per
+        hash over 1&ndash;31-byte keys, lower is better. Bulk is bytes per
+        cycle on 256&nbsp;KiB keys, higher is better.
+      </p>
+
+      <div class="table-scroll">
+        <table>
+          <thead>
+            <tr>
+              <th scope="col">hash</th>
+              <th scope="col" class="n">M1 small (cy)</th>
+              <th scope="col" class="n">M1 bulk (B/cy)</th>
+              <th scope="col" class="n">Zen 5 small (cy)</th>
+              <th scope="col" class="n">Zen 5 bulk (B/cy)</th>
+              <th scope="col">full suite</th>
+              <th scope="col">needs for peak speed</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td>rapidhash v3</td>
+              <td class="n">21.5</td><td class="n">15.2</td>
+              <td class="n">9.8</td><td class="n">28.6</td>
+              <td>pass</td><td>64&times;64&rarr;128 multiply</td>
+            </tr>
+            <tr>
+              <td>wyhash v4.2</td>
+              <td class="n">22.5</td><td class="n">8.8</td>
+              <td class="n">8.8</td><td class="n">19.8</td>
+              <td>fail (11)</td><td>64&times;64&rarr;128 multiply</td>
+            </tr>
+            <tr>
+              <td>a5hash v5.21</td>
+              <td class="n">23.3</td><td class="n">3.0</td>
+              <td class="n">6.1</td><td class="n">6.9</td>
+              <td>pass</td><td>64&times;64&rarr;128 multiply</td>
+            </tr>
+            <tr>
+              <td>komihash v5.27</td>
+              <td class="n">25.3</td><td class="n">7.5</td>
+              <td class="n">10.7</td><td class="n">19.9</td>
+              <td>pass</td><td>64&times;64&rarr;128 multiply</td>
+            </tr>
+            <tr>
+              <td>XXH3-64</td>
+              <td class="n">25.9</td><td class="n">12.6</td>
+              <td class="n">10.1</td><td class="n">48.9</td>
+              <td>fail (22)</td><td>SIMD</td>
+            </tr>
+            <tr>
+              <td>gxhash-64</td>
+              <td class="n">&ndash;</td><td class="n">&ndash;</td>
+              <td class="n">16.4</td><td class="n">64.7</td>
+              <td>fail (23)</td><td>AES instructions</td>
+            </tr>
+            <tr class="self">
+              <td>hayahash64</td>
+              <td class="n">33.5</td><td class="n">9.8</td>
+              <td class="n">12.0</td><td class="n">31.2*</td>
+              <td>pass</td><td>ordinary 64&times;64&rarr;64 multiply</td>
+            </tr>
+            <tr>
+              <td>ChibiHash v2</td>
+              <td class="n">37.7</td><td class="n">6.1</td>
+              <td class="n">9.2</td><td class="n">15.7</td>
+              <td>pass</td><td>ordinary 64&times;64&rarr;64 multiply</td>
+            </tr>
+            <tr>
+              <td>mx3.v3</td>
+              <td class="n">44.7</td><td class="n">4.2</td>
+              <td class="n">16.9</td><td class="n">10.1</td>
+              <td>fail (26)</td><td>ordinary 64&times;64&rarr;64 multiply</td>
+            </tr>
+            <tr>
+              <td>SpookyHash2-64</td>
+              <td class="n">52.6</td><td class="n">4.1</td>
+              <td class="n">18.1</td><td class="n">15.4</td>
+              <td>fail (5)</td><td>ordinary 64-bit operations</td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+
+      <h3>Caveats that matter before reading the table</h3>
+
+      <ul>
+        <li>
+          <strong>* The AVX-512 condition.</strong> hayahash's 31.2 B/cy
+          needs the compiler to auto-vectorize the bulk loop, which requires
+          AVX-512DQ for its packed 64-bit multiply. A separate five-replicate
+          sweep on the same host gives 31.1 B/cy under GCC, 31.1 under
+          Clang, and <strong>17.6 under GCC without AVX-512DQ</strong> &mdash;
+          behind rapidhash's 28.6. An EPYC 9655 reproduces the same
+          1.8&times; gap under GCC 13 and Clang 18; an EPYC 7B13 with no
+          AVX-512 at all cannot reach the vectorized shape however it is
+          tuned. The source stays portable scalar C either way &mdash;
+          nothing is hand-vectorized &mdash; but a machine without AVX-512
+          gets the lower rate. Small-key figures are unaffected.
+        </li>
+        <li>
+          <strong>The small-key column is dependent latency, not
+          throughput.</strong> SMHasher3 feeds each hash's output into the
+          next key, so hashes cannot overlap. It is not comparable to the
+          independent-hash figures in the ChibiHash tables below.
+        </li>
+        <li>
+          <strong>Calibration correction.</strong> SMHasher3 measures call
+          overhead once per process and subtracts it from all 31 lengths;
+          that calibration varied by ~2 cycles between runs, which is
+          10&ndash;40% on Zen&nbsp;5. After correcting it, the five Zen 5
+          replicates agree to within 0.35 cycles. The archived records in
+          <a href="https://github.com/thevilledev/hayahash/tree/main/paper">paper/</a>
+          report both raw and corrected figures.
+        </li>
+        <li>
+          <strong>gxhash is Zen 5 only.</strong> Its SMHasher3 port takes the
+          hardware path solely under x86 AES; an ARM number would describe a
+          software-AES fallback rather than gxhash.
+        </li>
+      </ul>
+
+      <h3>What the table says, by instruction class</h3>
+
+      <ul>
+        <li>
+          <strong>Wide multiply:</strong> rapidhash v3 passes and stays ahead
+          of hayahash on small keys everywhere, and on both axes on the M1.
+          It remains the honest recommendation when a native 128-bit multiply
+          result is available &mdash; exactly the instruction hayahash's
+          portability rules exclude. Its Zen 5 bulk lead did not survive
+          hayahash's vectorizable bulk loop: 28.6 B/cy against 31.2, and only
+          where that loop vectorizes.
+        </li>
+        <li>
+          <strong>SIMD or hardware AES:</strong> where the hardware provides
+          them, these win bulk decisively. XXH3-64 reaches 48.9 B/cy on
+          Zen&nbsp;5 and 12.6 on the M1; gxhash reaches 64.7 on Zen&nbsp;5.
+          Both fail the suite, but they are not beaten on speed.
+        </li>
+        <li>
+          <strong>Portable 64-bit scalar:</strong> the only other hash here
+          that meets hayahash's constraints and passes is ChibiHash v2.
+          hayahash leads it in bulk on both hosts, 1.61&times; on the M1 and
+          1.99&times; on Zen&nbsp;5. Small keys split: hayahash takes 11%
+          less time on the M1 but 30% more on Zen&nbsp;5, where ChibiHash
+          v2's simpler short path wins the 8&ndash;15-byte band by about 5.3
+          cycles. mx3.v3, the remaining ordinary-multiply candidate, fails
+          26 tests.
+        </li>
+      </ul>
+
+      <p>
+        Taken together: within the portable scalar class, hayahash is the
+        fastest hash we found in sustained bulk that passes the complete
+        SMHasher3 suite, on both hosts. On Zen&nbsp;5 it also beats every
+        wide-multiply hash measured here in bulk &mdash; conditional on the
+        bulk loop vectorizing; without AVX-512DQ it falls to 17.6 B/cy,
+        behind rapidhash. And the claim is deliberately scoped, not a
+        universal record: two bare-metal hosts, bounded by the roughly 250
+        hashes SMHasher3 tracks.
+      </p>
+
+      <h2 id="chibihash">Head-to-head: ChibiHash</h2>
+
+      <p>
+        <a href="https://github.com/N-R-K/ChibiHash">ChibiHash</a> sets out
+        to do a similar thing &mdash; portable, ordinary multiply &mdash;
+        which makes it the most useful baseline. hayahash is its own design,
+        not a fork; where the header borrows a specific trick, it says so.
+        Measured with <code>make -C tests run-bench</code> against the C
+        reference implementations of ChibiHash v1/v2 vendored in
+        <code>tests/</code>.
+      </p>
+
+      <h3>Apple M1, clang -O3 -mcpu=native</h3>
+
+      <div class="table-scroll">
+        <table>
+          <caption>Large-input throughput (GB/s, higher is better)</caption>
+          <thead>
+            <tr>
+              <th scope="col" class="n">size (B)</th>
+              <th scope="col" class="n">chibihash v1</th>
+              <th scope="col" class="n">chibihash v2</th>
+              <th scope="col" class="n">hayahash</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr><td class="n">64</td><td class="n">7.7</td><td class="n">9.9</td><td class="n"><strong>13.0</strong></td></tr>
+            <tr><td class="n">256</td><td class="n">15.7</td><td class="n">17.8</td><td class="n"><strong>20.3</strong></td></tr>
+            <tr><td class="n">1024</td><td class="n">15.5</td><td class="n">19.5</td><td class="n"><strong>27.2</strong></td></tr>
+            <tr><td class="n">16384</td><td class="n">14.6</td><td class="n">18.8</td><td class="n"><strong>30.1</strong></td></tr>
+            <tr><td class="n">1048576</td><td class="n">14.6</td><td class="n">18.8</td><td class="n"><strong>30.2</strong></td></tr>
+          </tbody>
+        </table>
+      </div>
+
+      <div class="table-scroll">
+        <table>
+          <caption>Small-input latency, seed-chained (ns/hash, lower is better)</caption>
+          <thead>
+            <tr>
+              <th scope="col" class="n">len (B)</th>
+              <th scope="col" class="n">chibihash v1</th>
+              <th scope="col" class="n">chibihash v2</th>
+              <th scope="col" class="n">hayahash</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr><td class="n">4</td><td class="n">9.7</td><td class="n">10.1</td><td class="n"><strong>7.3</strong></td></tr>
+            <tr><td class="n">8</td><td class="n"><strong>6.4</strong></td><td class="n">9.6</td><td class="n">7.3</td></tr>
+            <tr><td class="n">16</td><td class="n"><strong>6.8</strong></td><td class="n">9.9</td><td class="n">7.3</td></tr>
+            <tr><td class="n">32</td><td class="n">12.0</td><td class="n">11.4</td><td class="n"><strong>8.0</strong></td></tr>
+            <tr><td class="n">64</td><td class="n">14.2</td><td class="n">13.1</td><td class="n"><strong>9.4</strong></td></tr>
+            <tr><td class="n">128</td><td class="n">19.7</td><td class="n">16.9</td><td class="n"><strong>13.0</strong></td></tr>
+          </tbody>
+        </table>
+      </div>
+
+      <div class="table-scroll">
+        <table>
+          <caption>Small-input throughput, independent hashes (ns/hash, lower is better)</caption>
+          <thead>
+            <tr>
+              <th scope="col" class="n">len (B)</th>
+              <th scope="col" class="n">chibihash v1</th>
+              <th scope="col" class="n">chibihash v2</th>
+              <th scope="col" class="n">hayahash</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr><td class="n">4</td><td class="n">7.3</td><td class="n">4.3</td><td class="n"><strong>2.8</strong></td></tr>
+            <tr><td class="n">8</td><td class="n">4.5</td><td class="n">4.5</td><td class="n"><strong>2.8</strong></td></tr>
+            <tr><td class="n">16</td><td class="n">5.2</td><td class="n">5.0</td><td class="n"><strong>2.8</strong></td></tr>
+            <tr><td class="n">32</td><td class="n">7.4</td><td class="n">5.3</td><td class="n"><strong>3.8</strong></td></tr>
+            <tr><td class="n">64</td><td class="n">8.5</td><td class="n">6.6</td><td class="n"><strong>5.0</strong></td></tr>
+            <tr><td class="n">128</td><td class="n">11.8</td><td class="n">9.0</td><td class="n"><strong>7.5</strong></td></tr>
+          </tbody>
+        </table>
+      </div>
+
+      <p>
+        v1's 8/16-byte latency wins come from special-cased paths that are
+        also part of why it fails SMHasher3. Among the two functions that
+        pass, hayahash is fastest at every size here. The 32&ndash;128-byte
+        rows reflect a deliberate dispatch choice on clang targets: give up
+        5&ndash;9% at fixed sizes to run 2&ndash;10% faster on mixed-size
+        workloads, which single-size tables cannot show. The
+        <a href="https://github.com/thevilledev/hayahash/tree/main/docs/optimization">optimization log</a>
+        documents that trade.
+      </p>
+
+      <h3>AMD Zen 5, GCC 16 -march=native</h3>
+
+      <div class="table-scroll">
+        <table>
+          <caption>hayahash vs ChibiHash v2</caption>
+          <thead>
+            <tr>
+              <th scope="col">measure</th>
+              <th scope="col" class="n">chibihash v2</th>
+              <th scope="col" class="n">hayahash</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td>128 B, independent hashes (ns, lower better)</td>
+              <td class="n">6.6</td><td class="n"><strong>5.2</strong></td>
+            </tr>
+            <tr>
+              <td>128 B, streamed (GB/s, higher better)</td>
+              <td class="n">19.5</td><td class="n"><strong>24.7</strong></td>
+            </tr>
+            <tr>
+              <td>512 B, streamed (GB/s)</td>
+              <td class="n">28.6</td><td class="n"><strong>42.2</strong></td>
+            </tr>
+            <tr>
+              <td>1 MiB, streamed (GB/s)</td>
+              <td class="n">31.2</td><td class="n"><strong>61.3</strong></td>
+            </tr>
+            <tr>
+              <td>1 MiB, streamed, build without AVX-512DQ (GB/s)</td>
+              <td class="n">31.2</td><td class="n">~35</td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+
+      <p>
+        On this host hayahash now leads both ChibiHash versions at every
+        measured size. The 320&ndash;512-byte band, which v2 led before the
+        fifth optimization pass, flipped to a 27&ndash;47% hayahash lead,
+        and sustained bulk roughly doubled once GCC learned to
+        auto-vectorize the bulk loop for AVX-512. Dispatch shapes are tuned
+        per architecture and compiler; every shape produces identical
+        digests.
+      </p>
+
+      <h2 id="reproduce">Reproduce it</h2>
+
+      <pre><code># ChibiHash head-to-head (references vendored in tests/)
+make -C tests run-bench
+
+# SMHasher3, pinned to an exact upstream commit
+make -C tests/smhasher3 run
+
+# Baseline-wasm32 shootout and wasm-vs-native bit-exactness
+make -C tests/wasm run-kat run-bench</code></pre>
+
+      <p>
+        <a href="https://github.com/thevilledev/hayahash/blob/main/docs/smhasher3.md">smhasher3.md</a>
+        covers running the suite, covering all dispatch shapes, and
+        re-deriving verification values.
+        <a href="https://github.com/thevilledev/hayahash/tree/main/paper">paper/</a>
+        holds the archived raw runs behind every number on this page.
+      </p>
+    </main>
+
+    <footer>
+      <p>
+        <a href="https://github.com/thevilledev/hayahash">github.com/thevilledev/hayahash</a>
+        &middot; <a href="./">back to overview</a>
+      </p>
+    </footer>
+  </body>
+</html>

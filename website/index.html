@@ -1,0 +1,374 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <meta
+      name="description"
+      content="hayahash64 is an experimental, strictly portable 64-bit non-cryptographic hash. Passes all 188 SMHasher3 tests. C reference plus bit-exact ports for Rust, Go, Zig, Java, C#, Python, Swift, JavaScript, and MIPS64."
+    >
+    <meta name="theme-color" content="#ffffff">
+    <meta property="og:type" content="website">
+    <meta property="og:title" content="hayahash64">
+    <meta
+      property="og:description"
+      content="An experimental portable 64-bit hash. Passes SMHasher3 188/188. Ten implementations, one digest."
+    >
+    <meta property="og:url" content="https://hayaha.sh/">
+    <link rel="canonical" href="https://hayaha.sh/">
+    <link rel="stylesheet" href="styles.css">
+    <title>hayahash64 — a portable 64-bit hash function</title>
+  </head>
+  <body>
+    <a class="skip-link" href="#content">Skip to content</a>
+    <nav class="top" aria-label="Primary navigation">
+      [ overview |
+      <a href="benchmarks.html">benchmarks</a> |
+      <a href="design.html">design</a> |
+      <a href="ports.html">ports</a> |
+      <a href="https://github.com/thevilledev/hayahash">source</a> ]
+    </nav>
+
+    <main id="content">
+      <pre class="plain banner" aria-hidden="true">
+ _                           _                   _
+| |__    __ _  _   _   __ _ | |__    __ _  ___  | |__
+| '_ \  / _` || | | | / _` || '_ \  / _` |/ __| | '_ \
+| | | || (_| || |_| || (_| || | | || (_| |\__ \ | | | |
+|_| |_| \__,_| \__, | \__,_||_| |_| \__,_||___/ |_| |_|
+               |___/</pre>
+      <h1>hayahash64</h1>
+
+      <p>
+        A 64-bit non-cryptographic hash function that passes the full
+        <a href="https://gitlab.com/fwojcik/smhasher3">SMHasher3</a> suite
+        while staying strictly portable: no SIMD, no 64&times;64&rarr;128-bit
+        multiply, no per-architecture code, no undefined behavior, and
+        endianness-independent output. The reference implementation is one
+        C99 header,
+        <a href="https://github.com/thevilledev/hayahash/blob/main/hayahash.h"><code>hayahash.h</code></a>,
+        with bit-exact ports to nine other targets. <em>Haya</em> (速) is
+        Japanese for "fast".
+      </p>
+
+      <p>
+        It is for platforms where only ordinary 64-bit multiplication is
+        available: WebAssembly, the JVM, .NET, and portable C. If you are on
+        native x86-64 or ARM64 and can use a wide multiply,
+        <a href="https://github.com/Nicoshev/rapidhash">rapidhash v3</a> is
+        still the better default. That trade-off is measured, not hidden;
+        see the <a href="benchmarks.html">benchmarks</a>.
+      </p>
+
+      <div class="notice">
+        <p>
+          <strong>Experimental.</strong> The algorithm, constants, and digest
+          values may still change. Do not use hayahash where hash values are
+          persisted, exchanged between systems, or used for security. It is
+          not a cryptographic hash.
+        </p>
+      </div>
+
+      <table>
+        <caption>Current state</caption>
+        <tbody>
+          <tr>
+            <th scope="row">Release</th>
+            <td><a href="https://github.com/thevilledev/hayahash/releases/tag/v0.4.5">v0.4.5</a>
+              &mdash; every port shares this version; the digest is unchanged
+              since v0.4.0</td>
+          </tr>
+          <tr>
+            <th scope="row">Output / seed</th>
+            <td>64-bit / 64-bit</td>
+          </tr>
+          <tr>
+            <th scope="row">SMHasher3</th>
+            <td>188/188 tests pass, verification <code>0xF3C4A9B4</code></td>
+          </tr>
+          <tr>
+            <th scope="row">Implementations</th>
+            <td>C reference plus bit-exact Rust, Go, Zig, Java, C#, Python,
+              Swift, JavaScript/TypeScript, and MIPS64 assembly</td>
+          </tr>
+          <tr>
+            <th scope="row">License</th>
+            <td>Public domain (<a href="https://github.com/thevilledev/hayahash/blob/main/LICENSE">Unlicense</a>)</td>
+          </tr>
+        </tbody>
+      </table>
+
+      <h2 id="benchmarks">Benchmarks</h2>
+
+      <p>Two claims, both scoped and both reproducible:</p>
+
+      <ol>
+        <li>
+          Among hashes restricted to portable scalar 64-bit code, hayahash
+          has the fastest sustained bulk rate that passes the complete
+          SMHasher3 suite, on both machines measured.
+        </li>
+        <li>
+          On Zen 5, where the compiler auto-vectorizes its bulk loop, it also
+          streams faster than every wide-multiply hash measured, rapidhash v3
+          included. Only XXH3-64 and gxhash are faster there, and both fail
+          the suite.
+        </li>
+      </ol>
+
+      <div class="table-scroll">
+        <table>
+          <caption>
+            SMHasher3 shootout &mdash; small keys in cycles/hash (1&ndash;31
+            bytes, lower is better), bulk in bytes/cycle (256&nbsp;KiB, higher
+            is better)
+          </caption>
+          <thead>
+            <tr>
+              <th scope="col">hash</th>
+              <th scope="col" class="n">M1 small</th>
+              <th scope="col" class="n">M1 bulk</th>
+              <th scope="col" class="n">Zen 5 small</th>
+              <th scope="col" class="n">Zen 5 bulk</th>
+              <th scope="col">full suite</th>
+              <th scope="col">needs for peak speed</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td>rapidhash v3</td>
+              <td class="n">21.5</td><td class="n">15.2</td>
+              <td class="n">9.8</td><td class="n">28.6</td>
+              <td>pass</td><td>64&times;64&rarr;128 multiply</td>
+            </tr>
+            <tr>
+              <td>wyhash v4.2</td>
+              <td class="n">22.5</td><td class="n">8.8</td>
+              <td class="n">8.8</td><td class="n">19.8</td>
+              <td>fail (11)</td><td>64&times;64&rarr;128 multiply</td>
+            </tr>
+            <tr>
+              <td>a5hash v5.21</td>
+              <td class="n">23.3</td><td class="n">3.0</td>
+              <td class="n">6.1</td><td class="n">6.9</td>
+              <td>pass</td><td>64&times;64&rarr;128 multiply</td>
+            </tr>
+            <tr>
+              <td>komihash v5.27</td>
+              <td class="n">25.3</td><td class="n">7.5</td>
+              <td class="n">10.7</td><td class="n">19.9</td>
+              <td>pass</td><td>64&times;64&rarr;128 multiply</td>
+            </tr>
+            <tr>
+              <td>XXH3-64</td>
+              <td class="n">25.9</td><td class="n">12.6</td>
+              <td class="n">10.1</td><td class="n">48.9</td>
+              <td>fail (22)</td><td>SIMD</td>
+            </tr>
+            <tr>
+              <td>gxhash-64</td>
+              <td class="n">&ndash;</td><td class="n">&ndash;</td>
+              <td class="n">16.4</td><td class="n">64.7</td>
+              <td>fail (23)</td><td>AES instructions</td>
+            </tr>
+            <tr class="self">
+              <td>hayahash64</td>
+              <td class="n">33.5</td><td class="n">9.8</td>
+              <td class="n">12.0</td><td class="n">31.2*</td>
+              <td>pass</td><td>ordinary 64&times;64&rarr;64 multiply</td>
+            </tr>
+            <tr>
+              <td>ChibiHash v2</td>
+              <td class="n">37.7</td><td class="n">6.1</td>
+              <td class="n">9.2</td><td class="n">15.7</td>
+              <td>pass</td><td>ordinary 64&times;64&rarr;64 multiply</td>
+            </tr>
+            <tr>
+              <td>mx3.v3</td>
+              <td class="n">44.7</td><td class="n">4.2</td>
+              <td class="n">16.9</td><td class="n">10.1</td>
+              <td>fail (26)</td><td>ordinary 64&times;64&rarr;64 multiply</td>
+            </tr>
+            <tr>
+              <td>SpookyHash2-64</td>
+              <td class="n">52.6</td><td class="n">4.1</td>
+              <td class="n">18.1</td><td class="n">15.4</td>
+              <td>fail (5)</td><td>ordinary 64-bit operations</td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+
+      <p>
+        * The 31.2 needs GCC to auto-vectorize the bulk loop, which requires
+        AVX-512DQ. Without it the same scalar source runs at 17.6
+        bytes/cycle, behind rapidhash. Nothing is hand-vectorized. The
+        small-key column is dependent latency (each output feeds the next
+        key), so it is not comparable to independent-hash throughput. Our
+        own runs at a pinned SMHasher3 commit, five replicates per cell,
+        measured at v0.4.0. Full tables, hosts, method, and caveats:
+        <a href="benchmarks.html">benchmarks</a>.
+      </p>
+
+      <p>
+        The closest comparable design is
+        <a href="https://github.com/N-R-K/ChibiHash">ChibiHash</a> &mdash;
+        same portability rules, and v2 also passes the suite. Head-to-head at
+        1&nbsp;MiB, hayahash streams 30.2 vs 18.8&nbsp;GB/s on the M1
+        (1.6&times;) and 61.3 vs 31.2&nbsp;GB/s on Zen&nbsp;5 (2.0&times;
+        with AVX-512 auto-vectorization; about 35&nbsp;GB/s without). Small
+        keys split by architecture: hayahash takes 11% less time on the M1,
+        30% more on Zen&nbsp;5.
+      </p>
+
+      <h2 id="use">Use it</h2>
+
+      <p>
+        Every port is published and installable today. One shared version
+        number: a given release is the same algorithm everywhere.
+      </p>
+
+      <div class="table-scroll">
+        <table>
+          <thead>
+            <tr>
+              <th scope="col">language</th>
+              <th scope="col">get it</th>
+              <th scope="col">call</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td>C (C99)</td>
+              <td>copy <a href="https://github.com/thevilledev/hayahash/blob/main/hayahash.h"><code>hayahash.h</code></a></td>
+              <td><code>hayahash64(buf, len, seed)</code></td>
+            </tr>
+            <tr>
+              <td>Rust</td>
+              <td><code>cargo add hayahash</code> (<code>no_std</code>)</td>
+              <td><code>hayahash::hayahash64(buf, seed)</code></td>
+            </tr>
+            <tr>
+              <td>Go</td>
+              <td><code>go get github.com/thevilledev/hayahash/go</code></td>
+              <td><code>hayahash.Hash64(buf, seed)</code></td>
+            </tr>
+            <tr>
+              <td>Zig (0.16)</td>
+              <td><code>zig fetch --save</code> the release tarball</td>
+              <td><code>hayahash.hayahash64(buf, seed)</code></td>
+            </tr>
+            <tr>
+              <td>Java (17+)</td>
+              <td><code>io.github.thevilledev:hayahash</code> on Maven Central</td>
+              <td><code>Hayahash.hash64(buf, seed)</code></td>
+            </tr>
+            <tr>
+              <td>C# (.NET 8+)</td>
+              <td><code>dotnet add package Hayahash</code></td>
+              <td><code>Hayahash.Hash64(buf, seed)</code></td>
+            </tr>
+            <tr>
+              <td>Python (3.9+)</td>
+              <td><code>pip install hayahash</code></td>
+              <td><code>hayahash64(buf, seed)</code></td>
+            </tr>
+            <tr>
+              <td>Swift (5.9+)</td>
+              <td>SwiftPM, via release tarball or local path</td>
+              <td><code>Hayahash.hash64(buf, seed: 0)</code></td>
+            </tr>
+            <tr>
+              <td>JS/TS</td>
+              <td><code>npm install hayahash</code> (wasm + pure-JS fallback)</td>
+              <td><code>hayahash64(buf, seed)</code></td>
+            </tr>
+            <tr>
+              <td>MIPS64 asm</td>
+              <td>copy <code>mips/hayahash.S</code> (n64 ABI)</td>
+              <td><code>hayahash64(buf, len, seed)</code></td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+
+      <p>
+        Exact install commands and a usage snippet for each language:
+        <a href="ports.html">ports</a>.
+      </p>
+
+      <h2 id="quality">Quality</h2>
+
+      <ul>
+        <li>
+          SMHasher3: 188/188 tests, verification <code>0xF3C4A9B4</code>,
+          re-verified at v0.4.0 on nine builds spanning four hosts, five
+          compilers, and all three dispatch shapes the header compiles.
+          ChibiHash v2 also passes; v1 fails.
+        </li>
+        <li>
+          Local harness: strict avalanche criterion over input and seed bits,
+          plus exact-collision tests over 24 structured key sets, including
+          reproductions of the SMHasher3 keysets that broke earlier
+          iterations of this design.
+        </li>
+        <li>
+          All nine ports are bit-exact against the C reference: shared
+          known-answer vectors and the verification value in every port's
+          test suite, plus nightly differential fuzzing that replays a fresh
+          randomized C-reference corpus through every language port.
+        </li>
+        <li>
+          Endianness and ABI are tested in CI: big-endian s390x, ILP32
+          wasm32, MSVC x64, and MIPS64 under qemu must all reproduce the
+          shared vectors.
+        </li>
+      </ul>
+
+      <p>
+        Details and reproduction steps:
+        <a href="https://github.com/thevilledev/hayahash/blob/main/docs/quality.md">quality.md</a>;
+        claim-by-claim evidence in
+        <a href="https://github.com/thevilledev/hayahash/blob/main/paper/AUDIT.md">AUDIT.md</a>.
+      </p>
+
+      <h2 id="design">Design, in four lines</h2>
+
+      <ol>
+        <li>Bulk loop: 8 independent lanes over 64-byte blocks, nothing
+          longer than <code>add &rarr; mul</code> on the loop-carried
+          path.</li>
+        <li>Each lane absorbs <code>w + rotl(w_prev, 27)</code> &mdash;
+          injective by first-difference induction.</li>
+        <li>All lane constants are derived from one premixed seed+length
+          value; no big per-lane literals.</li>
+        <li>Tails read whole overlapping words, wyhash-style; inputs of at
+          most 16 bytes take a dedicated two-multiply path.</li>
+      </ol>
+
+      <p>
+        The hard part was closing every structural collision class SMHasher3
+        found in earlier iterations without giving the speed back. More on
+        both: <a href="design.html">design</a>.
+      </p>
+
+      <h2 id="license">License</h2>
+
+      <p>
+        Public domain under the Unlicense &mdash; the header and every
+        language port. One exception: the SMHasher3 test adapter in
+        <code>tests/smhasher3/</code> is GPL-3.0-or-later; it is fetched at
+        test time and is never part of any release artifact.
+      </p>
+    </main>
+
+    <footer>
+      <p>
+        <a href="https://github.com/thevilledev/hayahash">github.com/thevilledev/hayahash</a>
+        &middot; <a href="https://github.com/thevilledev/hayahash/issues">issues</a>
+        &middot; site source in <code>docs/</code> of
+        <a href="https://github.com/thevilledev/hayaha.sh">hayaha.sh</a>
+      </p>
+    </footer>
+  </body>
+</html>

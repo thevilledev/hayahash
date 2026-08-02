@@ -1,0 +1,178 @@
+/* hayaha.sh — plain black-on-white stylesheet. No decoration. */
+
+* {
+  box-sizing: border-box;
+}
+
+html {
+  background: #fff;
+  color: #000;
+}
+
+body {
+  margin: 0 auto;
+  padding: 0.75rem 1rem 3rem;
+  max-width: 76ch;
+  font-family: "Times New Roman", Times, serif;
+  font-size: 1.0625rem;
+  line-height: 1.45;
+}
+
+h1,
+h2,
+h3 {
+  line-height: 1.2;
+  margin: 1.5em 0 0.4em;
+}
+
+h1 {
+  margin-top: 0.5em;
+  font-size: 1.75em;
+}
+
+h2 {
+  font-size: 1.35em;
+  border-bottom: 1px solid #000;
+  padding-bottom: 0.15em;
+}
+
+h3 {
+  font-size: 1.1em;
+}
+
+p,
+ul,
+ol,
+dl {
+  margin: 0.7em 0;
+}
+
+li {
+  margin: 0.25em 0;
+}
+
+a {
+  color: #00e;
+}
+
+a:visited {
+  color: #551a8b;
+}
+
+hr {
+  border: 0;
+  border-top: 1px solid #000;
+  margin: 1.6em 0;
+}
+
+code,
+pre,
+samp {
+  font-family: ui-monospace, "SF Mono", Menlo, Consolas, "Liberation Mono", monospace;
+  font-size: 0.85em;
+}
+
+pre {
+  padding: 0.5em 0.7em;
+  border: 1px solid #000;
+  overflow-x: auto;
+  line-height: 1.3;
+}
+
+pre code {
+  font-size: 1em;
+}
+
+/* ASCII wordmark and diagrams: no border, just text. */
+pre.plain {
+  border: 0;
+  padding: 0;
+}
+
+.banner {
+  font-size: 0.75em;
+  line-height: 1.15;
+  margin: 0.6em 0 0;
+}
+
+@media (max-width: 480px) {
+  .banner {
+    font-size: 0.52em;
+  }
+}
+
+/* Navigation: one line of mono links. */
+nav.top {
+  font-family: ui-monospace, "SF Mono", Menlo, Consolas, "Liberation Mono", monospace;
+  font-size: 0.85em;
+  margin: 0.25em 0 1em;
+}
+
+table {
+  border-collapse: collapse;
+  margin: 0.8em 0;
+  font-size: 0.92em;
+}
+
+caption {
+  caption-side: top;
+  text-align: left;
+  font-style: italic;
+  padding: 0.15em 0;
+}
+
+th,
+td {
+  border: 1px solid #000;
+  padding: 0.22em 0.55em;
+  text-align: left;
+  vertical-align: top;
+}
+
+thead th {
+  background: #e8e8e8;
+}
+
+/* Numeric cells: right-aligned. */
+td.n,
+th.n {
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+}
+
+/* The row for hayahash itself in comparison tables. */
+tr.self {
+  background: #f2f2f2;
+  font-weight: bold;
+}
+
+.table-scroll {
+  overflow-x: auto;
+}
+
+/* Status notice: a plain box. */
+.notice {
+  border: 2px solid #000;
+  padding: 0.5em 0.8em;
+  margin: 1em 0;
+}
+
+.notice p {
+  margin: 0.3em 0;
+}
+
+footer {
+  margin-top: 2.5em;
+  border-top: 1px solid #000;
+  padding-top: 0.6em;
+  font-size: 0.9em;
+}
+
+.skip-link {
+  position: absolute;
+  left: -999px;
+}
+
+.skip-link:focus {
+  position: static;
+}
