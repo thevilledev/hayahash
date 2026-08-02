@@ -161,6 +161,65 @@ tr.self {
   margin: 0.3em 0;
 }
 
+/* Playground: controls, status lines, result bars. */
+button {
+  font-family: ui-monospace, "SF Mono", Menlo, Consolas, "Liberation Mono", monospace;
+  font-size: 0.85em;
+  color: #000;
+  background: #fff;
+  border: 1px solid #000;
+  padding: 0.35em 1em;
+  cursor: pointer;
+}
+
+button:hover:enabled,
+button:focus-visible {
+  background: #000;
+  color: #fff;
+}
+
+button:disabled {
+  color: #888;
+  border-color: #888;
+  cursor: default;
+}
+
+input[type="text"] {
+  font-family: ui-monospace, "SF Mono", Menlo, Consolas, "Liberation Mono", monospace;
+  font-size: 0.85em;
+  color: #000;
+  background: #fff;
+  border: 1px solid #000;
+  padding: 0.3em 0.45em;
+}
+
+input.wide {
+  width: 100%;
+}
+
+.status {
+  font-family: ui-monospace, "SF Mono", Menlo, Consolas, "Liberation Mono", monospace;
+  font-size: 0.8em;
+  overflow-wrap: anywhere;
+}
+
+/* One bar per result row, black on white, length relative to the
+   largest value in the table. The exact value sits in the cells. */
+td.bar-cell {
+  width: 12em;
+  min-width: 7em;
+  vertical-align: middle;
+}
+
+.bar {
+  height: 0.75em;
+  background: #000;
+}
+
+.fine {
+  font-size: 0.85em;
+}
+
 footer {
   margin-top: 2.5em;
   border-top: 1px solid #000;

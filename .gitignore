@@ -14,6 +14,12 @@ tests/wasm/kat_wasm.txt
 tests/wasm/rapidhash.h
 tests/wasm/xxhash.h
 
+# Website playground: artifacts assembled by scripts/build-playground.sh.
+# bench.wasm embeds MIT and BSD-2 code (rapidhash, xxHash), so it is built at
+# deploy time and never committed.
+website/bench.wasm
+website/vendor/
+
 # Rust
 rust/target/
 rust/Cargo.lock

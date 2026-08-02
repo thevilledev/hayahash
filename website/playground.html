@@ -1,0 +1,258 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <meta
+      name="description"
+      content="Run hayahash64 in your browser. Measure it against ChibiHash v2, rapidhash v3, XXH3-64, and XXH64 in one WebAssembly build, and hash your own text and files."
+    >
+    <meta name="theme-color" content="#ffffff">
+    <meta property="og:type" content="website">
+    <meta property="og:title" content="hayahash64 playground">
+    <meta
+      property="og:description"
+      content="Run hayahash64 in your browser. Measure it against ChibiHash v2, rapidhash v3, XXH3-64, and XXH64 in one WebAssembly build, and hash your own text and files."
+    >
+    <meta property="og:url" content="https://hayaha.sh/playground.html">
+    <link rel="canonical" href="https://hayaha.sh/playground.html">
+    <link rel="stylesheet" href="styles.css">
+    <title>hayahash64 playground: measure it in your browser</title>
+  </head>
+  <body>
+    <a class="skip-link" href="#content">Skip to content</a>
+    <nav class="top" aria-label="Primary navigation">
+      [ <a href="./">overview</a> |
+      <a href="benchmarks.html">benchmarks</a> |
+      <a href="design.html">design</a> |
+      <a href="ports.html">ports</a> |
+      playground |
+      <a href="https://github.com/thevilledev/hayahash">source</a> ]
+    </nav>
+
+    <main id="content">
+      <h1>Playground</h1>
+
+      <p>
+        This page measures hayahash64 on your machine. Everything runs
+        in your browser. Nothing is uploaded.
+      </p>
+
+      <p>
+        WebAssembly is a main target of hayahash. Baseline wasm gives
+        every hash the same narrow toolkit: no SIMD, no AES, no
+        64&times;64&rarr;128 multiply. Native builds of rapidhash and
+        XXH3 lean on exactly those extras. hayahash assumes the narrow
+        toolkit from the start. The speed test below shows what that
+        means.
+      </p>
+
+      <h2 id="speed">The speed test</h2>
+
+      <p>
+        One wasm module of about 14&nbsp;KB holds five hashes:
+        hayahash64, ChibiHash v2, rapidhash v3, XXH3-64, and XXH64.
+        It compiles from unmodified upstream sources with one compiler
+        and one set of flags. The timing loops run inside wasm. Before
+        the first measurement, the page recomputes the known answers
+        of every hash and compares them. The test takes about ten
+        seconds.
+      </p>
+
+      <p>
+        <button id="run-bench" type="button" disabled>Run the speed test</button>
+      </p>
+      <p id="bench-status" class="status" aria-live="polite">
+        The playground needs JavaScript. The rest of the site does not.
+      </p>
+
+      <div id="bench-results" hidden>
+        <p id="bench-env" class="status"></p>
+
+        <div class="table-scroll">
+          <table>
+            <caption>
+              Bulk throughput in GB/s. Higher is better. Independent
+              hashes with the results accumulated. The bar scales to
+              the fastest 1&nbsp;MiB result.
+            </caption>
+            <thead>
+              <tr>
+                <th scope="col">hash</th>
+                <th scope="col" class="n">16 KiB</th>
+                <th scope="col" class="n">1 MiB</th>
+                <th scope="col">relative</th>
+              </tr>
+            </thead>
+            <tbody id="bulk-body"></tbody>
+          </table>
+        </div>
+
+        <div class="table-scroll">
+          <table>
+            <caption>
+              Small keys in ns/hash. Lower is better. Seed-chained:
+              each hash value seeds the next call. The bar shows the
+              8&nbsp;B rate in hashes per second, so a long bar is
+              fast here too.
+            </caption>
+            <thead>
+              <tr>
+                <th scope="col">hash</th>
+                <th scope="col" class="n">8 B</th>
+                <th scope="col" class="n">64 B</th>
+                <th scope="col" class="n">256 B</th>
+                <th scope="col">relative</th>
+              </tr>
+            </thead>
+            <tbody id="small-body"></tbody>
+          </table>
+        </div>
+      </div>
+
+      <h3 id="why">Why the order flips</h3>
+
+      <p>
+        The <a href="./">overview</a> says that rapidhash v3 is the
+        better default on native CPUs. This page shows hayahash in
+        front. Both statements are true. The platform decides the
+        order.
+      </p>
+
+      <p>
+        On x86-64 and ARM64, one or two instructions compute a wide
+        multiply (64&times;64&rarr;128 bits). rapidhash builds its
+        mixing step on that product. Baseline wasm has no such
+        instruction. Its only 64-bit multiply is
+        <code>i64.mul</code>, and that returns the low 64 bits. The
+        compiler must build each wide multiply from several narrow
+        multiplies, with shifts and carry adds, behind a helper call
+        (<code>__multi3</code> in this module). XXH3-64 peaks with
+        SIMD, and baseline wasm has no SIMD in this build either.
+        hayahash never asks for the wide product, for SIMD, or for
+        AES. Each multiply in its loop is one <code>i64.mul</code>.
+        The tables above show what that difference costs.
+      </p>
+
+      <p>
+        On a native CPU the trade runs the other way. There the wide
+        multiply costs almost nothing, and rapidhash wins small keys
+        on every CPU we measured. The
+        <a href="benchmarks.html">benchmarks page</a> keeps that
+        comparison. Wasm can change too. The
+        <a href="https://github.com/WebAssembly/wide-arithmetic">wide-arithmetic</a>
+        proposal adds the missing instruction, and engines work on it
+        now. When browsers ship it as a default, the gap on this page
+        can narrow.
+      </p>
+
+      <h3>Method</h3>
+
+      <ul>
+        <li>
+          The module compiles with <code>zig cc</code> at
+          <code>-O3</code> for <code>wasm32-wasi</code>, with no SIMD
+          flags. rapidhash and xxHash come from pinned upstream
+          commits. The sources and the build are in
+          <a href="https://github.com/thevilledev/hayahash/tree/main/tests/wasm"><code>tests/wasm</code></a>.
+        </li>
+        <li>
+          One measurement is one call into the module. The input
+          buffer already sits in wasm linear memory, so no copy and no
+          JS boundary crossing is inside a timing loop.
+        </li>
+        <li>
+          The pure-JS row runs the BigInt fallback engine of the
+          <a href="https://www.npmjs.com/package/hayahash">npm
+          package</a>. It shows what JavaScript pays without wasm.
+        </li>
+        <li>
+          The SHA-256 row uses WebCrypto and makes one call at a
+          time, so the call overhead is part of the number. SHA-256 is
+          a cryptographic hash. That is another job. The row gives
+          scale against a fast native hash the browser ships.
+        </li>
+        <li>
+          Each cell calibrates its iteration count to about 50 ms per
+          round, runs 3 rounds, and keeps the best round. Browser
+          timers are coarse on purpose. The rounds are long, so the
+          timer step stays below a few percent of a reading.
+        </li>
+        <li>
+          The small-key columns chain the seed. This measures
+          dependent latency, the shape of a hash-table probe. Do not
+          compare the values with independent-hash numbers from other
+          sites.
+        </li>
+        <li>
+          The known answers of the hayahash rows are pinned to a
+          native build of the reference header. The deploy fails when
+          they drift. <a href="https://github.com/thevilledev/hayahash/blob/main/docs/quality.md">quality.md</a>
+          describes the wider verification.
+        </li>
+        <li>
+          A background tab, a hot laptop, or a busy machine lowers the
+          numbers. Run the test twice and keep the better run.
+        </li>
+      </ul>
+
+      <p class="fine">
+        The shootout module embeds
+        <a href="https://github.com/Nicoshev/rapidhash">rapidhash</a>
+        (<a href="https://github.com/Nicoshev/rapidhash/blob/5c62c4b3352c7d4c87ed3429d2329ddaf9b74df9/LICENSE">MIT</a>,
+        copyright 2025 Nicolas De Carli) and
+        <a href="https://github.com/Cyan4973/xxHash">xxHash</a>
+        (<a href="https://github.com/Cyan4973/xxHash/blob/c0b5ea995d66691734b1a79ad89e73a0d2fd5a53/LICENSE">BSD
+        2-Clause</a>, copyright 2012-2023 Yann Collet).
+        <a href="https://github.com/N-R-K/ChibiHash">ChibiHash</a> and
+        hayahash are public domain. The module is built at deploy time
+        from the commits pinned in the Makefile. No release artifact
+        contains it.
+      </p>
+
+      <h2 id="try">Hash your text</h2>
+
+      <p>
+        The hash value comes from the same code the npm package ships:
+        the reference header compiled to a 1.4&nbsp;KB wasm module,
+        with a pure-JS fallback. Type and watch.
+      </p>
+
+      <p>
+        <label for="hash-input">Input text</label><br>
+        <input type="text" id="hash-input" class="wide" value="hello world" autocomplete="off" spellcheck="false">
+      </p>
+      <p>
+        <label for="hash-seed">Seed, decimal or 0x hex</label><br>
+        <input type="text" id="hash-seed" value="0" size="24" autocomplete="off" spellcheck="false">
+      </p>
+      <p>
+        hash value: <code id="hash-digest"></code><br>
+        <span id="hash-bytes" class="status"></span>
+      </p>
+
+      <h2 id="file">Hash a file</h2>
+
+      <p>
+        Pick a file. The file stays in your browser. The page reads it
+        into memory and hashes it with seed 0 in one call through the
+        npm package, input copy included. A big file shows the bulk
+        rate best.
+      </p>
+
+      <p><input type="file" id="file-input"></p>
+      <p id="file-result" class="status" aria-live="polite"></p>
+    </main>
+
+    <footer>
+      <p>
+        <a href="https://github.com/thevilledev/hayahash">github.com/thevilledev/hayahash</a>
+        &middot; <a href="https://github.com/thevilledev/hayahash/issues">issues</a>
+        &middot; site source in <code>website/</code> of
+        <a href="https://github.com/thevilledev/hayahash">hayahash</a>
+      </p>
+    </footer>
+
+    <script type="module" src="playground.js"></script>
+  </body>
+</html>

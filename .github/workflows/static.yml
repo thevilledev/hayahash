@@ -33,6 +33,23 @@ jobs:
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
+      # The playground page needs two generated artifacts that stay
+      # out of git: the npm package modules (website/vendor/) and the
+      # shootout wasm module (website/bench.wasm). The wasm module
+      # embeds rapidhash (MIT) and xxHash (BSD-2), fetched at
+      # pinned commits, so it is built here and never committed.
+      - name: Install Zig
+        uses: mlugg/setup-zig@d1434d08867e3ee9daa34448df10607b98908d29 # v2.2.1
+        with:
+          version: 0.16.0
+      - name: Install Node
+        uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version: 24
+      - name: Build playground artifacts
+        run: scripts/build-playground.sh
+      - name: Verify the shootout module against a native build
+        run: make -C tests/wasm run-kat
       - name: Setup Pages
         uses: actions/configure-pages@983d7736d9b0ae728b81ab479565c72886d7745b # v5.0.0
       - name: Upload artifact
