@@ -260,10 +260,10 @@ records name the exact commit they were produced against.
 The adapter and the patches are GPL-3.0-or-later, not Unlicense, because they
 are written against SMHasher3's headers and macros or modify its sources
 directly. See [`tests/smhasher3/COPYING`](../tests/smhasher3/COPYING) and the
-exception note in [`LICENSE`](../LICENSE). This does not affect `hayahash.h`,
-which stays public domain; the adapter merely includes it. SMHasher3 is not
-part of any release artifact, but a redistributed combined executable would
-carry the GPL.
+exception note in the root [`README`](../README.md#license). This does not
+affect `hayahash.h`, which stays public domain; the adapter merely includes
+it. SMHasher3 is not part of any release artifact, but a redistributed
+combined executable would carry the GPL.
 
 ## Archiving a run
 
