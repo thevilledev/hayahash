@@ -227,6 +227,98 @@ td.bar-cell {
   font-size: 0.85em;
 }
 
+/* Simulator (design.html): byte strip, current-operation box, and
+   the live lane state. Grayscale only, like the rest of the site:
+   black = being read now, dark gray = previous stripe, light gray =
+   already absorbed, underline = overlapping re-read. */
+.sim-controls button {
+  margin: 0 0.35em 0.35em 0;
+}
+
+/* The step counter wraps to its own line as one unit. */
+#sim-pos {
+  display: inline-block;
+}
+
+select {
+  font-family: ui-monospace, "SF Mono", Menlo, Consolas, "Liberation Mono", monospace;
+  font-size: 0.85em;
+}
+
+.sim-scrub {
+  width: 100%;
+  accent-color: #000;
+}
+
+.sim-bytes {
+  font-family: ui-monospace, "SF Mono", Menlo, Consolas, "Liberation Mono", monospace;
+  font-size: 0.8em;
+  line-height: 1.7;
+  border: 1px solid #000;
+  padding: 0.45em 0.6em;
+  margin: 0.8em 0;
+}
+
+.sim-bytes .g {
+  display: inline-block;
+  white-space: nowrap;
+  margin-right: 0.75em;
+}
+
+.sim-bytes .b {
+  display: inline-block;
+  padding: 0 0.1em;
+}
+
+.sim-bytes .b.d {
+  background: #e2e2e2;
+}
+
+.sim-bytes .b.p {
+  background: #b0b0b0;
+}
+
+.sim-bytes .b.r {
+  background: #000;
+  color: #fff;
+}
+
+.sim-bytes .b.o {
+  text-decoration: underline;
+  text-underline-offset: 0.18em;
+}
+
+.sim-op {
+  min-height: 6.6em;
+  margin: 0.8em 0;
+}
+
+.sim-note {
+  min-height: 4.6em;
+  margin: 0.6em 0;
+}
+
+.sim-state {
+  display: grid;
+  grid-template-columns: max-content 1fr;
+  column-gap: 1em;
+  border: 1px solid #000;
+  padding: 0.45em 0.6em;
+  margin: 0.8em 0;
+  font-family: ui-monospace, "SF Mono", Menlo, Consolas, "Liberation Mono", monospace;
+  font-size: 0.8em;
+  line-height: 1.55;
+}
+
+.sim-state .chg {
+  background: #000;
+  color: #fff;
+}
+
+.sim-state .cold {
+  color: #777;
+}
+
 footer {
   margin-top: 2.5em;
   border-top: 1px solid #000;
