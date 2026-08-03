@@ -5,14 +5,14 @@
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <meta
       name="description"
-      content="How hayahash64 works. An 8-lane bulk loop with a short dependency chain. A chained injective absorb. Derived lane constants. Overlapping tail reads."
+      content="How hayahash64 works. An 8-lane bulk loop with a short dependency chain. A chained injective absorb. Derived lane constants. Overlapping tail reads. A step-by-step simulator shows every absorb on your own input."
     >
     <meta name="theme-color" content="#ffffff">
     <meta property="og:type" content="article">
     <meta property="og:title" content="hayahash64 design">
     <meta
       property="og:description"
-      content="Four ideas make the design. Five collision classes formed the details."
+      content="Four ideas make the design. Five collision classes formed the details. A step-by-step simulator shows it run."
     >
     <meta property="og:url" content="https://hayaha.sh/design.html">
     <link rel="canonical" href="https://hayaha.sh/design.html">
@@ -39,6 +39,62 @@
         explains each idea in detail. The header stays the authoritative
         commentary. This page is the overview.
       </p>
+
+      <h2 id="simulator">Watch it run</h2>
+
+      <p>
+        The simulator runs the real algorithm on your input, one step at
+        a time. Type your own text or load a preset. Press Play, or step
+        and scrub by hand. In the byte strip: black bytes are being read
+        now, dark gray is the previous stripe whose rotated copy rides
+        along, light gray is already absorbed, and an underline means
+        the byte is read a second time, an overlapping tail read. Every
+        value is the true 64-bit value. The digest at the end matches
+        the <a href="playground.html">playground</a> and every port.
+      </p>
+
+      <p>
+        <label for="sim-input">Input text</label><br>
+        <input type="text" id="sim-input" class="wide"
+          value="The quick brown fox jumps over the lazy dog, twice."
+          autocomplete="off" spellcheck="false">
+      </p>
+      <p>
+        <label for="sim-seed">Seed, decimal or 0x hex</label>
+        <input type="text" id="sim-seed" value="0" size="20"
+          autocomplete="off" spellcheck="false">
+        <button type="button" class="sim-preset" data-p="0">short (12 B)</button>
+        <button type="button" class="sim-preset" data-p="1">mid (51 B)</button>
+        <button type="button" class="sim-preset" data-p="2">bulk (360 B)</button>
+      </p>
+      <p class="sim-controls">
+        <button id="sim-play" type="button" disabled>Play</button>
+        <button id="sim-step" type="button" disabled>Step</button>
+        <button id="sim-back" type="button" disabled>Back</button>
+        <button id="sim-restart" type="button" disabled>Restart</button>
+        <label for="sim-speed">speed</label>
+        <select id="sim-speed">
+          <option value="slow">slow</option>
+          <option value="normal" selected>normal</option>
+          <option value="fast">fast</option>
+        </select>
+        <span id="sim-pos" class="status"></span>
+      </p>
+      <p>
+        <input type="range" id="sim-scrub" class="sim-scrub" min="0"
+          max="0" value="0" aria-label="Simulation step" disabled>
+      </p>
+      <p id="sim-path" class="status" aria-live="polite">
+        The simulator needs JavaScript. The rest of this page works
+        without it.
+      </p>
+      <div id="sim-view" hidden>
+        <div id="sim-bytes" class="sim-bytes" aria-hidden="true"></div>
+        <pre id="sim-op" class="sim-op" aria-hidden="true"></pre>
+        <p id="sim-note" class="sim-note" aria-live="polite"></p>
+        <div id="sim-state" class="sim-state" aria-hidden="true"></div>
+        <p id="sim-digest" class="status"></p>
+      </div>
 
       <h2 id="bulk">1. A short bulk dependency chain</h2>
 
@@ -168,5 +224,7 @@
         &middot; <a href="./">back to the overview</a>
       </p>
     </footer>
+
+    <script type="module" src="sim.js"></script>
   </body>
 </html>
