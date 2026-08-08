@@ -29,5 +29,5 @@ make test
 ```
 
 `make test` builds a static `kat` binary, runs the shared known-answer
-vectors plus the SMHasher3 verification value (`0xF3C4A9B4`), and
+vectors plus the SMHasher3 verification value (`0x65F2AC15`), and
 prints `ok` on success.

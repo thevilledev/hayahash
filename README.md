@@ -204,9 +204,11 @@ claim rather than a universal record: two hosts, bounded by the roughly
 
 ## Quality
 
-- SMHasher3: **188/188 tests passed**, verification value `0xF3C4A9B4`,
-  re-verified at `v0.4.0` on nine builds spanning four hosts, five
-  compilers, and all three dispatch shapes the header compiles.
+- SMHasher3: **188/188 tests passed**, verification value `0x65F2AC15`.
+  The `v0.5` digest (see [Status](#status)) has passed the full suite on
+  an Apple M1 Pro, with all dispatch shapes measured bit-identical
+  locally; the nine-build sweep across four hosts and five compilers
+  that `v0.4.0` went through has not been repeated yet.
   (ChibiHash v2 also passes 188/188; v1 fails.)
 - Local harness (`make -C tests run-quality`): strict avalanche
   criterion over input and seed bits, plus exact-collision tests over
@@ -234,6 +236,17 @@ C - copy [`hayahash.h`](hayahash.h) into your project:
 uint64_t h = hayahash64(buf, len, seed);
 ```
 
+Streaming (identical digests, any update split; digest() does not
+modify the state, so it can be called mid-stream):
+
+```c
+hayahash64_state st;
+hayahash64_init(&st, seed);
+hayahash64_update(&st, part1, n1);
+hayahash64_update(&st, part2, n2);
+uint64_t h = hayahash64_digest(&st);
+```
+
 | language | package | call |
 |---|---|---|
 | [Rust](rust/) | `hayahash` on crates.io (`no_std`) | `hayahash::hayahash64(buf, seed)` |
@@ -258,8 +271,11 @@ Four ideas, explained in detail at the top of the header and in
    longer than `add -> mul` on the loop-carried path.
 2. **A chained, injective absorb** - each lane absorbs
    `w + rotl(w_prev, 27)`; injective by first-difference induction.
-3. **Derived lane constants** - seed and length premixed once; all
-   lane IVs derived from it, no big per-lane literals.
+3. **Derived lane constants, length in the finalizer** - the seed is
+   premixed once and all lane IVs derive from it, no big per-lane
+   literals. The length deliberately stays out of the premix and is
+   absorbed in the finalizer through a multiply, which is what makes
+   the streaming API's digests identical to one-shot calls.
 4. **Overlapping tail reads, two-multiply short path** - wyhash-style
    whole-word tails, no byte loops; a dedicated <= 16-byte path.
 
@@ -273,6 +289,18 @@ history of every optimization (including rejected ideas) is in the
 
 Experimental prototype. The algorithm, constants, and digest values may
 still change; do not use hayahash yet anywhere hashes are persisted.
+
+`v0.5` exercised exactly that freedom: the length term moved from the
+lane-IV premix to the finalizer, **changing every digest**, because the
+premixed spelling made a streaming API with one-shot-identical digests
+impossible (every lane IV depended on the total length before the first
+byte was read - the same trap that keeps rapidhash one-shot-only today,
+with its digests frozen). The move costs no multiplies; the naive
+spelling that xors `len * K` in after the final multiplies fails
+SMHasher3's SeedZeroes differentials, which is why it sits inside the
+`t0` multiply. All nine ports, the SMHasher3 mirror, and the website
+simulator were updated in the same change.
+
 The self-contained SMHasher3 implementation lives in
 [`tests/smhasher3/`](tests/smhasher3/). It uses SMHasher3's endian-aware
 load, store, and rotate primitives and is kept byte-for-byte identical to

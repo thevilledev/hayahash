@@ -32,6 +32,26 @@ void *memcpy(void *dst, const void *src, size_t n)
 	return dst;
 }
 
+// Referenced by the header's streaming buffer management; the shim
+// exports only the one-shot function, so --gc-sections drops this
+// until a streaming export exists.
+__attribute__((no_builtin("memmove")))
+void *memmove(void *dst, const void *src, size_t n)
+{
+	unsigned char *d = dst;
+	const unsigned char *s = src;
+	if (d < s) {
+		for (size_t i = 0; i < n; i++) {
+			d[i] = s[i];
+		}
+	} else {
+		for (size_t i = n; i > 0; i--) {
+			d[i - 1] = s[i - 1];
+		}
+	}
+	return dst;
+}
+
 // len is u32 and the JS wrapper caps it at 2^31 - 1 so the cast to
 // the 32-bit wasm ptrdiff_t is always in range.
 __attribute__((export_name("hayahash64")))

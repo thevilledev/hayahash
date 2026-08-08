@@ -8,12 +8,14 @@ claim-by-claim evidence register for the working paper is
 ## SMHasher3
 
 - Full default suite: **188/188 tests passed**, verification value
-  `0xF3C4A9B4` (canonical little-endian reading; the byte-swapped
-  value is `0x01E3C68D`). ChibiHash v2 also passes 188/188; v1 fails.
-- Release `v0.4.0` was verified on nine builds spanning four hosts,
-  two architectures, and five compilers, covering all three dispatch
-  shapes the header compiles; every non-timing output line of all
-  nine runs is identical.
+  `0x65F2AC15` (canonical little-endian reading; the byte-swapped
+  value is `0x805DE5C0`). ChibiHash v2 also passes 188/188; v1 fails.
+- The `v0.5` digest (length absorbed in the finalizer rather than the
+  premix, enabling the streaming API) passed the full suite on an
+  Apple M1 Pro, with all dispatch shapes measured bit-identical
+  locally. Release `v0.4.0` had additionally been verified on nine
+  builds spanning four hosts, two architectures, and five compilers;
+  that sweep has not been repeated for the new digest yet.
 - The adapter lives in [`tests/smhasher3/`](../tests/smhasher3/); it
   includes `hayahash.h` directly, so the suite tests the shipped
   header rather than a transcription. [`smhasher3.md`](smhasher3.md)

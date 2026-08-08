@@ -87,10 +87,15 @@ public static class Hayahash
 
     private static ulong HashImpl(ReadOnlySpan<byte> key, ulong seed)
     {
-        // Seed & length premix; feeds every path so length extension and
-        // overlapping tail reads can never collide across lengths.
+        // The seed premixes into s; the length is absorbed in the
+        // finalizer instead (through a multiply against state), so the
+        // digest is a pure function of (seed, bytes-so-far) and a
+        // streaming implementation can match it without knowing the
+        // total length up front. len -> len*K is injective, which
+        // keeps the overlapping tail reads collision-free across
+        // lengths.
         int len = key.Length;
-        ulong s = seed ^ ((ulong)(uint)len * K);
+        ulong s = seed ^ K;
         if (len <= 16)
         {
             return HashShort(key, s);
@@ -129,7 +134,7 @@ public static class Hayahash
         }
         ulong x = (Inj(a) ^ s ^ K) * K;
         ulong y = (Inj2(b) ^ Rotl(s, 23) ^ (K >> 19)) * M1;
-        return Fmix(Rotl(x, 27) ^ y);
+        return Fmix(Rotl(x, 27) ^ y ^ ((ulong)(uint)len * K));
     }
 
     // Inputs over 16 bytes: 8-lane bulk loop over 64-byte blocks, then
@@ -230,14 +235,14 @@ public static class Hayahash
         }
         // 0..16 bytes left; total length > 16, so reading the last 16
         // input bytes (overlapping already-hashed data) is always
-        // valid. Length is already folded into every lane via s.
+        // valid. Length is folded into t0 below, through a multiply.
         if (l > 0)
         {
             h2 = (h2 + InjAt(key, p + l - 16)) * K;
             h3 = (h3 + InjAt(key, p + l - 8)) * K;
         }
 
-        ulong t0 = (h0 ^ Rotl(h1, 13)) * K;
+        ulong t0 = (h0 ^ Rotl(h1, 13) ^ ((ulong)(uint)key.Length * K)) * K;
         ulong t1 = (h2 ^ Rotl(h3, 33)) * K;
         ulong x = s ^ t0 ^ Rotl(t1, 29);
         // The long path has already mixed every byte through a

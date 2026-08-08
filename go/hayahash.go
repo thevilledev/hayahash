@@ -89,9 +89,14 @@ func stripe(h, wp uint64, key []byte, i int) (uint64, uint64) {
 // for all inputs, seeds, and host endiannesses.
 func Hash64(key []byte, seed uint64) uint64 {
 	n := len(key)
-	// Seed & length premix; feeds every path so length extension and
-	// overlapping tail reads can never collide across lengths.
-	s := seed ^ uint64(n)*k
+	// The seed premixes into s; the length is absorbed in the
+	// finalizer instead (through a multiply against state), so the
+	// digest is a pure function of (seed, bytes-so-far) and a
+	// streaming implementation can match it without knowing the total
+	// length up front. len -> len*K is injective, which keeps the
+	// overlapping tail reads collision-free across lengths.
+	lenmix := uint64(n) * k
+	s := seed ^ k
 
 	if n <= 16 {
 		var a, b uint64
@@ -111,7 +116,7 @@ func Hash64(key []byte, seed uint64) uint64 {
 		// C header for why each word gets its own injection.
 		x := (inj(a) ^ s ^ k) * k
 		y := (inj2(b) ^ bits.RotateLeft64(s, 23) ^ k>>19) * m1
-		return fmix(bits.RotateLeft64(x, 27) ^ y)
+		return fmix(bits.RotateLeft64(x, 27) ^ y ^ lenmix)
 	}
 
 	h0 := s ^ k
@@ -177,13 +182,13 @@ func Hash64(key []byte, seed uint64) uint64 {
 	}
 	// 0..16 bytes left; total length > 16, so reading the last 16
 	// input bytes (overlapping already-hashed data) is always valid.
-	// Length is already folded into every lane via s.
+	// Length is folded into t0 below, through a multiply.
 	if l > 0 {
 		h2 = (h2 + injp(key, n-16)) * k
 		h3 = (h3 + injp(key, n-8)) * k
 	}
 
-	t0 := (h0 ^ bits.RotateLeft64(h1, 13)) * k
+	t0 := (h0 ^ bits.RotateLeft64(h1, 13) ^ lenmix) * k
 	t1 := (h2 ^ bits.RotateLeft64(h3, 33)) * k
 	return longAvalanche(s ^ t0 ^ bits.RotateLeft64(t1, 29))
 }

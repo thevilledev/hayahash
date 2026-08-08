@@ -113,7 +113,7 @@
           <tr>
             <th scope="row">SMHasher3</th>
             <td>188 of 188 tests pass. The verification value is
-              <code>0xF3C4A9B4</code>.</td>
+              <code>0x65F2AC15</code>.</td>
           </tr>
           <tr>
             <th scope="row">Implementations</th>
@@ -344,10 +344,11 @@
       <ul>
         <li>
           SMHasher3: 188 of 188 tests pass. The verification value is
-          <code>0xF3C4A9B4</code>. We verified this at v0.4.0 on nine
-          builds. The builds span four hosts, five compilers, and the three
-          dispatch shapes. ChibiHash v2 passes the suite too. ChibiHash v1
-          fails it.
+          <code>0x65F2AC15</code>. The v0.5 digest passed the full suite
+          on an Apple M1 Pro, with all dispatch shapes measured
+          bit-identical locally; the v0.4.0 nine-build sweep across four
+          hosts and five compilers has not been repeated for it yet.
+          ChibiHash v2 passes the suite too. ChibiHash v1 fails it.
         </li>
         <li>
           The local harness applies a strict avalanche criterion to the
@@ -384,8 +385,10 @@
           loop-carried path is <code>add &rarr; mul</code> only.</li>
         <li>Each lane absorbs <code>w + rotl(w_prev, 27)</code>. This
           absorb is injective by first-difference induction.</li>
-        <li>One premixed seed and length value makes all lane constants.
-          The code has no large per-lane literals.</li>
+        <li>One premixed seed value makes all lane constants; the code
+          has no large per-lane literals. The length is absorbed in the
+          finalizer instead, which is what makes the streaming API's
+          digests identical to one-shot calls.</li>
         <li>Tail code reads whole words that overlap, in the wyhash style.
           Keys of 16 bytes or less use a special two-multiply path.</li>
       </ol>

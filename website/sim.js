@@ -79,27 +79,32 @@ export function buildSteps(bytes, seedIn) {
 	const rng = (off, n) =>
 		n === 1 ? `byte ${off}` : `bytes ${off}..${off + n - 1}`;
 
-	const s = seed ^ mul(BigInt(len), K);
+	const lenmix = mul(BigInt(len), K);
+	const s = seed ^ K;
 	st.s = s;
+	st.lenmix = lenmix;
 	push(
 		"premix",
-		`K    = ${hx(K)}   (2^64 / golden ratio, odd)\n` +
-			`len  = ${len} bytes\n` +
-			`seed = ${hx(seed)}\n` +
-			`s    = seed ^ (len * K)\n` +
-			`     = ${hx(s)}`,
-		"The seed and the length mix into s before any byte is read. " +
-			"Every path folds s into its state, so a different length or " +
-			"seed changes every step that follows.",
+		`K      = ${hx(K)}   (2^64 / golden ratio, odd)\n` +
+			`len    = ${len} bytes\n` +
+			`seed   = ${hx(seed)}\n` +
+			`s      = seed ^ K       = ${hx(s)}\n` +
+			`lenmix = len * K        = ${hx(lenmix)}`,
+		"The seed mixes into s before any byte is read; every path " +
+			"folds s into its state. The length is deliberately kept " +
+			"out of s and absorbed in the finalizer instead - that is " +
+			"what lets a streaming hayahash64_state start hashing " +
+			"before the total length is known. len * K is injective, " +
+			"so no two lengths can ever cancel.",
 	);
 
 	if (len <= 16) {
-		buildShort(bytes, len, s, st, push, rng, (n) => {
+		buildShort(bytes, len, s, lenmix, st, push, rng, (n) => {
 			done = n;
 		});
 		return {
 			path: "short",
-			rows: ["s", "a", "b", "x", "y", "m"],
+			rows: ["s", "lenmix", "a", "b", "x", "y", "m"],
 			steps,
 			digest: st.m,
 		};
@@ -312,15 +317,18 @@ export function buildSteps(bytes, seedIn) {
 		tailWord(o3, 3, mkNote(o3, true), ovHl(o3));
 	}
 
-	st.t0 = mul(st.h0 ^ rotl(st.h1, 13), K);
+	st.t0 = mul(st.h0 ^ rotl(st.h1, 13) ^ st.lenmix, K);
 	st.t1 = mul(st.h2 ^ rotl(st.h3, 33), K);
 	push(
 		"pair fold",
-		`t0 = (h0 ^ rotl(h1,13)) * K = ${hx(st.t0)}\n` +
-			`t1 = (h2 ^ rotl(h3,33)) * K = ${hx(st.t1)}`,
-		"Four lanes merge pairwise into two. The fold rotations 13 and " +
-			"33 must not undo the absorb rotation 27; a resonant choice " +
-			"collided in an earlier version of the design.",
+		`t0 = (h0 ^ rotl(h1,13) ^ lenmix) * K = ${hx(st.t0)}\n` +
+			`t1 = (h2 ^ rotl(h3,33)) * K          = ${hx(st.t1)}`,
+		"Four lanes merge pairwise into two, and the length term is " +
+			"absorbed here, inside t0's multiply - absorbed after the " +
+			"multiplies it would leave low-bit structure across lengths. " +
+			"The fold rotations 13 and 33 must not undo the absorb " +
+			"rotation 27; a resonant choice collided in an earlier " +
+			"version of the design.",
 	);
 	st.x = s ^ st.t0 ^ rotl(st.t1, 29);
 	push(
@@ -364,8 +372,8 @@ export function buildSteps(bytes, seedIn) {
 	return {
 		path: bulk ? "bulk" : "mid",
 		rows: bulk
-			? ["s", "h0", "h1", "h2", "h3", "h4", "h5", "h6", "h7", "t0", "t1", "x"]
-			: ["s", "h0", "h1", "h2", "h3", "t0", "t1", "x"],
+			? ["s", "lenmix", "h0", "h1", "h2", "h3", "h4", "h5", "h6", "h7", "t0", "t1", "x"]
+			: ["s", "lenmix", "h0", "h1", "h2", "h3", "t0", "t1", "x"],
 		steps,
 		digest: st.x,
 	};
@@ -373,7 +381,7 @@ export function buildSteps(bytes, seedIn) {
 
 // The 0..16-byte path: two overlapping loads, two independent
 // multiplies, one strong finalizer.
-function buildShort(bytes, len, s, st, push, rng, setDone) {
+function buildShort(bytes, len, s, lenmix, st, push, rng, setDone) {
 	let a;
 	let b;
 	if (len >= 8) {
@@ -496,12 +504,16 @@ function buildShort(bytes, len, s, st, push, rng, setDone) {
 			"the seed from both products at once. SMHasher3 found " +
 			"exactly that in an earlier version.",
 	);
-	st.m = rotl(st.x, 27) ^ st.y;
+	st.m = rotl(st.x, 27) ^ st.y ^ lenmix;
 	push(
 		"merge",
-		`m = rotl(x,27) ^ y       = ${hx(st.m)}`,
-		"The two products merge. Neither depended on the other, so the " +
-			"two multiplies run in parallel in hardware.",
+		`m = rotl(x,27) ^ y ^ lenmix = ${hx(st.m)}`,
+		"The two products merge, and the length term joins them: " +
+			"lengths whose loaded words coincide (easy to construct with " +
+			"the overlapping reads) still finalize differently, and the " +
+			"bijective finalizer below stands between lenmix and the " +
+			"digest. Neither product depended on the other, so the two " +
+			"multiplies run in parallel in hardware.",
 	);
 
 	const fm = [
@@ -541,12 +553,12 @@ export const PRESETS = [
 ];
 
 const SELF_CHECK = [
-	["", 0n, "c4f85f43d5a9985e"],
-	[PRESETS[0], 0n, "c26fde83af876d4c"],
-	[PRESETS[0], 0x1234n, "632082ecfcb372ea"],
-	[PRESETS[1], 0n, "dd3e86af95e79c63"],
-	[PRESETS[2], 0n, "981f16befe3fae77"],
-	[PRESETS[2], 0xffffffffffffffffn, "32999d7a19232045"],
+	["", 0n, "68ac507cf298ca3f"],
+	[PRESETS[0], 0n, "ebee8d60b86cac2b"],
+	[PRESETS[0], 0x1234n, "19603048f0857433"],
+	[PRESETS[1], 0n, "4caa71dbb38c75b7"],
+	[PRESETS[2], 0n, "4841e7a95427ae2c"],
+	[PRESETS[2], 0xffffffffffffffffn, "f347185472131787"],
 ];
 
 export function selfCheck() {

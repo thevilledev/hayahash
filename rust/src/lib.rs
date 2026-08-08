@@ -99,14 +99,19 @@ fn injp(p: &[u8], i: usize) -> u64 {
 /// for all inputs, seeds, and host endiannesses.
 ///
 /// ```
-/// assert_eq!(hayahash::hayahash64(b"", 0), 0xC4F8_5F43_D5A9_985E);
+/// assert_eq!(hayahash::hayahash64(b"", 0), 0x68AC_507C_F298_CA3F);
 /// ```
 #[must_use]
 pub fn hayahash64(key: &[u8], seed: u64) -> u64 {
     let len = key.len();
-    // Seed & length premix; feeds every path so length extension and
-    // overlapping tail reads can never collide across lengths.
-    let s = seed ^ (len as u64).wrapping_mul(K);
+    // The seed premixes into s; the length is absorbed in the
+    // finalizer instead (through a multiply against state), so the
+    // digest is a pure function of (seed, bytes-so-far) and a
+    // streaming implementation can match it without knowing the total
+    // length up front. len -> len*K is injective, which keeps the
+    // overlapping tail reads collision-free across lengths.
+    let lenmix = (len as u64).wrapping_mul(K);
+    let s = seed ^ K;
 
     if len <= 16 {
         let (a, b);
@@ -128,7 +133,7 @@ pub fn hayahash64(key: &[u8], seed: u64) -> u64 {
         // C header for why each word gets its own injection.
         let x = (inj(a) ^ s ^ K).wrapping_mul(K);
         let y = (inj2(b) ^ s.rotate_left(23) ^ (K >> 19)).wrapping_mul(M1);
-        return fmix(x.rotate_left(27) ^ y);
+        return fmix(x.rotate_left(27) ^ y ^ lenmix);
     }
 
     let mut h0 = s ^ K;
@@ -204,13 +209,13 @@ pub fn hayahash64(key: &[u8], seed: u64) -> u64 {
     }
     // 0..16 bytes left; total length > 16, so reading the last 16
     // input bytes (overlapping already-hashed data) is always valid.
-    // Length is already folded into every lane via `s`.
+    // Length is folded into t0 below, through a multiply.
     if l > 0 {
         h2 = h2.wrapping_add(injp(key, len - 16)).wrapping_mul(K);
         h3 = h3.wrapping_add(injp(key, len - 8)).wrapping_mul(K);
     }
 
-    let t0 = (h0 ^ h1.rotate_left(13)).wrapping_mul(K);
+    let t0 = (h0 ^ h1.rotate_left(13) ^ lenmix).wrapping_mul(K);
     let t1 = (h2 ^ h3.rotate_left(33)).wrapping_mul(K);
     long_avalanche(s ^ t0 ^ t1.rotate_left(29))
 }

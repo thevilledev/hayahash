@@ -155,14 +155,25 @@
         cores, it costs less than a second load.
       </p>
 
-      <h2 id="constants">3. Derived lane constants</h2>
+      <h2 id="constants">3. Derived lane constants, length in the finalizer</h2>
 
       <p>
-        The seed and the length premix into one value <code>s</code>. All
-        lane IVs come from <code>s</code> plus shifted copies of the one
+        The seed premixes into one value <code>s</code>. All lane IVs
+        come from <code>s</code> plus shifted copies of the one
         multiplier constant. The code has no large per-lane literals. On
-        AArch64, a 64-bit literal costs 4 instructions. Full-state seeding
-        comes at no extra cost.
+        AArch64, a 64-bit literal costs 4 instructions. Full-state
+        seeding comes at no extra cost.
+      </p>
+
+      <p>
+        The length stays out of <code>s</code> on purpose. It is
+        absorbed in the finalizer, inside the <code>t0</code> multiply.
+        So the digest is a pure function of the seed and the bytes seen
+        so far, and the streaming state can start hashing before the
+        total length is known. <code>len * K</code> is injective: no
+        two lengths can cancel. Absorbing it after the final multiplies
+        would leave low-bit structure across lengths; SMHasher3's
+        SeedZeroes differentials catch exactly that.
       </p>
 
       <h2 id="tails">4. Overlapping tail reads, two-multiply short path</h2>

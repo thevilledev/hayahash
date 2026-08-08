@@ -73,9 +73,14 @@ inline fn stripe(h: *u64, wp: *u64, p: []const u8, i: usize) void {
 /// for all inputs, seeds, and host endiannesses.
 pub fn hayahash64(key: []const u8, seed: u64) u64 {
     const len = key.len;
-    // Seed & length premix; feeds every path so length extension and
-    // overlapping tail reads can never collide across lengths.
-    const s = seed ^ (@as(u64, len) *% K);
+    // The seed premixes into s; the length is absorbed in the
+    // finalizer instead (through a multiply against state), so the
+    // digest is a pure function of (seed, bytes-so-far) and a
+    // streaming implementation can match it without knowing the total
+    // length up front. len -> len*K is injective, which keeps the
+    // overlapping tail reads collision-free across lengths.
+    const lenmix = @as(u64, len) *% K;
+    const s = seed ^ K;
 
     if (len <= 16) {
         var a: u64 = 0;
@@ -95,7 +100,7 @@ pub fn hayahash64(key: []const u8, seed: u64) u64 {
         // C header for why each word gets its own injection.
         const x = (inj(a) ^ s ^ K) *% K;
         const y = (inj2(b) ^ rotl(s, 23) ^ (K >> 19)) *% M1;
-        return fmix(rotl(x, 27) ^ y);
+        return fmix(rotl(x, 27) ^ y ^ lenmix);
     }
 
     var h0 = s ^ K;
@@ -158,13 +163,13 @@ pub fn hayahash64(key: []const u8, seed: u64) u64 {
     }
     // 0..16 bytes left; total length > 16, so reading the last 16
     // input bytes (overlapping already-hashed data) is always valid.
-    // Length is already folded into every lane via `s`.
+    // Length is folded into t0 below, through a multiply.
     if (l > 0) {
         h2 = (h2 +% injp(key, len - 16)) *% K;
         h3 = (h3 +% injp(key, len - 8)) *% K;
     }
 
-    const t0 = (h0 ^ rotl(h1, 13)) *% K;
+    const t0 = (h0 ^ rotl(h1, 13) ^ lenmix) *% K;
     const t1 = (h2 ^ rotl(h3, 33)) *% K;
     var x = s ^ t0 ^ rotl(t1, 29);
     // The long path has already mixed every byte through a multiply;
@@ -175,6 +180,6 @@ pub fn hayahash64(key: []const u8, seed: u64) u64 {
 }
 
 test hayahash64 {
-    try std.testing.expectEqual(0xC4F85F43D5A9985E, hayahash64("", 0));
-    try std.testing.expectEqual(0xF2172C5BD68EC576, hayahash64("hello world", 0));
+    try std.testing.expectEqual(0x68AC507CF298CA3F, hayahash64("", 0));
+    try std.testing.expectEqual(0x4524B96611BFC05A, hayahash64("hello world", 0));
 }

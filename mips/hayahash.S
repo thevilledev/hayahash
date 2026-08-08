@@ -38,7 +38,7 @@
 # Register map (after prologue; n64 names: $t0-$t3, $t8-$t9, $a0-$a7)
 #   $s0  p            current read pointer
 #   $s1  l            remaining length
-#   $s2  s            seed ^ (len * K)
+#   $s2  s            seed ^ K
 #   $s3  K
 #   $s4  h0
 #   $s5  h1
@@ -202,9 +202,11 @@ hayahash64:
 	ori	$t1, $t1, 0x7C15
 	or	$s3, $s3, $t1
 
-	# s = seed ^ (len * K)
-	MUL64	$t1, $a1, $s3
-	xor	$s2, $a2, $t1
+	# s = seed ^ K. The length is absorbed in the finalizer instead
+	# (through a multiply against state), so the digest is a pure
+	# function of (seed, bytes-so-far); lenmix = len * K is
+	# recomputed at its two use sites from $s1 / the saved n.
+	xor	$s2, $a2, $s3
 
 	# ---- short path: len <= 16 ----
 	sltiu	$t1, $s1, 17
@@ -276,9 +278,12 @@ hayahash64:
 	ori	$a4, $a4, 0xB653
 	or	$t3, $t3, $a4
 	MUL64	$t2, $t2, $t3
-	# return fmix(rotl(x, 27) ^ y)
+	# return fmix(rotl(x, 27) ^ y ^ len * K); l = len is intact in
+	# $s1 on the short path and K is in $s3.
 	ROTL64	$t1, $t1, 27
 	xor	$v0, $t1, $t2
+	MUL64	$a4, $s1, $s3
+	xor	$v0, $v0, $a4
 	# fmix (moremur)
 	dsrl	$t1, $v0, 27
 	xor	$v0, $v0, $t1
@@ -425,9 +430,13 @@ hayahash64:
 	ABSORB_INJP $s7, $t1, 0
 
 .Lfold:
-	# t0 = (h0 ^ rotl(h1, 13)) * K
+	# t0 = (h0 ^ rotl(h1, 13) ^ n * K) * K; n reloaded from the
+	# frame since $s1 counted down through the loops.
 	ROTL64	$t1, $s5, 13
 	xor	$t1, $s4, $t1
+	ld	$t2, OFF_N($sp)
+	MUL64	$t2, $t2, $s3
+	xor	$t1, $t1, $t2
 	MUL64	$t1, $t1, $s3
 	# t1 = (h2 ^ rotl(h3, 33)) * K
 	ROTL64	$t2, $s7, 33
