@@ -1,5 +1,5 @@
 // swift-tools-version: 5.9
-// hayahash-version: 0.4.5
+// hayahash-version: 0.4.6
 //
 // The hayahash-version line is the lockstep algorithm version shared with
 // every other language port; scripts/bump-version.sh and the release
