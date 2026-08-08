@@ -10,17 +10,21 @@ claim-by-claim evidence register for the working paper is
 - Full default suite: **188/188 tests passed**, verification value
   `0x65F2AC15` (canonical little-endian reading; the byte-swapped
   value is `0x805DE5C0`). ChibiHash v2 also passes 188/188; v1 fails.
+- hayahash128: **188/188 tests passed** with 128-bit-wide expectations,
+  verification value `0x3F0411F4` (canonical little-endian reading;
+  the byte-swapped value is `0x46140A64`). The complete run took
+  839.5 seconds on an Apple M1 Pro.
 - The `v0.5` digest (length absorbed in the finalizer rather than the
   premix, enabling the streaming API) passed the full suite on an
   Apple M1 Pro, with all dispatch shapes measured bit-identical
   locally. Release `v0.4.0` had additionally been verified on nine
   builds spanning four hosts, two architectures, and five compilers;
   that sweep has not been repeated for the new digest yet.
-- The adapter lives in [`tests/smhasher3/`](../tests/smhasher3/); it
-  includes `hayahash.h` directly, so the suite tests the shipped
-  header rather than a transcription. [`smhasher3.md`](smhasher3.md)
-  covers running, reproducing, and re-deriving the verification
-  values after a digest change.
+- The self-contained adapter lives in
+  [`tests/smhasher3/`](../tests/smhasher3/) and mirrors the reference
+  implementation in SMHasher3's upstream-ready form.
+  [`smhasher3.md`](smhasher3.md) covers running, reproducing, and
+  re-deriving the verification values after a digest change.
 
 ## Local harness
 
@@ -32,14 +36,20 @@ the constructed rotation-orbit set against ChibiHash v2
 (`./tests/quality v2`), where it finds 512 colliding pairs by design -
 an expected-failure control, not a general quality ranking.
 
+The target also runs `tests/hash128.c`: six fixed known-answer vectors,
+all lengths through 512 under three seeds and five update patterns,
+1,000 randomized cases through 20 KiB under three larger-input split
+patterns, and non-mutating/continued digest checks. Every case requires
+one-shot and streaming equality and `hayahash128.lo == hayahash64`.
+
 ## Cross-port conformance
 
 The Rust, Go, Zig, Java, C#, Python, Swift, JavaScript, and MIPS64
-assembly ports are bit-exact against the C reference: each port's test
-suite checks the SMHasher3 verification value and a shared table of
-known-answer vectors generated from `hayahash.h`. (The JavaScript
-package checks both of its engines: the wasm build of the reference
-header and the pure-JS fallback.)
+assembly ports of hayahash64 are bit-exact against the C reference:
+each port's test suite checks the SMHasher3 verification value and a
+shared table of known-answer vectors generated from `hayahash.h`.
+(The JavaScript package checks both of its engines: the wasm build of
+the reference header and the pure-JS fallback.)
 
 Nightly differential conformance fuzzing generates one C-reference
 corpus with random input bytes, random 64-bit hash seeds, exhaustive

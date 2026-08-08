@@ -17,9 +17,11 @@ There are two separate jobs, and they have different standards of care:
 
 ```bash
 make -C tests/smhasher3 run
+make -C tests/smhasher3 run HASH=hayahash128
 ```
 
-That is the whole conformance run for the current SMHasher3 translation. First
+Those are the complete 64- and 128-bit conformance runs for the current
+SMHasher3 translation. First
 invocation clones and builds (about 30 s on an M1); the suite itself takes
 roughly 4 min on a Zen 5 core and 10 min on an M1.
 
@@ -29,7 +31,7 @@ Targets:
 |---|---|
 | `build` | clone if needed, install the translation, configure, compile |
 | `verify` | print the verification values SMHasher3 computes for hayahash |
-| `run` | the full default suite (188 tests for a 64-bit hash) |
+| `run` | the full default suite (188 tests for either registered hash) |
 | `clean` | drop the build directory, keep the clone |
 | `distclean` | drop the clone entirely |
 
@@ -37,6 +39,7 @@ Useful variables:
 
 ```bash
 make -C tests/smhasher3 run CXX=clang++ BUILD=build-clang   # separate build tree
+make -C tests/smhasher3 run HASH=hayahash128                # 128-bit variant
 make -C tests/smhasher3 run HASH=ChibiHash2                 # some other hash
 ```
 

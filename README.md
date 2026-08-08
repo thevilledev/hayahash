@@ -1,4 +1,4 @@
-# hayahash64
+# hayahash
 
 [![CI](https://img.shields.io/github/actions/workflow/status/thevilledev/hayahash/ci.yml?branch=main&logo=githubactions&logoColor=white&label=CI)](https://github.com/thevilledev/hayahash/actions/workflows/ci.yml)
 [![license](https://img.shields.io/github/license/thevilledev/hayahash?logo=unlicense&logoColor=white&label=license)](LICENSE)
@@ -12,7 +12,7 @@
 [![PyPI](https://img.shields.io/pypi/v/hayahash?logo=pypi&logoColor=white&label=pypi)](https://pypi.org/project/hayahash/)
 [![npm](https://img.shields.io/npm/v/hayahash?logo=npm&logoColor=white&label=npm)](https://www.npmjs.com/package/hayahash)
 
-A small 64-bit hash function that passes the full
+A small family of 64- and 128-bit hash functions that passes the full
 [SMHasher3](https://gitlab.com/fwojcik/smhasher3) suite while staying
 strictly portable: no SIMD, no 64x64-to-128-bit multiply, no
 per-architecture code, no UB, and endianness-independent output.
@@ -52,7 +52,8 @@ trick, the header says so.
 The reference implementation is the single C header
 [`hayahash.h`](hayahash.h) at the repository root. Bit-exact ports to
 Rust, Go, Zig, Java, C#, Python, Swift, JavaScript/TypeScript, and
-MIPS64 assembly live in this repository; see [Usage](#usage).
+MIPS64 assembly cover hayahash64; hayahash128 is currently exposed by
+the C header. See [Usage](#usage).
 
 Documentation: [design](docs/design.md) ·
 [quality](docs/quality.md) · [ports & layout](docs/ports.md) ·
@@ -226,17 +227,23 @@ claim rather than a universal record: two hosts, bounded by the roughly
   locally; the nine-build sweep across four hosts and five compilers
   that `v0.4.0` went through has not been repeated yet.
   (ChibiHash v2 also passes 188/188; v1 fails.)
+- hayahash128: **188/188 tests passed** with 128-bit-wide expectations;
+  verification values `0x3F0411F4` (canonical little-endian) and
+  `0x46140A64` (byte-swapped). Its low word is exactly hayahash64.
 - Local harness (`make -C tests run-quality`): strict avalanche
   criterion over input and seed bits, plus exact-collision tests over
   24 structured key sets, including reproductions of the SMHasher3
-  keysets that broke earlier iterations. All clean.
-- All nine ports are bit-exact against the C reference: shared
+  keysets that broke earlier iterations. The same target checks
+  hayahash128 known answers, streaming equivalence, and low-word
+  compatibility across exhaustive boundary lengths and random splits.
+  All clean.
+- All nine hayahash64 ports are bit-exact against the C reference: shared
   known-answer vectors and the SMHasher3 verification value in every
   port's test suite, plus nightly differential fuzzing that replays a
   fresh randomized C-reference corpus through every language port
   (both JavaScript engines included; the MIPS64 assembly port relies
   on the shared vectors instead).
-- Endianness and ABI are tested in CI: big-endian s390x, ILP32 wasm32,
+- hayahash64 endianness and ABI are tested in CI: big-endian s390x, ILP32 wasm32,
   MSVC x64, and MIPS64 under qemu must all reproduce the shared KAT.
 
 [`docs/quality.md`](docs/quality.md) details each of these;
@@ -250,10 +257,13 @@ C - copy [`hayahash.h`](hayahash.h) into your project:
 #include "hayahash.h"
 
 uint64_t h = hayahash64(buf, len, seed);
+hayahash128_t h128 = hayahash128(buf, len, seed);
+// h128.lo == h
 ```
 
-Streaming (identical digests, any update split; digest() does not
-modify the state, so it can be called mid-stream):
+Streaming (identical digests, any update split; both widths share the
+same state, and digest() does not modify it, so it can be called
+mid-stream):
 
 ```c
 hayahash64_state st;
@@ -261,6 +271,7 @@ hayahash64_init(&st, seed);
 hayahash64_update(&st, part1, n1);
 hayahash64_update(&st, part2, n2);
 uint64_t h = hayahash64_digest(&st);
+hayahash128_t h128 = hayahash128_digest(&st);
 ```
 
 | language | package | call |

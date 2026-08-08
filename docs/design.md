@@ -43,6 +43,18 @@ commentary; this page is the overview.
    two multiply terms cannot be erased simultaneously) and passed
    through independent multiplies into a strong finalizer.
 
+## The second output word
+
+hayahash128 reuses the same state walk and preserves hayahash64 as its
+low word. On the short path, if
+`u = rotl(x, 27) ^ y ^ lenmix`, the pair `(u, x)` is a bijection of
+the 128-bit pre-image `(x, y)` for a fixed length. Applying bijective
+finalizers to `u` and `x + rotl(u, 32)` therefore preserves that
+property. On longer inputs, the high word combines the existing fold
+words with addition where the low word uses xor, then uses a distinct
+bijective finalizer. Both one-shot outputs and both streaming outputs
+come from the same absorb state.
+
 ## The collision classes that shaped it
 
 Getting the details right was the hard part: SMHasher3 found five
