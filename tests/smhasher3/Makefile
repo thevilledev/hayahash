@@ -1,3 +1,4 @@
+# SPDX-License-Identifier: GPL-3.0-or-later
 # SMHasher3 conformance run for hayahash64.
 #
 # SMHasher3 is fetched at test time and pinned to an exact upstream commit
@@ -6,35 +7,16 @@
 # Hayahash's Unlicense/public-domain status. Redistribution of the resulting
 # combined SMHasher3 executable must comply with the GPL.
 #
-# The source files in this directory are GPL-3.0-or-later; see COPYING. That
-# covers the upstream-modifying patches and the adapter, which is written
-# against SMHasher3's headers and macros. It does not cover hayahash.h, which
-# stays public domain; the adapter merely includes it.
+# This harness Makefile is GPL-3.0-or-later; see COPYING. The mirrored
+# hayahash.cpp, the hash algorithm, and the reference hayahash.h remain public
+# domain under The Unlicense.
 #
 # Fetching rather than vendoring follows tests/wasm/Makefile, which pins
 # competitor headers by commit for the same reason.
 #
-# hayahash.cpp installs into the clone's hashes/ directory and #includes
-# ../../hayahash.h directly, so the suite tests the shipped header rather
-# than a transcription. See the comment at the top of hayahash.cpp.
-#
-# PATCHES lists the fixes applied on top of the pin. They are kept as files
-# so the delta from upstream is reviewable and archivable, and they are
-# applied on every host so all runs build identical source. Like the adapter,
-# both carry their own SPDX headers and are excluded from this repository's
-# Unlicense; see the note in ../../LICENSE.
-#
-# Both are temporary. They have been submitted upstream, as merge requests
-# !31 (util/Random.cpp) and !32 (platform/family.cmake), and were open as of
-# 2026-08-01. When they merge, advance SMHASHER3_COMMIT past them and drop
-# the corresponding entry from PATCHES; the harness should then build from
-# unmodified upstream.
-#
-# Both fix macOS issues: the pinned commit does not compile there
-# (util/Random.cpp binds a size_t to a uint64_t&, which are the same width
-# but distinct types), and its CMake does not recognize Apple Silicon's
-# "arm64" as the Arm family, which silently disables NEON for every hash and
-# would make a speed comparison there unfair to SIMD hashes.
+# hayahash.cpp is the self-contained SMHasher3 implementation. It must remain
+# byte-for-byte identical to hashes/hayahash.cpp in the SMHasher3 repository;
+# the harness copies that mirror into the pinned checkout before building.
 #
 #   make build          configure and build (honors CXX)
 #   make verify         print SMHasher3's computed verification values
@@ -45,43 +27,36 @@
 #   make run CXX=clang++ BUILD=build-clang
 
 SMHASHER3_URL    = https://gitlab.com/fwojcik/smhasher3.git
-SMHASHER3_COMMIT = 6ab4343396fbe0f7a1c7ac4f01d0eb9acffe4202
-
-PATCHES = 0001-macos-size_t-reference-binding.patch \
-          0002-cmake-detect-apple-silicon-as-arm.patch
+SMHASHER3_COMMIT = 51d3cd1ac0aa4934f6aacb44d9d234f50300b6e3
 
 SRC    = smhasher3
 BUILD ?= build
 
-# hayahash.h lives at the repository root.
-INC = -I$(abspath ../..)
-
-# Extra compiler flags, appended after INC when CMake is configured. Use this
-# to select a dispatch shape the host would not pick by default, for example
-# turning off the GCC bulk vectorization gate:
+# Extra compiler flags used when CMake is configured. Use this to select a
+# dispatch shape the host would not pick by default, for example turning off
+# the GCC bulk vectorization gate:
 #   make run BUILD=build-gccnv EXTRA_CXXFLAGS=-U__AVX512DQ__
 # CMake appends its own -march=native afterwards, but -U still wins.
 EXTRA_CXXFLAGS ?=
 
 # SMHasher3 matches hash names case-insensitively.
-HASH ?= hayahash64
+HASH ?= hayahash
 
 .PHONY: all build install verify run clean distclean
 
 all: build
 
-# Clone and patch out of tree, then move into place, so a failed checkout or
-# patch never leaves a half-configured clone that later runs would treat as
-# ready. Make does not remove a directory target when a recipe fails.
+# Clone out of tree, then move into place, so a failed checkout never leaves a
+# half-configured clone that later runs would treat as ready. Make does not
+# remove a directory target when a recipe fails.
 $(SRC)/.git:
 	rm -rf $(SRC).tmp
 	git clone $(SMHASHER3_URL) $(SRC).tmp
 	git -C $(SRC).tmp checkout --detach $(SMHASHER3_COMMIT)
-	for p in $(PATCHES); do git -C $(SRC).tmp apply $(abspath .)/$$p; done
 	mv $(SRC).tmp $(SRC)
 
-# Copy the adapter in and add it to the hash source list. Both steps are
-# idempotent, so `make install` is safe to repeat after editing the adapter.
+# Copy the translation in and add it to the hash source list. Both steps are
+# idempotent, so `make install` is safe to repeat after editing the source.
 # awk rather than `sed -i`: the -i spelling differs between BSD and GNU sed.
 install: $(SRC)/.git hayahash.cpp
 	cp hayahash.cpp $(SRC)/hashes/hayahash.cpp
@@ -96,7 +71,7 @@ install: $(SRC)/.git hayahash.cpp
 
 build: install
 	mkdir -p $(SRC)/$(BUILD)
-	cd $(SRC)/$(BUILD) && CXXFLAGS="$(INC) $(EXTRA_CXXFLAGS)" cmake ..
+	cd $(SRC)/$(BUILD) && CXXFLAGS="$(EXTRA_CXXFLAGS)" cmake ..
 	$(MAKE) -C $(SRC)/$(BUILD) -j$(shell getconf _NPROCESSORS_ONLN 2>/dev/null || echo 4)
 
 # Prints the verification values SMHasher3 computes, for both the canonical

@@ -1,9 +1,10 @@
 # Running SMHasher3
 
 The harness lives in [`tests/smhasher3/`](../tests/smhasher3/). It clones
-SMHasher3 at a pinned upstream commit, drops in an adapter that `#include`s
-`hayahash.h` directly, builds, and runs. Nothing is vendored: the clone is
-fetched at test time and is gitignored.
+SMHasher3 at a pinned upstream commit, installs the self-contained
+`hayahash.cpp` translation, builds, and runs. The clone is fetched at test
+time and is gitignored; the translation is mirrored here so it can be tested
+before and after submission to SMHasher3.
 
 There are two separate jobs, and they have different standards of care:
 
@@ -18,15 +19,15 @@ There are two separate jobs, and they have different standards of care:
 make -C tests/smhasher3 run
 ```
 
-That is the whole conformance run for the current header. First invocation
-clones and builds (about 30 s on an M1); the suite itself takes roughly 4 min
-on a Zen 5 core and 10 min on an M1.
+That is the whole conformance run for the current SMHasher3 translation. First
+invocation clones and builds (about 30 s on an M1); the suite itself takes
+roughly 4 min on a Zen 5 core and 10 min on an M1.
 
 Targets:
 
 | target | what it does |
 |---|---|
-| `build` | clone if needed, apply patches, install the adapter, configure, compile |
+| `build` | clone if needed, install the translation, configure, compile |
 | `verify` | print the verification values SMHasher3 computes for hayahash |
 | `run` | the full default suite (188 tests for a 64-bit hash) |
 | `clean` | drop the build directory, keep the clone |
@@ -42,17 +43,28 @@ make -C tests/smhasher3 run HASH=ChibiHash2                 # some other hash
 Always pair a different `CXX` with a different `BUILD`, or CMake reuses the
 cached compiler from the existing tree and silently ignores you.
 
+The translation must stay byte-for-byte identical to `hashes/hayahash.cpp` in
+the SMHasher3 repository. With sibling checkouts as used during development:
+
+```bash
+cmp tests/smhasher3/hayahash.cpp ../smhasher3/hashes/hayahash.cpp
+```
+
+Repository-specific build and licensing text belongs in this document and the
+Makefile, never in either copy of `hayahash.cpp`.
+
 ## Covering every dispatch shape
 
-`hayahash.h` compiles to several different programs, all specified to produce
-identical output. Two independent compile-time switches select between them,
-and **both conditions have changed before**, so read them out of the header
-rather than trusting this table:
+The reference header and SMHasher3 translation compile to several different
+programs, all specified to produce identical output. Two independent
+compile-time switches select between them, and **both conditions have changed
+before**, so read them from the current source rather than trusting old build
+records:
 
 | switch | 1 when | effect |
 |---|---|---|
 | `HAYAHASH64_INTERNAL_TIERS` | AArch64 or x86-64, **and not Clang** | straight-line length tiers for 17..319-byte keys |
-| `HAYAHASH64_INTERNAL_VECGCC` | x86-64, GCC, and `__AVX512DQ__` | array-and-loop bulk spelling that GCC's SLP vectorizer can seed from |
+| `HAYAHASH64_INTERNAL_VECGCC` | x86-64, GCC, `__AVX512DQ__`, and a Zen 4/5 target | array-and-loop bulk spelling that GCC's SLP vectorizer can seed from |
 
 As of `v0.4.0` that gives three distinct shapes, and a conformance run should
 cover all of them:
@@ -126,14 +138,16 @@ diff <(strip full-build-gcc.txt) <(strip full-build-clang.txt) && echo "identica
 ## After the digest changes
 
 The registered verification values in `tests/smhasher3/hayahash.cpp` are tied
-to the digest, so a digest change makes the build fail its own self-test. To
-re-derive them:
+to the digest, so a digest change requires updating the self-contained
+translation from `hayahash.h` and then re-deriving them:
 
 1. Set both `$.verification_LE` and `$.verification_BE` to `0x00000000`.
 2. `make -C tests/smhasher3 verify`. The values print as
    `SKIP (unverifiable)`; `CE` is the little-endian one, `NE` the byte-swapped.
 3. Write them back into the registration and re-run `verify`. Both must now
    say `PASS`.
+4. Copy the finished file to the SMHasher3 repository (or back here, depending
+   on where the edit was made) and require `cmp` to report no difference.
 
 `CE` should equal the value `paper/tools/reference_check.c` prints, because
 that self-test reimplements SMHasher3's verification procedure over the direct
@@ -176,10 +190,8 @@ is negligible against a 262144-byte hash.
 
 ### Competitors must be built at full width
 
-Upstream at the pinned commit does not enable NEON on Apple Silicon: its
-`platform/family.cmake` matches `arm` and `aarch64`, but macOS reports `arm64`,
-so no hash gets NEON and SIMD competitors are silently understated. Patch 0002
-fixes this. Check before trusting any comparison:
+The pinned commit recognizes Apple Silicon as Arm and enables NEON. Check the
+actual implementation selection before trusting any comparison:
 
 ```bash
 cd tests/smhasher3/smhasher3/build && ./SMHasher3 --list | grep -E "XXH3-64|gxhash"
@@ -200,7 +212,7 @@ outliers in an earlier sweep and had to be discarded.
 
 ```bash
 B=tests/smhasher3/smhasher3/build
-HASHES="rapidhash wyhash a5hash komihash XXH3-64 HayaHash64 ChibiHash2 mx3.v3 SpookyHash2-64"
+HASHES="rapidhash wyhash a5hash komihash XXH3-64 hayahash ChibiHash2 mx3.v3 SpookyHash2-64"
 for rep in 1 2 3 4 5; do
   for h in $HASHES; do
     (cd $B && ./SMHasher3 --test=Speed --verbose "$h") > "speed-$h-rep$rep.txt" 2>&1
@@ -231,39 +243,26 @@ done
 - `--test=VerifyAll` **ignores the hashname argument** and walks every
   registered hash, and exits non-zero if any of them fails its self-test. That
   says nothing about hayahash. Filter its output; the `verify` target does.
-- The tool reports its version as `-dirty` because the harness adds the adapter
-  and applies patches. That is expected, and each archived record says so.
+- The tool reports its version as `-dirty` because the harness installs the
+  mirrored translation. That is expected, and each archived record says so.
 - `make -B` does not help here; the Makefile drives CMake, so use `clean` or a
   separate `BUILD` tree.
 
-## Upstream patches
+## Upstream baseline
 
-`tests/smhasher3/` carries two patches on top of the pin, applied on every host
-so all runs build identical source:
-
-| patch | fixes | upstream |
-|---|---|---|
-| `0001-macos-size_t-reference-binding.patch` | `util/Random.cpp` does not compile under Clang on macOS | [!31](https://gitlab.com/fwojcik/smhasher3/-/merge_requests/31) |
-| `0002-cmake-detect-apple-silicon-as-arm.patch` | Apple Silicon not recognised as the Arm family, disabling NEON | [!32](https://gitlab.com/fwojcik/smhasher3/-/merge_requests/32) |
-
-Both were open as of 2026-08-01. **When one merges**, advance
-`SMHASHER3_COMMIT` in `tests/smhasher3/Makefile` past it and delete the
-corresponding entry from `PATCHES` and the file itself. Once both are gone the
-harness builds from unmodified upstream, and the licensing note below shrinks
-to just the adapter.
-
-Advancing the pin for any other reason means re-running everything: the archived
-records name the exact commit they were produced against.
+The pinned commit includes the macOS `size_t` build fix and Apple Silicon Arm
+detection previously carried as local patches. Advancing the pin means
+re-running everything: archived records name the exact commit that produced
+them.
 
 ## Licensing
 
-The adapter and the patches are GPL-3.0-or-later, not Unlicense, because they
-are written against SMHasher3's headers and macros or modify its sources
-directly. See [`tests/smhasher3/COPYING`](../tests/smhasher3/COPYING) and the
-exception note in the root [`README`](../README.md#license). This does not
-affect `hayahash.h`, which stays public domain; the adapter merely includes
-it. SMHasher3 is not part of any release artifact, but a redistributed
-combined executable would carry the GPL.
+The mirrored SMHasher3 implementation is public domain under The Unlicense,
+matching the reference algorithm and `hayahash.h`. The harness Makefile is
+GPL-3.0-or-later; see
+[`tests/smhasher3/COPYING`](../tests/smhasher3/COPYING) and the exception note
+in the root [`README`](../README.md#license). SMHasher3 is not part of any
+release artifact, but a redistributed combined executable would carry the GPL.
 
 ## Archiving a run
 

@@ -273,23 +273,18 @@ history of every optimization (including rejected ideas) is in the
 
 Experimental prototype. The algorithm, constants, and digest values may
 still change; do not use hayahash yet anywhere hashes are persisted.
-The SMHasher3 adapter lives in [`tests/smhasher3/`](tests/smhasher3/); it
-includes `hayahash.h` directly, so the suite tests the shipped header
-rather than a transcription. It is not in a form upstream would accept,
-which needs a self-contained port to SMHasher3's own primitives.
+The self-contained SMHasher3 implementation lives in
+[`tests/smhasher3/`](tests/smhasher3/). It uses SMHasher3's endian-aware
+load, store, and rotate primitives and is kept byte-for-byte identical to
+`hashes/hayahash.cpp` in the SMHasher3 repository.
 
 ## License
 
-Public domain, under the [Unlicense](LICENSE). That covers `hayahash.h`
-and every language port.
+Public domain, under the [Unlicense](LICENSE). That covers `hayahash.h`,
+every language port, and the mirrored SMHasher3 implementation.
 
-One exception: the source files in [`tests/smhasher3/`](tests/smhasher3/)
-are GPL-3.0-or-later, with the license text in
-[`tests/smhasher3/COPYING`](tests/smhasher3/COPYING). The two patches
-modify SMHasher3's own sources, and the adapter is written against its
-headers and macros and only ever compiled into it. This does not affect
-hayahash64: the adapter includes `hayahash.h`, which does not change that
-header's public-domain status. SMHasher3 is fetched at test time and is
-not part of any release artifact, so building it locally does not affect
-this software's license; redistributing the resulting combined SMHasher3
-executable would need to comply with the GPL.
+The SMHasher3 harness Makefile is GPL-3.0-or-later; see
+[`tests/smhasher3/COPYING`](tests/smhasher3/COPYING). SMHasher3 itself is
+fetched at test time and is not part of any release artifact. Redistributing
+the combined executable must comply with the GPL, while the copied
+`hayahash.cpp` remains public domain.
