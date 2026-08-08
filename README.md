@@ -25,6 +25,22 @@ everywhere and on both axes on the M1, although its sustained-bulk
 lead on Zen 5 did not survive hayahash's auto-vectorized bulk loop
 (see the [shootout](#smhasher3-shootout) below).
 
+## 32-bit-arithmetic companion
+
+Need a 64-bit digest where efficient 64-bit integer arithmetic is unavailable?
+[`haya32x64`](https://github.com/thevilledev/haya32x64) keeps its state and
+arithmetic strictly 32-bit while retaining the full result of each 32×32
+multiply. It targets 32-bit processors, pure JavaScript without `BigInt`,
+CSP-constrained runtimes, and similar environments; the JavaScript package is
+[`haya32x64` on npm](https://www.npmjs.com/package/haya32x64).
+
+`hayahash` and `haya32x64` both return 64-bit digests, but they are different
+algorithms rather than interchangeable backends. They live in separate
+repositories so each digest definition has independent reference code,
+known-answer vectors, compatibility guarantees, versioning, and releases.
+Switching between them changes persisted hashes and must be treated as a data
+migration.
+
 [ChibiHash](https://github.com/N-R-K/ChibiHash) sets out to do a
 similar thing, which makes it the most useful baseline to measure
 against, and the comparisons below use it that way. hayahash is its
