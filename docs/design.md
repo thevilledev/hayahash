@@ -21,11 +21,20 @@ commentary; this page is the overview.
    header notes. The rotation applies to an already-loaded register,
    off the loop-carried path, and is cheaper than a second load on
    wide cores.
-3. **Derived lane constants.** Seed and length are premixed into one
-   value `s`, and all lane IVs are derived from `s` plus shifted copies
-   of the single multiplier constant. No big per-lane literals are
-   materialized (on AArch64 a 64-bit literal costs 4 instructions), and
-   full-state seeding comes for free.
+3. **Derived lane constants; length in the finalizer.** The seed is
+   premixed into one value `s`, and all lane IVs are derived from `s`
+   plus shifted copies of the single multiplier constant. No big
+   per-lane literals are materialized (on AArch64 a 64-bit literal
+   costs 4 instructions), and full-state seeding comes for free. The
+   length deliberately does not enter `s`: it is absorbed inside the
+   finalizer's `t0` multiply (the short path's bijective fmix input),
+   so the digest is a pure function of (seed, bytes-so-far) and the
+   streaming `hayahash64_state` produces one-shot-identical digests
+   without knowing the total length up front. `len -> len*K` is
+   injective, which keeps the overlapping tail reads collision-free
+   across lengths; absorbing it after the final multiplies instead
+   leaves mod-2^64 low-bit structure across lengths of equal-state
+   keys (SMHasher3's SeedZeroes differentials catch exactly that).
 4. **Overlapping tail reads, two-multiply short path.** Tails read
    whole (overlapping) words from the end of the input, wyhash-style,
    so no byte-at-a-time loop exists for any length. Inputs of at most

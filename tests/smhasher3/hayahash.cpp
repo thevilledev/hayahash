@@ -219,7 +219,8 @@ static HAYAHASH64_INTERNAL_NOINLINE uint64_t hayahash64_internal_long(
 #if defined(__aarch64__) && (defined(__GNUC__) || defined(__clang__))
     HAYAHASH64_INTERNAL_COMPILER_GUARD(K);
 #endif
-    uint64_t s = seed ^ ((uint64_t)len * K);
+    const uint64_t lenmix = (uint64_t)len * K;
+    uint64_t s = seed ^ K;
     uint64_t h0 = s ^ K;
     uint64_t h1 = hayahash64_internal_rotl(s, 17) + (K << 21);
     uint64_t h2 = hayahash64_internal_rotl(s, 34) ^ (K >> 13);
@@ -302,7 +303,7 @@ static HAYAHASH64_INTERNAL_NOINLINE uint64_t hayahash64_internal_long(
         h3 = (h3 + hayahash64_internal_injp<bswap>(p + l -  8)) * K;
     }
 
-    uint64_t t0 = (h0 ^ hayahash64_internal_rotl(h1, 13)) * K;
+    uint64_t t0 = (h0 ^ hayahash64_internal_rotl(h1, 13) ^ lenmix) * K;
     uint64_t t1 = (h2 ^ hayahash64_internal_rotl(h3, 33)) * K;
     uint64_t x = s ^ t0 ^ hayahash64_internal_rotl_product(t1, 29);
     return hayahash64_internal_long_fmix(x, K);
@@ -315,9 +316,15 @@ static inline uint64_t hayahash64( const void * keyIn, std::ptrdiff_t len, uint6
     const uint8_t * p = (const uint8_t *)keyIn;
     std::ptrdiff_t l = len;
     uint64_t K = HAYAHASH64_INTERNAL_K;
-    // Seed & length premix; feeds every path so length extension and
-    // overlapping tail reads can never collide across lengths.
-    uint64_t s = seed ^ ((uint64_t)len * K);
+    // The seed premixes into s; the length is absorbed in the
+    // finalizer instead (through a multiply against state), so the
+    // digest is a pure function of (seed, bytes-so-far) and a
+    // streaming implementation can produce identical digests without
+    // knowing the total length up front. len -> len*K is injective,
+    // which keeps the overlapping tail reads collision-free across
+    // lengths.
+    const uint64_t lenmix = (uint64_t)len * K;
+    uint64_t s = seed ^ K;
 
     if (l <= 16) {
         uint64_t a, b;
@@ -339,7 +346,8 @@ static inline uint64_t hayahash64( const void * keyIn, std::ptrdiff_t len, uint6
         uint64_t x = (hayahash64_internal_inj(a) ^ s ^ K) * K;
         uint64_t y = (hayahash64_internal_inj2(b) ^ hayahash64_internal_rotl(s, 23) ^
                       (K >> 19)) * HAYAHASH64_INTERNAL_M1;
-        return hayahash64_internal_fmix(hayahash64_internal_rotl_product(x, 27) ^ y);
+        return hayahash64_internal_fmix(
+            hayahash64_internal_rotl_product(x, 27) ^ y ^ lenmix);
     }
 
 #if !defined(__wasm__)
@@ -383,7 +391,7 @@ static inline uint64_t hayahash64( const void * keyIn, std::ptrdiff_t len, uint6
         h2 = (h2 + hayahash64_internal_injp<bswap>(p + l - 16)) * K;
         h3 = (h3 + hayahash64_internal_injp<bswap>(p + l - 8)) * K;
         uint64_t t0 =
-            (h0 ^ hayahash64_internal_rotl_product(h1, 13)) * K;
+            (h0 ^ hayahash64_internal_rotl_product(h1, 13) ^ lenmix) * K;
         uint64_t t1 =
             (h2 ^ hayahash64_internal_rotl_product(h3, 33)) * K;
         return hayahash64_internal_long_fmix(
@@ -414,7 +422,7 @@ static inline uint64_t hayahash64( const void * keyIn, std::ptrdiff_t len, uint6
             h3 = (h3 + hayahash64_internal_injp<bswap>(p + l -  8)) * K;
         }
         uint64_t t0 =
-            (h0 ^ hayahash64_internal_rotl_product(h1, 13)) * K;
+            (h0 ^ hayahash64_internal_rotl_product(h1, 13) ^ lenmix) * K;
         uint64_t t1 =
             (h2 ^ hayahash64_internal_rotl_product(h3, 33)) * K;
         return hayahash64_internal_long_fmix(
@@ -471,7 +479,7 @@ static inline uint64_t hayahash64( const void * keyIn, std::ptrdiff_t len, uint6
             }
         }
         uint64_t t0 =
-            (h0 ^ hayahash64_internal_rotl_product(h1, 13)) * K;
+            (h0 ^ hayahash64_internal_rotl_product(h1, 13) ^ lenmix) * K;
         uint64_t t1 =
             (h2 ^ hayahash64_internal_rotl_product(h3, 33)) * K;
         return hayahash64_internal_long_fmix(
@@ -544,7 +552,7 @@ static inline uint64_t hayahash64( const void * keyIn, std::ptrdiff_t len, uint6
             }
         }
         uint64_t t0 =
-            (h0 ^ hayahash64_internal_rotl_product(h1, 13)) * K;
+            (h0 ^ hayahash64_internal_rotl_product(h1, 13) ^ lenmix) * K;
         uint64_t t1 =
             (h2 ^ hayahash64_internal_rotl_product(h3, 33)) * K;
         return hayahash64_internal_long_fmix(
@@ -633,7 +641,7 @@ static inline uint64_t hayahash64( const void * keyIn, std::ptrdiff_t len, uint6
             }
         }
         uint64_t t0 =
-            (h0 ^ hayahash64_internal_rotl_product(h1, 13)) * K;
+            (h0 ^ hayahash64_internal_rotl_product(h1, 13) ^ lenmix) * K;
         uint64_t t1 =
             (h2 ^ hayahash64_internal_rotl_product(h3, 33)) * K;
         return hayahash64_internal_long_fmix(
@@ -736,7 +744,7 @@ static inline uint64_t hayahash64( const void * keyIn, std::ptrdiff_t len, uint6
     // absorb copy rotation 27: with rotl(h3, 37) here, a lane's raw
     // stripe difference and the next lane's rotated copy re-aligned
     // exactly in the fold and could xor-cancel with carry luck.
-    uint64_t t0 = (h0 ^ hayahash64_internal_rotl(h1, 13)) * K;
+    uint64_t t0 = (h0 ^ hayahash64_internal_rotl(h1, 13) ^ lenmix) * K;
     uint64_t t1 = (h2 ^ hayahash64_internal_rotl(h3, 33)) * K;
     uint64_t x = s ^ t0 ^ hayahash64_internal_rotl_product(t1, 29);
     return hayahash64_internal_long_fmix(x, K);
@@ -769,7 +777,7 @@ REGISTER_FAMILY(hayahash,
  );
 
 REGISTER_HASH(hayahash,
-   $.desc            = "hayahash64 v0.4",
+   $.desc            = "hayahash64 v0.5",
    $.impl            = HAYAHASH64_IMPL_STR,
    $.hash_flags      =
          FLAG_HASH_ENDIAN_INDEPENDENT,
@@ -779,8 +787,8 @@ REGISTER_HASH(hayahash,
          FLAG_IMPL_MULTIPLY_64_64        |
          FLAG_IMPL_ROTATE,
    $.bits            = 64,
-   $.verification_LE = 0xF3C4A9B4,
-   $.verification_BE = 0x01E3C68D,
+   $.verification_LE = 0x65F2AC15,
+   $.verification_BE = 0x805DE5C0,
    $.hashfn_native   = HayaHash64<false>,
    $.hashfn_bswap    = HayaHash64<true>
  );

@@ -85,9 +85,14 @@ export function hashPure(data: Uint8Array, seed: bigint): bigint {
 
 	let l = len;
 	let p = 0;
-	// Seed & length premix; feeds every path so length extension and
-	// overlapping tail reads can never collide across lengths.
-	const s = seed ^ ((BigInt(len) * K) & MASK64);
+	// The seed premixes into s; the length is absorbed in the
+	// finalizer instead (through a multiply against state), so the
+	// digest is a pure function of (seed, bytes-so-far) and a
+	// streaming implementation can match it without knowing the total
+	// length up front. len -> len*K is injective, which keeps the
+	// overlapping tail reads collision-free across lengths.
+	const lenmix = (BigInt(len) * K) & MASK64;
+	const s = seed ^ K;
 
 	if (l <= 16) {
 		let a: bigint;
@@ -108,7 +113,7 @@ export function hashPure(data: Uint8Array, seed: bigint): bigint {
 		}
 		const x = ((inj(a) ^ s ^ K) * K) & MASK64;
 		const y = ((inj2(b) ^ rotl(s, 23n) ^ K_SHR19) * M1) & MASK64;
-		return fmix(rotl(x, 27n) ^ y);
+		return fmix(rotl(x, 27n) ^ y ^ lenmix);
 	}
 
 	let h0 = s ^ K;
@@ -193,7 +198,7 @@ export function hashPure(data: Uint8Array, seed: bigint): bigint {
 		h3 = ((h3 + injp(p + l - 8)) * K) & MASK64;
 	}
 
-	const t0 = ((h0 ^ rotl(h1, 13n)) * K) & MASK64;
+	const t0 = ((h0 ^ rotl(h1, 13n) ^ lenmix) * K) & MASK64;
 	const t1 = ((h2 ^ rotl(h3, 33n)) * K) & MASK64;
 	return fmixLong(s ^ t0 ^ rotl(t1, 29n));
 }

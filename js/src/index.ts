@@ -68,7 +68,7 @@ function normalize(input: HayahashInput, seed: bigint | number): [Uint8Array, bi
  * 64-bit digest as an unsigned bigint in `[0, 2^64)`.
  *
  * ```js
- * hayahash64("hello world").toString(16); // "f2172c5bd68ec576"
+ * hayahash64("hello world").toString(16); // "4524b96611bfc05a"
  * ```
  */
 export function hayahash64(input: HayahashInput, seed: bigint | number = 0n): bigint {

@@ -63,10 +63,15 @@ public enum Hayahash {
     }
 
     private static func hashImpl(_ key: UnsafeRawBufferPointer, seed: UInt64) -> UInt64 {
-        // Seed & length premix; feeds every path so length extension and
-        // overlapping tail reads can never collide across lengths.
+        // The seed premixes into s; the length is absorbed in the
+        // finalizer instead (through a multiply against state), so the
+        // digest is a pure function of (seed, bytes-so-far) and a
+        // streaming implementation can match it without knowing the
+        // total length up front. len -> len*K is injective, which
+        // keeps the overlapping tail reads collision-free across
+        // lengths.
         let len = key.count
-        let s = seed ^ (UInt64(len) &* k)
+        let s = seed ^ k
         if len <= 16 {
             return hashShort(key, s)
         }
@@ -96,7 +101,7 @@ public enum Hayahash {
         }
         let x = (inj(a) ^ s ^ k) &* k
         let y = (inj2(b) ^ rotl(s, 23) ^ (k >> 19)) &* m1
-        return fmix(rotl(x, 27) ^ y)
+        return fmix(rotl(x, 27) ^ y ^ (UInt64(len) &* k))
     }
 
     // Inputs over 16 bytes: 8-lane bulk loop over 64-byte blocks, then
@@ -194,13 +199,13 @@ public enum Hayahash {
         }
         // 0..16 bytes left; total length > 16, so reading the last 16
         // input bytes (overlapping already-hashed data) is always
-        // valid. Length is already folded into every lane via s.
+        // valid. Length is folded into t0 below, through a multiply.
         if l > 0 {
             h2 = (h2 &+ injAt(key, p + l - 16)) &* k
             h3 = (h3 &+ injAt(key, p + l - 8)) &* k
         }
 
-        let t0 = (h0 ^ rotl(h1, 13)) &* k
+        let t0 = (h0 ^ rotl(h1, 13) ^ (UInt64(key.count) &* k)) &* k
         let t1 = (h2 ^ rotl(h3, 33)) &* k
         var x = s ^ t0 ^ rotl(t1, 29)
         // The long path has already mixed every byte through a

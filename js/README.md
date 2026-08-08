@@ -25,7 +25,7 @@ an independent implementation the tests cross-check the wasm against.
 ```js
 import { hayahash64 } from "hayahash";
 
-hayahash64("hello world");            // 17444460454596232566n
+hayahash64("hello world");            // 4982310935814193242n
 hayahash64("hello world", 42n);       // seeded
 hayahash64(new Uint8Array([1, 2, 3])); // raw bytes
 hayahash64("abc").toString(16);       // format as hex
@@ -68,7 +68,7 @@ correctness everywhere, not speed.
 
 Both engines are verified against the known-answer vectors shared by
 all ports in this repository and reproduce SMHasher3's verification
-value `0xF3C4A9B4` (see [`test/hayahash.test.mjs`](test/hayahash.test.mjs)).
+value `0x65F2AC15` (see [`test/hayahash.test.mjs`](test/hayahash.test.mjs)).
 
 ## Edge runtimes (Cloudflare Workers)
 
