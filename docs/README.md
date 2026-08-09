@@ -1,11 +1,12 @@
 # hayahash documentation
 
-The top-level [`README.md`](../README.md) carries the pitch, the benchmark
-tables, and the headline quality claims. Everything behind those claims
-lives here:
+The top-level [`README.md`](../README.md) is the project overview and quick
+start. Detailed evidence, measurements, and implementation notes live here:
 
+- [`benchmarks.md`](benchmarks.md) - native and wasm measurements,
+  ChibiHash comparisons, and the 64- and 128-bit SMHasher3 shootouts
 - [`design.md`](design.md) - the four design ideas, and the structural
-  collision classes that shaped them
+  collision classes and digest changes that shaped them
 - [`quality.md`](quality.md) - what is tested and how: SMHasher3, the
   local harness, differential fuzzing, endianness and ABI coverage
 - [`ports.md`](ports.md) - repository layout, per-language usage, and how

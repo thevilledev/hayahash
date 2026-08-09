@@ -82,3 +82,19 @@ unrolling, the vectorizable bulk spelling) is chosen per architecture
 and compiler, but every shape is specified to produce identical
 output; [`smhasher3.md`](smhasher3.md#covering-every-dispatch-shape)
 lists the shapes and how to cover them all in a conformance run.
+
+## Digest stability
+
+hayahash remains experimental. Its algorithm, constants, and digest values
+may change, so it should not yet be used where persisted hashes must remain
+stable across versions.
+
+The `v0.5` development digest exercised that freedom: the length term moved
+from the lane-IV premix to the finalizer, changing every digest. The previous
+spelling made a one-shot-identical streaming API impossible because every
+lane IV depended on the total length before the first byte was read. Moving
+the term costs no additional multiplies. A simpler spelling that xors
+`len * K` after the final multiplies fails SMHasher3's SeedZeroes
+differentials, so the length term is absorbed inside the `t0` multiply. The C
+reference, all language ports, the SMHasher3 mirror, and the website simulator
+were updated together when the digest changed.

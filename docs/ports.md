@@ -143,3 +143,17 @@ MIPS64 assembly - the port lives in [`mips/`](../mips/):
 uint64_t h = hayahash64(buf, len, seed);
 hayahash128_t h128 = hayahash128(buf, len, seed);
 ```
+
+## Related project
+
+[`haya32x64`](https://github.com/thevilledev/haya32x64) provides a 64-bit
+digest using strictly 32-bit state and arithmetic while retaining the full
+result of each 32x32 multiply. It targets 32-bit processors, pure JavaScript
+without `BigInt`, CSP-constrained runtimes, and similar environments; its
+JavaScript package is
+[`haya32x64` on npm](https://www.npmjs.com/package/haya32x64).
+
+hayahash and haya32x64 are different algorithms, not interchangeable
+backends. Switching between them changes persisted hashes and must be treated
+as a data migration. They have separate reference implementations,
+known-answer vectors, compatibility guarantees, versions, and releases.
