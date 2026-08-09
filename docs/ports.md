@@ -9,6 +9,7 @@
 - `test_vectors/` - versioned known-answer digests for external
   implementers (`make -C test_vectors check`)
 - `CHANGELOG.md` - release history; `DIGEST` marks digest-breaking changes
+- `CONTRIBUTING.md` - how to change the reference, ports, and digests
 - `rust/` - Rust port (`hayahash` crate, `no_std` compatible)
 - `go/` - Go port (`github.com/thevilledev/hayahash/go` module)
 - `zig/` - Zig port (`hayahash` module, Zig 0.16)

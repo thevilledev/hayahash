@@ -1,0 +1,36 @@
+name: Digest change proposal
+description: Propose an intentional pre-1.0 digest or algorithm change
+title: "digest: "
+labels: ["digest"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Digests are not frozen before 1.0. Explain the motivation and the
+        quality evidence you expect to re-run. See `docs/stability.md` when
+        present.
+  - type: textarea
+    id: motivation
+    attributes:
+      label: Motivation
+      description: What breaks today, and why a digest change is required.
+    validations:
+      required: true
+  - type: textarea
+    id: plan
+    attributes:
+      label: Change plan
+      description: Algorithm/API edits, ports to update, and migration notes.
+    validations:
+      required: true
+  - type: checkboxes
+    id: gates
+    attributes:
+      label: Required gates you will run
+      options:
+        - label: Full SMHasher3 for both widths / dispatch shapes
+          required: true
+        - label: Local quality + hash128 harness
+          required: true
+        - label: Update every maintained port and KAT tables
+          required: true
