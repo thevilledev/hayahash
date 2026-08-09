@@ -1,7 +1,7 @@
 // Driver for playground.html.
 //
 // Two engines power the page. The shootout module (bench.wasm, from
-// tests/wasm/bench_wasm.c) holds five hashes compiled from unmodified
+// tests/wasm/bench_wasm.c) holds six hash variants compiled from unmodified
 // upstream sources with one compiler and one set of flags. Its timing
 // loops run inside wasm, so the JS boundary is not part of a
 // measurement. The calculator and the file hasher use the npm package
@@ -28,6 +28,7 @@ const wasiStubs = new Proxy({}, { get: () => () => 0 });
 
 let ex = null; // shootout wasm exports
 let mem = null; // view of the 1 MiB benchmark buffer
+let shootoutError = null;
 
 async function loadShootout() {
 	const req = fetch("bench.wasm");
@@ -204,6 +205,7 @@ function smallRunner(row, len) {
 
 const ROWS = [
 	{ key: "haya", label: "hayahash64", kind: "wasm", self: true },
+	{ key: "haya128", label: "hayahash128", kind: "wasm", self: true },
 	{ key: "chibi2", label: "ChibiHash v2", kind: "wasm" },
 	{ key: "rapid", label: "rapidhash v3", kind: "wasm" },
 	{ key: "xxh3", label: "XXH3-64", kind: "wasm" },
@@ -400,6 +402,7 @@ function parseSeed(text) {
 function updateDigest() {
 	const out = $("hash-digest");
 	const bytes = new TextEncoder().encode($("hash-input").value);
+	const width = $("hash-width").value;
 	let seed;
 	try {
 		seed = parseSeed($("hash-seed").value);
@@ -407,9 +410,36 @@ function updateDigest() {
 		out.textContent = "seed must be an integer, decimal or 0x hex";
 		return;
 	}
-	const d = hayahash64(bytes, seed);
-	out.textContent = `0x${d.toString(16).padStart(16, "0")}`;
-	$("hash-bytes").textContent = `${bytes.length} bytes of UTF-8, engine: ${getEngine()}`;
+	if (width === "64") {
+		const d = hayahash64(bytes, seed);
+		out.textContent = `0x${d.toString(16).padStart(16, "0")}`;
+		$("hash-bytes").textContent =
+			`${bytes.length} bytes of UTF-8, engine: ${getEngine()}`;
+		return;
+	}
+	if (shootoutError !== null) {
+		out.textContent = "hayahash128 is unavailable: the wasm module did not load";
+		$("hash-bytes").textContent = shootoutError.message;
+		return;
+	}
+	if (ex === null || mem === null) {
+		out.textContent = "loading the hayahash128 engine...";
+		$("hash-bytes").textContent = `${bytes.length} bytes of UTF-8`;
+		return;
+	}
+	if (bytes.length > mem.length) {
+		out.textContent = `input exceeds the ${mem.length}-byte playground limit`;
+		$("hash-bytes").textContent = `${bytes.length} bytes of UTF-8`;
+		return;
+	}
+	mem.set(bytes, 0);
+	const lo = BigInt.asUintN(64, ex.one_haya128_lo(bytes.length, seed));
+	const hi = BigInt.asUintN(64, ex.one_haya128_hi(bytes.length, seed));
+	out.textContent =
+		`0x${hi.toString(16).padStart(16, "0")}${lo.toString(16).padStart(16, "0")}`;
+	$("hash-bytes").textContent =
+		`${bytes.length} bytes of UTF-8, engine: baseline wasm; low word ` +
+		`0x${lo.toString(16).padStart(16, "0")} = hayahash64`;
 }
 
 // ---------------------------------------------------------------
@@ -466,6 +496,7 @@ async function hashFile(file) {
 async function init() {
 	$("hash-input").addEventListener("input", updateDigest);
 	$("hash-seed").addEventListener("input", updateDigest);
+	$("hash-width").addEventListener("change", updateDigest);
 	updateDigest();
 
 	$("file-input").addEventListener("change", (ev) => {
@@ -481,13 +512,16 @@ async function init() {
 		ex = await loadShootout();
 		mem = fillBuffer(ex);
 		const n = await selfCheck(ex);
+		updateDigest();
 		status.textContent = `Ready. The module computed all ${n} known answers correctly. Press the button.`;
 		$("run-bench").disabled = false;
 		$("run-bench").addEventListener("click", runSpeedTest);
 	} catch (err) {
+		shootoutError = err;
+		updateDigest();
 		status.textContent =
 			`The shootout module did not load: ${err.message}. ` +
-			"The calculator and the file hasher below still work.";
+			"The 64-bit calculator and file hasher below still work.";
 	}
 }
 

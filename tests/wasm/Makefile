@@ -1,4 +1,4 @@
-# Wasm shootout and cross-target verification for hayahash64.
+# Wasm shootout and cross-target verification for hayahash64 and hayahash128.
 #
 # bench_wasm.c is compiled twice: to baseline wasm32 with zig cc (no
 # SIMD, no wide multiply - what every wasm engine can be assumed to

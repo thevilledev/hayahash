@@ -5,19 +5,19 @@
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <meta
       name="description"
-      content="Run hayahash64 in your browser. Measure it against ChibiHash v2, rapidhash v3, XXH3-64, and XXH64 in one WebAssembly build, and hash your own text and files."
+      content="Run hayahash64 and hayahash128 in your browser. Measure both in one baseline-WebAssembly build, and hash your own text."
     >
     <meta name="theme-color" content="#ffffff">
     <meta property="og:type" content="website">
-    <meta property="og:title" content="hayahash64 playground">
+    <meta property="og:title" content="hayahash playground">
     <meta
       property="og:description"
-      content="Run hayahash64 in your browser. Measure it against ChibiHash v2, rapidhash v3, XXH3-64, and XXH64 in one WebAssembly build, and hash your own text and files."
+      content="Run hayahash64 and hayahash128 in your browser. Measure both in one baseline-WebAssembly build, and hash your own text."
     >
     <meta property="og:url" content="https://hayaha.sh/playground.html">
     <link rel="canonical" href="https://hayaha.sh/playground.html">
     <link rel="stylesheet" href="styles.css">
-    <title>hayahash64 playground: measure it in your browser</title>
+    <title>hayahash64 and hayahash128 playground</title>
   </head>
   <body>
     <a class="skip-link" href="#content">Skip to content</a>
@@ -34,8 +34,8 @@
       <h1>Playground</h1>
 
       <p>
-        This page measures hayahash64 on your machine. Everything runs
-        in your browser. Nothing is uploaded.
+        This page measures hayahash64 and hayahash128 on your machine.
+        Everything runs in your browser. Nothing is uploaded.
       </p>
 
       <p>
@@ -50,8 +50,8 @@
       <h2 id="speed">The speed test</h2>
 
       <p>
-        One wasm module of about 14&nbsp;KB holds five hashes:
-        hayahash64, ChibiHash v2, rapidhash v3, XXH3-64, and XXH64.
+        One wasm module holds six hash variants: hayahash64,
+        hayahash128, ChibiHash v2, rapidhash v3, XXH3-64, and XXH64.
         It compiles from unmodified upstream sources with one compiler
         and one set of flags. The timing loops run inside wasm. Before
         the first measurement, the page recomputes the known answers
@@ -215,9 +215,10 @@
       <h2 id="try">Hash your text</h2>
 
       <p>
-        The hash value comes from the same code the npm package ships:
-        the reference header compiled to a 1.4&nbsp;KB wasm module,
-        with a pure-JS fallback. Type and watch.
+        Choose either digest width. hayahash64 comes from the same code
+        the npm package ships. hayahash128 comes from the reference C
+        header in the checked baseline-wasm shootout module. Its low
+        64 bits are exactly the hayahash64 value. Type and watch.
       </p>
 
       <p>
@@ -229,6 +230,13 @@
         <input type="text" id="hash-seed" value="0" size="24" autocomplete="off" spellcheck="false">
       </p>
       <p>
+        <label for="hash-width">Digest width</label>
+        <select id="hash-width">
+          <option value="64">64 bits</option>
+          <option value="128">128 bits</option>
+        </select>
+      </p>
+      <p>
         hash value: <code id="hash-digest"></code><br>
         <span id="hash-bytes" class="status"></span>
       </p>
@@ -236,10 +244,10 @@
       <h2 id="file">Hash a file</h2>
 
       <p>
-        Pick a file. The file stays in your browser. The page reads it
-        into memory and hashes it with seed 0 in one call through the
-        npm package, input copy included. A big file shows the bulk
-        rate best.
+        Pick a file. The file stays in your browser. This calculator uses
+        hayahash64 from the npm package with seed 0, input copy included.
+        The speed test above covers both 64- and 128-bit bulk hashing. A
+        big file shows the npm package's bulk rate best.
       </p>
 
       <p><input type="file" id="file-input"></p>

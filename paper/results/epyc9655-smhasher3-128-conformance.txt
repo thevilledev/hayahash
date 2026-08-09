@@ -1,0 +1,55 @@
+snapshot: v0.5 candidate, 2026-08-09 worktree
+smhasher3 commit: 51d3cd1ac0aa4934f6aacb44d9d234f50300b6e3
+host: AMD EPYC 9655, 8 vCPU KVM guest, no dedicated cores
+os: Linux 6.8.0-137-generic x86_64
+compiler: GCC 13.3.0, cmake 3.28.3, Release, -O3 -march=native
+command: ./SMHasher3 <hash>
+method: one full-suite process per hash, three concurrent processes per batch
+date: 2026-08-09
+
+This guest supplies pass/fail only. Its timings are deliberately excluded from
+the competitive table because frequency and core ownership are uncontrolled.
+SMHasher3's statistical tests are deterministic for a given hash. All outputs
+used the 128-bit-wide expectations selected by each hash registration.
+
+RESULT
+
+hash                      verbatim overall result
+hayahash128               pass  (188 / 188 passed)
+MuseAir-128                pass  (188 / 188 passed)
+a5hash-128                 pass  (188 / 188 passed)
+MeowHash                   pass  (188 / 188 passed)
+XXH3-128                   FAIL  (162 / 188 passed)
+t1ha2-128                  pass  (188 / 188 passed)
+SpookyHash2-128            FAIL  (178 / 188 passed)
+prvhash-128                pass  (187 / 187 passed)
+FarmHash-128.CC.seed1      pass  (188 / 188 passed)
+
+prvhash's SMHasher3 registration exposes 187 applicable groups; it passed all
+187. Table failure counts are the difference between passed and applicable
+groups: XXH3-128 fails 26 and SpookyHash2-128 fails 10.
+
+RAW OUTPUT CHECKSUMS AND COMPLETION TIMES
+
+hash                      seconds      sha256
+hayahash128               1002.968251  73f015108fd521a1b4141a26b343b6bf0858aa828bbd28566c87a72b6dbd99a8
+MuseAir-128                1002.315951  1360ce83fd7348a7a7a48c92e9275414d4186c7d7f9bd5192a40528fa423f172
+a5hash-128                 1010.401800  6ea9d1cb4148009e8bc74f43d79cac775af23ad2c05395ab22a1cbf34f5d1c14
+MeowHash                    951.470071  ba33718352ccf5837e9f79869b2f263c30cfc546559a24905d5d74db89573933
+XXH3-128                    940.476521  838475da0c3d601b374a5365a4bd7608c3b33b62d9ecd80ad70acc4ad756cfe5
+t1ha2-128                   977.485133  66bf8f66daa7602515cabb1d80ccb5de382a5680effc0cadab10b2630649b134
+SpookyHash2-128             996.826258  cfa0b4407e0a5c1dd75e95f02b8b1b39b743c8b991eaf9fde67c0a2dd88517e1
+prvhash-128                1021.047770  0ce75ead69bdd812c26017195cdf518c7fffae5fb80b1af0d6aa0cf28f8398f4
+FarmHash-128.CC.seed1       987.149637  f5a188c601cb4ff9e26d682dfdaef781973e7af5452014b8529ef4b8de80831e
+
+Each raw file ended with verification value 0x00000001. The complete outputs
+remain reproducible from the pinned source and command above; checksums retain
+an exact identity without adding roughly two megabytes of repetitive dumps.
+
+INSTRUCTION-CLASS AUDIT
+
+At the pinned SMHasher3 commit, MuseAir, a5hash, t1ha2, and XXH3 call
+MathMult::mult64_128. MeowHash uses x86 AES intrinsics. SpookyHash, prvhash,
+FarmHash CC, and hayahash128 have ordinary-scalar implementations. FarmHash's
+uint128_t carries the two output words and has a std::pair<uint64_t,uint64_t>
+fallback; the CC algorithm does not use a 64x64-to-128 multiply.

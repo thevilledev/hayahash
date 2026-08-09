@@ -223,6 +223,16 @@ for rep in 1 2 3 4 5; do
 done
 ```
 
+The current `v0.5` 128-bit refresh used three process replicates and this
+width-matched set:
+
+```bash
+HASHES="hayahash128 MuseAir-128 a5hash-128 MeowHash XXH3-128 t1ha2-128 SpookyHash2-128 prvhash-128 FarmHash-128.CC.seed1"
+```
+
+`MeowHash` is x86-only in this build and was omitted on the M1. Conformance
+was run once per hash on the EPYC 9655; speed from that KVM guest was not used.
+
 Budget about 45 s per hash per replicate on Zen 5 and 90 s on an M1. Report
 `Average - N cycles/hash` for small keys and the first `Average - N
 bytes/cycle` for bulk.
