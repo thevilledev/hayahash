@@ -1,0 +1,40 @@
+name: Port mismatch
+description: A language port disagrees with the C reference
+title: "port: "
+labels: ["ports"]
+body:
+  - type: dropdown
+    id: port
+    attributes:
+      label: Port
+      options:
+        - Rust
+        - Go
+        - Zig
+        - Java
+        - C#
+        - Python
+        - Swift
+        - JavaScript/TypeScript
+        - MIPS64
+        - Other / external
+    validations:
+      required: true
+  - type: input
+    id: version
+    attributes:
+      label: hayahash version or commit
+    validations:
+      required: true
+  - type: textarea
+    id: repro
+    attributes:
+      label: Reproduction
+      description: Input bytes (hex), seed, expected C digest, actual port digest.
+    validations:
+      required: true
+  - type: input
+    id: differential_seed
+    attributes:
+      label: Differential workflow PRNG seed (if any)
+      placeholder: optional

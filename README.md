@@ -119,6 +119,7 @@ are documented in [`docs/quality.md`](docs/quality.md).
 
 ## Documentation
 
+- [Contributing](CONTRIBUTING.md) - port sync rules, local gates, SMHasher3 triggers
 - [Changelog](CHANGELOG.md) - release history; `DIGEST` marks digest-breaking changes
 - [Test vectors](test_vectors/) - versioned known-answer digests for external implementers
 - [Stability / 1.0 criteria](docs/stability.md) - when digests freeze

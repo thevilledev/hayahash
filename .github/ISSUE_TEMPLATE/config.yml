@@ -1,0 +1,5 @@
+blank_issues_enabled: true
+contact_links:
+  - name: Security advisory
+    url: https://github.com/thevilledev/hayahash/security/advisories/new
+    about: Private report for vulnerabilities or abuse-sensitive digest divergence.

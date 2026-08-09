@@ -1,0 +1,34 @@
+name: Quality regression
+description: SMHasher3 failure, structured collision, or avalanche regression
+title: "quality: "
+labels: ["quality"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Use this for non-adversarial quality failures. For security-sensitive
+        reports, use a [private advisory](https://github.com/thevilledev/hayahash/security/advisories/new).
+  - type: input
+    id: version
+    attributes:
+      label: hayahash version or commit
+      placeholder: "0.5.0 or abcdef0"
+    validations:
+      required: true
+  - type: dropdown
+    id: width
+    attributes:
+      label: Output width
+      options:
+        - hayahash64
+        - hayahash128
+        - both
+    validations:
+      required: true
+  - type: textarea
+    id: evidence
+    attributes:
+      label: Evidence
+      description: Command, host/compiler, and failing output or SMHasher3 excerpt.
+    validations:
+      required: true
