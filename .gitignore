@@ -2,6 +2,8 @@
 tests/bench
 tests/quality
 tests/hash128
+test_vectors/generate
+test_vectors/.generated.txt
 
 # SMHasher3 harness: the pinned upstream clone (GPL-3.0, never vendored)
 tests/smhasher3/smhasher3*/

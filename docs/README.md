@@ -3,6 +3,10 @@
 The top-level [`README.md`](../README.md) is the project overview and quick
 start. Detailed evidence, measurements, and implementation notes live here:
 
+- [`../CHANGELOG.md`](../CHANGELOG.md) - release history; digest-breaking
+  changes are marked `DIGEST`
+- [`../test_vectors/`](../test_vectors/) - versioned, language-agnostic
+  known-answer digests for the current and historical digest series
 - [`benchmarks.md`](benchmarks.md) - native and wasm measurements,
   ChibiHash comparisons, and the 64- and 128-bit SMHasher3 shootouts
 - [`design.md`](design.md) - the four design ideas, and the structural

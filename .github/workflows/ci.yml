@@ -57,6 +57,13 @@ jobs:
           CFLAGS="-O2 -std=c11 -Wall -Wextra -Werror"
           run-quality
 
+      - name: Check published test vectors match hayahash.h
+        run: >-
+          make -C test_vectors
+          CC="${{ matrix.compiler }}"
+          CFLAGS="-O2 -std=c11 -Wall -Wextra -Werror"
+          check
+
       # Keeps kat_haya.txt honest: it is the reference the MSVC job
       # diffs against, so it has to be regenerated here rather than
       # trusted.
