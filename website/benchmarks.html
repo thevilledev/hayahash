@@ -95,15 +95,15 @@
           <tbody>
             <tr>
               <td>Apple M1 Pro</td>
-              <td class="n">7.99 / 9.43</td>
-              <td class="n">2.84 / 3.96</td>
-              <td class="n">29.78 / 27.31</td>
+              <td class="n">7.88 / 9.25</td>
+              <td class="n">2.70 / 3.81</td>
+              <td class="n">30.73 / 30.76</td>
             </tr>
             <tr>
               <td>Ryzen AI 9 HX PRO 370</td>
-              <td class="n">4.29 / 4.93</td>
-              <td class="n">1.88 / 2.77</td>
-              <td class="n">61.60 / 33.88</td>
+              <td class="n">4.29 / 4.88</td>
+              <td class="n">1.97 / 2.61</td>
+              <td class="n">61.48 / 61.29</td>
             </tr>
             <tr>
               <td>EPYC 9655 (KVM)</td>
@@ -184,7 +184,7 @@
             </tr>
           </thead>
           <tbody>
-            <tr class="self"><td>hayahash128</td><td class="n">38.51</td><td class="n">9.18</td><td class="n">13.72</td><td class="n">16.83</td><td>pass</td><td>ordinary scalar source; auto-vectorized Zen 5 bulk</td></tr>
+            <tr class="self"><td>hayahash128</td><td class="n">38.45</td><td class="n">9.74</td><td class="n">13.33</td><td class="n">31.10</td><td>pass</td><td>ordinary scalar source; auto-vectorized Zen 5 bulk</td></tr>
             <tr><td>MuseAir-128</td><td class="n">24.26</td><td class="n">8.65</td><td class="n">7.44</td><td class="n">22.80</td><td>pass</td><td>64&times;64&rarr;128 multiply</td></tr>
             <tr><td>a5hash-128</td><td class="n"><strong>22.29</strong></td><td class="n">10.92</td><td class="n"><strong>6.00</strong></td><td class="n">22.99</td><td>pass</td><td>64&times;64&rarr;128 multiply</td></tr>
             <tr><td>MeowHash</td><td class="n">-</td><td class="n">-</td><td class="n">28.64</td><td class="n">32.22</td><td>pass</td><td>x86 AES instructions</td></tr>
@@ -206,18 +206,24 @@
       </p>
 
       <p>
-        The accelerated passers are faster on Zen&nbsp;5: a5hash and
-        MuseAir use a native wide multiply result, while MeowHash uses AES.
-        XXH3-128 is the bulk leader but fails 26 of the 188 test groups.
-        hayahash128 reaches 9.18 bytes/cycle on M1 and 16.83 on Zen&nbsp;5
-        without a wide-result multiply or AES; the Zen&nbsp;5 bulk loop is
-        compiler-auto-vectorized.
+        XXH3-128 is the bulk leader on both hosts but fails 26 of the 188
+        test groups. Among the passers, small-key latency still favors the
+        wide-multiply pair (a5hash, MuseAir), but the sixth optimization
+        pass reordered Zen&nbsp;5 bulk: hayahash128 reaches 31.10
+        bytes/cycle there without a wide-result multiply or AES - past
+        every wide-multiply passer and within 4% of AES-based MeowHash -
+        because the outlined dispatch lets GCC auto-vectorize the 128-bit
+        bulk walk. On M1 it reaches 9.74 bytes/cycle, still behind
+        a5hash's 10.92 bulk on that host. The hayahash128 cells were
+        re-measured after that digest-identical change (three fresh
+        process replicates per host, same pinned commit and correction);
+        the competitor rows are from the original sweep.
       </p>
 
       <p>
         The passing ordinary-scalar rows are hayahash128, prvhash-128, and
-        FarmHash CC. hayahash128 leads FarmHash in bulk by 1.63&times; on M1
-        and 1.02&times; on Zen&nbsp;5, and has lower small-key latency on both.
+        FarmHash CC. hayahash128 leads FarmHash in bulk by 1.73&times; on M1
+        and 1.89&times; on Zen&nbsp;5, and has lower small-key latency on both.
         The narrow Zen&nbsp;5 result supports “fastest passing portable-scalar
         128-bit hash measured here,” not a claim that no fast predecessor
         exists. prvhash exposes 187 applicable groups and passes all 187. See the
@@ -421,11 +427,11 @@
             </tr>
           </thead>
           <tbody>
-            <tr><td class="n">64</td><td class="n">7.36</td><td class="n">9.74</td><td class="n"><strong>12.59</strong></td><td class="n">10.07</td></tr>
-            <tr><td class="n">256</td><td class="n">15.38</td><td class="n">17.44</td><td class="n"><strong>20.03</strong></td><td class="n">18.24</td></tr>
-            <tr><td class="n">1024</td><td class="n">15.11</td><td class="n">19.15</td><td class="n"><strong>26.59</strong></td><td class="n">23.97</td></tr>
-            <tr><td class="n">16384</td><td class="n">14.32</td><td class="n">18.41</td><td class="n"><strong>29.44</strong></td><td class="n">26.98</td></tr>
-            <tr><td class="n">1048576</td><td class="n">14.21</td><td class="n">18.35</td><td class="n"><strong>29.78</strong></td><td class="n">27.31</td></tr>
+            <tr><td class="n">64</td><td class="n">7.70</td><td class="n">10.04</td><td class="n"><strong>13.00</strong></td><td class="n">10.39</td></tr>
+            <tr><td class="n">256</td><td class="n">15.84</td><td class="n">18.00</td><td class="n"><strong>20.67</strong></td><td class="n">19.03</td></tr>
+            <tr><td class="n">1024</td><td class="n">15.62</td><td class="n">19.72</td><td class="n"><strong>27.55</strong></td><td class="n">26.28</td></tr>
+            <tr><td class="n">16384</td><td class="n">14.76</td><td class="n">19.00</td><td class="n"><strong>30.41</strong></td><td class="n">30.38</td></tr>
+            <tr><td class="n">1048576</td><td class="n">14.73</td><td class="n">18.99</td><td class="n">30.73</td><td class="n"><strong>30.76</strong></td></tr>
           </tbody>
         </table>
       </div>
@@ -443,12 +449,12 @@
             </tr>
           </thead>
           <tbody>
-            <tr><td class="n">4</td><td class="n">9.89</td><td class="n">10.15</td><td class="n"><strong>8.01</strong></td><td class="n">9.40</td></tr>
-            <tr><td class="n">8</td><td class="n"><strong>6.50</strong></td><td class="n">9.69</td><td class="n">7.99</td><td class="n">9.43</td></tr>
-            <tr><td class="n">16</td><td class="n"><strong>6.85</strong></td><td class="n">9.94</td><td class="n">7.96</td><td class="n">9.39</td></tr>
-            <tr><td class="n">32</td><td class="n">12.20</td><td class="n">11.56</td><td class="n"><strong>8.47</strong></td><td class="n">10.81</td></tr>
-            <tr><td class="n">64</td><td class="n">14.32</td><td class="n">13.22</td><td class="n"><strong>9.86</strong></td><td class="n">12.18</td></tr>
-            <tr><td class="n">128</td><td class="n">18.57</td><td class="n">16.74</td><td class="n"><strong>12.53</strong></td><td class="n">15.02</td></tr>
+            <tr><td class="n">4</td><td class="n">9.62</td><td class="n">10.00</td><td class="n"><strong>7.88</strong></td><td class="n">9.23</td></tr>
+            <tr><td class="n">8</td><td class="n"><strong>6.32</strong></td><td class="n">9.54</td><td class="n">7.88</td><td class="n">9.25</td></tr>
+            <tr><td class="n">16</td><td class="n"><strong>6.70</strong></td><td class="n">9.77</td><td class="n">7.87</td><td class="n">9.25</td></tr>
+            <tr><td class="n">32</td><td class="n">12.13</td><td class="n">11.34</td><td class="n"><strong>8.41</strong></td><td class="n">10.52</td></tr>
+            <tr><td class="n">64</td><td class="n">13.98</td><td class="n">12.91</td><td class="n"><strong>9.68</strong></td><td class="n">11.74</td></tr>
+            <tr><td class="n">128</td><td class="n">18.27</td><td class="n">16.52</td><td class="n"><strong>12.18</strong></td><td class="n">14.46</td></tr>
           </tbody>
         </table>
       </div>
@@ -466,12 +472,12 @@
             </tr>
           </thead>
           <tbody>
-            <tr><td class="n">4</td><td class="n">7.35</td><td class="n">4.32</td><td class="n"><strong>2.83</strong></td><td class="n">3.93</td></tr>
-            <tr><td class="n">8</td><td class="n">4.63</td><td class="n">4.64</td><td class="n"><strong>2.84</strong></td><td class="n">3.96</td></tr>
-            <tr><td class="n">16</td><td class="n">5.16</td><td class="n">4.96</td><td class="n"><strong>2.76</strong></td><td class="n">3.87</td></tr>
-            <tr><td class="n">32</td><td class="n">7.04</td><td class="n">5.45</td><td class="n"><strong>3.88</strong></td><td class="n">5.21</td></tr>
-            <tr><td class="n">64</td><td class="n">8.61</td><td class="n">6.51</td><td class="n"><strong>5.05</strong></td><td class="n">6.34</td></tr>
-            <tr><td class="n">128</td><td class="n">12.05</td><td class="n">9.10</td><td class="n"><strong>7.55</strong></td><td class="n">8.81</td></tr>
+            <tr><td class="n">4</td><td class="n">7.13</td><td class="n">4.21</td><td class="n"><strong>2.76</strong></td><td class="n">3.83</td></tr>
+            <tr><td class="n">8</td><td class="n">4.41</td><td class="n">4.42</td><td class="n"><strong>2.70</strong></td><td class="n">3.81</td></tr>
+            <tr><td class="n">16</td><td class="n">5.05</td><td class="n">4.88</td><td class="n"><strong>2.70</strong></td><td class="n">3.81</td></tr>
+            <tr><td class="n">32</td><td class="n">6.81</td><td class="n">5.17</td><td class="n"><strong>3.72</strong></td><td class="n">4.98</td></tr>
+            <tr><td class="n">64</td><td class="n">8.38</td><td class="n">6.38</td><td class="n"><strong>4.92</strong></td><td class="n">6.15</td></tr>
+            <tr><td class="n">128</td><td class="n">11.69</td><td class="n">8.90</td><td class="n"><strong>7.38</strong></td><td class="n">8.53</td></tr>
           </tbody>
         </table>
       </div>
@@ -505,19 +511,19 @@
           <tbody>
             <tr>
               <td>128 B, independent hashes (ns, lower is better)</td>
-              <td class="n">6.47</td><td class="n"><strong>5.31</strong></td><td class="n">6.37</td>
+              <td class="n">6.48</td><td class="n"><strong>5.31</strong></td><td class="n">6.33</td>
             </tr>
             <tr>
               <td>128 B, bulk speed (GB/s, higher is better)</td>
-              <td class="n">19.84</td><td class="n"><strong>24.25</strong></td><td class="n">20.12</td>
+              <td class="n">19.83</td><td class="n"><strong>24.25</strong></td><td class="n">20.30</td>
             </tr>
             <tr>
               <td>512 B, bulk speed (GB/s)</td>
-              <td class="n">29.31</td><td class="n"><strong>42.13</strong></td><td class="n">26.23</td>
+              <td class="n">29.30</td><td class="n"><strong>41.99</strong></td><td class="n">37.97</td>
             </tr>
             <tr>
               <td>1 MiB, bulk speed (GB/s)</td>
-              <td class="n">31.25</td><td class="n"><strong>61.60</strong></td><td class="n">33.88</td>
+              <td class="n">31.23</td><td class="n"><strong>61.48</strong></td><td class="n">61.29</td>
             </tr>
             <tr>
               <td>1 MiB, bulk speed, build without AVX-512DQ (GB/s)</td>
@@ -529,14 +535,15 @@
 
       <p>
         On this host, hayahash64 is ahead of the two ChibiHash versions at
-        each measured size. hayahash128 remains ahead of ChibiHash v2 at
-        128 bytes, while its additional finalizer reduces long-input
-        throughput. Before the fifth optimization pass, ChibiHash
-        v2 led the 320 to 512 byte band. That band now shows a 27 to 47
-        percent hayahash lead. Bulk speed at 1&nbsp;MiB almost doubled when
-        GCC vectorized the bulk loop for AVX-512. The dispatch shape
-        changes with the CPU and the compiler. Each shape makes the same
-        hash values.
+        each measured size. hayahash128 stays ahead of ChibiHash v2 at
+        128 bytes, and after the sixth optimization pass its long-input
+        rate matches hayahash64 within noise: the 128-bit bulk dispatch
+        moved out of line, where GCC vectorizes it the same way. Before
+        the fifth optimization pass, ChibiHash v2 led the 320 to 512 byte
+        band. That band now shows a hayahash lead for both widths. Bulk
+        speed at 1&nbsp;MiB almost doubled when GCC vectorized the bulk
+        loop for AVX-512. The dispatch shape changes with the CPU and the
+        compiler. Each shape makes the same hash values.
       </p>
 
       <h2 id="reproduce">Reproduce it</h2>
