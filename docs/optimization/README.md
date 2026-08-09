@@ -48,16 +48,29 @@ what is enabled today.
    store-seeded spelling teaches GCC's SLP vectorizer the bulk loop -
    sustained Zen 5 bulk goes from 35 to 62 GB/s and the 320..512-byte
    transition band stops being a weakness.
+6. [Sixth pass - hayahash128 dispatch](pass-6-128-dispatch.md): the
+   first pass whose subject is the 128-bit function; output-identical
+   restructuring only. Outlining the long path brings GCC's Zen 5
+   bulk from 34 to 62 GB/s (the fifth pass's vectorization finally
+   fires for the 128-bit walk); both measured clangs instead keep the
+   bulk loop inline with a two-block unroll, which reaches the same
+   bulk rate without destabilizing their 17..319-byte schedules.
+   hayahash128 now holds ~100% of hayahash64's sustained bulk on both
+   reference machines. A same-day follow-up re-measured the EPYC 9655
+   guest (29.5 -> 53.7 GB/s, closing the last stale row) and gave
+   hayahash128 the GCC length tiers, worth 3..7% across 32..319 bytes
+   on both Zen 5 hosts.
 
 ## Where things stand
 
-Dispatch state after the fifth pass, as compiled from the header (see
+Dispatch state after the sixth pass, as compiled from the header (see
 [`docs/smhasher3.md`](../smhasher3.md#covering-every-dispatch-shape)
 for how to cover every shape in a conformance run):
 
 - Straight-line length tiers (`HAYAHASH64_INTERNAL_TIERS`): AArch64 or
   x86-64, **and not clang**. Both measured clangs prefer the compact
-  dispatch on mixed-size workloads.
+  dispatch on mixed-size workloads. Since the sixth pass's follow-up,
+  hayahash128 compiles the same tiers on the same gate.
 - GCC bulk vectorization spelling (`HAYAHASH64_INTERNAL_VECGCC`):
   x86-64 GCC with AVX-512DQ only; token-identical to the plain
   spelling everywhere else.
@@ -65,6 +78,11 @@ for how to cover every shape in a conformance run):
   they now exist to keep the latency-critical path scalar, not to
   prevent the (gone) rotate-distribution transform.
 - The two-block bulk unroll covers AArch64 and x86-64.
+- hayahash128 bulk dispatch (`HAYAHASH128_INTERNAL_INLINEBULK`):
+  clang-and-not-wasm keeps the 8-lane loop inline (with the two-block
+  unroll); every other target calls the outlined 128-bit long path,
+  which is where GCC's bulk vectorization fires. Wasm keeps the
+  single-block inline loop.
 
 Resolved since the fifth pass was written: the SMHasher3 shootout was
 rerun in full at `v0.4.0` (every cell re-measured, five replicates per
@@ -77,6 +95,9 @@ Still open:
   and one-block bulk loop it compiles remain performance-untested.
 - Whether GCC on AArch64 servers (Graviton class) wants the vectorized
   bulk spelling via SVE, once such a machine is available.
+- The Zen 5 stock-clang 8-byte chained regression under the outlined
+  128-bit shape: routed around in the
+  [sixth pass](pass-6-128-dispatch.md), cause never identified.
 - Research items 9 and 10 below.
 
 ## Research context

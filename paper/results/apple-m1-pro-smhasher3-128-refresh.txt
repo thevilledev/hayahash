@@ -1,0 +1,42 @@
+snapshot: v0.5 candidate + sixth-pass dispatch and tiers (digest-identical), 2026-08-09
+smhasher3 commit: 51d3cd1ac0aa4934f6aacb44d9d234f50300b6e3
+hayahash.cpp sha256: e766a459e51368585a3e021a4a52f68766b26539c03132d0aab09e8a7ddd5d1b
+host: Apple M1 Pro MacBook Pro, 8 cores (6 performance, 2 efficiency), 16 GB
+os: macOS 26.6 (25G72)
+compiler: Apple clang 21.0.0, Release, -O3 -march=native
+hayahash dispatch: compact
+command: ./SMHasher3 --test=Speed --verbose hayahash128
+method: 3 independent process replicates, hayahash128 only
+date: 2026-08-09
+
+PURPOSE
+
+Refreshes the hayahash128 row of apple-m1-pro-smhasher3-128-shootout.txt
+after the sixth optimization pass (docs/optimization/pass-6-128-dispatch.md),
+which upgraded clang's inline bulk loop to the two-block spelling; the
+mirror also carries the follow-up 17..319-byte tiers, which are GCC-only
+and preprocess away here - the compiled translation is bit-identical to
+the pre-tier build under Apple clang. The change is digest-identical: the
+rebuilt translation reports the same verification values (CE 0x3F0411F4
+PASS, NE 0x46140A64 PASS). Competitor code is untouched, so the sweep
+record's other rows still stand; this run measured hayahash128 alone
+rather than round-robin across the field, which is the only methodology
+difference.
+
+SMALL-KEY CORRECTION
+
+Same procedure as the sweep record: each reported 1..31-byte average is put
+onto that record's minimum-overhead baseline before taking the median:
+
+  corrected = reported average + run overhead - 2.72
+
+hash          overhead        reported small    corrected small   bulk (B/cy)
+hayahash128   2.75/2.76/2.73  38.50/38.61/38.25 38.53/38.65/38.26 9.72/9.77/9.80
+
+medians: small 38.53 cy/hash, bulk 9.77 B/cy
+previous row (pre-pass-6 sweep): small 38.51, bulk 9.18
+
+Bulk is the first, fixed-262144-byte Average, as in the sweep record. The
+small-key value is unchanged within the fanless host's replicate spread
+(an intermediate pre-tier refresh measured 38.45 / 9.74); the bulk gain is
+the two-block loop.

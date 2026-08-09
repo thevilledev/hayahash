@@ -1,0 +1,43 @@
+snapshot: v0.5 candidate + sixth-pass dispatch and tiers (digest-identical), 2026-08-09
+smhasher3 commit: 51d3cd1ac0aa4934f6aacb44d9d234f50300b6e3
+hayahash.cpp sha256: e766a459e51368585a3e021a4a52f68766b26539c03132d0aab09e8a7ddd5d1b
+host: AMD Ryzen AI 9 HX PRO 370, 12 cores / 24 threads, bare metal
+os: Linux 6.18.38-1-MANJARO x86_64
+compiler: GCC 16.1.1, Release, -O3 -march=native
+affinity: taskset -c 0 (performance core)
+hayahash dispatch: tiers+vecgcc
+command: taskset -c 0 ./SMHasher3 --test=Speed --verbose hayahash128
+method: 3 independent process replicates, hayahash128 only
+date: 2026-08-09
+
+PURPOSE
+
+Refreshes the hayahash128 row of ryzen-ai9-smhasher3-128-shootout.txt after
+the sixth optimization pass (docs/optimization/pass-6-128-dispatch.md) moved
+the 128-bit bulk dispatch out of line for GCC and its same-day follow-up
+gave hayahash128 the 17..319-byte tiers. The changes are digest-identical:
+the rebuilt translation reports the same verification values
+(CE 0x3F0411F4 PASS, NE 0x46140A64 PASS). Competitor code is untouched, so
+the sweep record's other rows still stand; this run measured hayahash128
+alone rather than round-robin across the field, which is the only
+methodology difference.
+
+SMALL-KEY CORRECTION
+
+Same procedure as the sweep record: each reported 1..31-byte average is put
+onto that record's minimum-overhead baseline before taking the median:
+
+  corrected = reported average + run overhead - 1.55
+
+hash          overhead        reported small    corrected small   bulk (B/cy)
+hayahash128   2.32/2.34/2.34  12.94/12.93/12.92 13.71/13.72/13.71 31.11/31.02/31.00
+
+medians: small 13.71 cy/hash, bulk 31.02 B/cy
+previous row (pre-pass-6 sweep): small 13.72, bulk 16.83
+
+Bulk is the first, fixed-262144-byte Average, as in the sweep record. An
+intermediate refresh of the pass-6 dispatch without the tiers measured
+13.33 / 31.10; the tiers give back that transient small-key improvement
+(1..31-byte chained latency returns to the sweep's 13.7) in exchange for
+3..7% higher fixed-size throughput across 32..319 bytes, measured in the
+optimization log.

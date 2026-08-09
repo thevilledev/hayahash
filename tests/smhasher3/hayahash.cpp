@@ -771,7 +771,7 @@ static inline hayahash128_t hayahash128_internal_short(
     };
 }
 
-static inline hayahash128_t hayahash128_internal_long(
+static inline hayahash128_t hayahash128_internal_longmix(
         uint64_t s, uint64_t t0, uint64_t t1, uint64_t K ) {
     return {
         hayahash64_internal_long_fmix(
@@ -779,6 +779,110 @@ static inline hayahash128_t hayahash128_internal_long(
         hayahash128_internal_fmix(hayahash64_internal_rotl(s, 32) ^
             (t1 + hayahash64_internal_rotl(t0, 47)))
     };
+}
+
+// hayahash128's >= 320-byte dispatch. Non-clang targets call the outlined
+// long path below, exactly like hayahash64 (GCC only reaches the VECGCC
+// vector shape there); both measured clangs keep the bulk loop inline with
+// the two-block unroll instead. See the reference header for the numbers.
+#if defined(__clang__) && !defined(__wasm__)
+  #define HAYAHASH128_INTERNAL_INLINEBULK 1
+#else
+  #define HAYAHASH128_INTERNAL_INLINEBULK 0
+#endif
+
+// Long-input path for the outlined dispatch: the same state walk and loop
+// shape as hayahash64_internal_long, ending in the two-word extraction, so
+// the low word stays exactly hayahash64.
+template <bool bswap>
+static HAYAHASH64_INTERNAL_NOINLINE hayahash128_t hayahash128_internal_long(
+        const void * keyIn, std::ptrdiff_t len, uint64_t seed ) {
+#if defined(__GNUC__) || defined(__clang__)
+    if (len < (std::ptrdiff_t)hayahash64_internal_bulk_min)
+        __builtin_unreachable();
+#elif defined(_MSC_VER)
+    __assume(len >= (std::ptrdiff_t)hayahash64_internal_bulk_min);
+#endif
+    const uint8_t * p = (const uint8_t *)keyIn;
+    std::ptrdiff_t l = len;
+    uint64_t K = HAYAHASH64_INTERNAL_K;
+#if defined(__aarch64__) && (defined(__GNUC__) || defined(__clang__))
+    HAYAHASH64_INTERNAL_COMPILER_GUARD(K);
+#endif
+    const uint64_t lenmix = (uint64_t)len * K;
+    uint64_t s = seed ^ K;
+    uint64_t h0 = s ^ K;
+    uint64_t h1 = hayahash64_internal_rotl(s, 17) + (K << 21);
+    uint64_t h2 = hayahash64_internal_rotl(s, 34) ^ (K >> 13);
+    uint64_t h3 = hayahash64_internal_rotl(s, 51) + (K << 42);
+    uint64_t h4 = s + (K >> 27);
+    uint64_t h5 = hayahash64_internal_rotl(s, 13) ^ (K << 9);
+    uint64_t h6 = hayahash64_internal_rotl(s, 26) + (K >> 40);
+    uint64_t h7 = hayahash64_internal_rotl(s, 39) ^ (K << 30);
+    uint64_t w, wp = 0;
+#if defined(__x86_64__) && defined(__GNUC__) && !defined(__clang__)
+    __asm__("" : "+r" (K));
+#endif
+
+#if defined(__aarch64__) || defined(__x86_64__)
+  #if HAYAHASH64_INTERNAL_VECGCC
+    uint64_t hv[4] = { h2, h3, h4, h5 };
+  #endif
+    const uint8_t * pe = p + ((size_t)l & ~(size_t)127);
+    l &= 127;
+    do {
+        HAYAHASH64_INTERNAL_BULK_BLOCK(p);
+        HAYAHASH64_INTERNAL_BULK_BLOCK(p + 64);
+        p += 128;
+    } while (p != pe);
+    if (l >= 64) {
+        HAYAHASH64_INTERNAL_BULK_BLOCK(p);
+        p += 64; l -= 64;
+    }
+#else
+    do {
+        HAYAHASH64_INTERNAL_BULK_BLOCK(p);
+        p += 64; l -= 64;
+    } while (l >= 64);
+#endif
+#if HAYAHASH64_INTERNAL_VECGCC
+    h2 = hv[0]; h3 = hv[1]; h4 = hv[2]; h5 = hv[3];
+#endif
+    h0 = (h0 ^ hayahash64_internal_rotl_product(h4, 11)) * K;
+    h1 = (h1 ^ hayahash64_internal_rotl_product(h5, 19)) * K;
+    h2 = (h2 ^ hayahash64_internal_rotl_product(h6, 31)) * K;
+    h3 = (h3 ^ hayahash64_internal_rotl_product(h7, 47)) * K;
+
+    if (l >= 32) {
+        w = hayahash64_internal_load64le<bswap>(p +  0);
+        h0 = (h0 ^ (w + hayahash64_internal_rotl(wp, 27))) * K;
+        wp = w;
+        w = hayahash64_internal_load64le<bswap>(p +  8);
+        h1 = (h1 ^ (w + hayahash64_internal_rotl(wp, 27))) * K;
+        wp = w;
+        w = hayahash64_internal_load64le<bswap>(p + 16);
+        h2 = (h2 ^ (w + hayahash64_internal_rotl(wp, 27))) * K;
+        wp = w;
+        w = hayahash64_internal_load64le<bswap>(p + 24);
+        h3 = (h3 ^ (w + hayahash64_internal_rotl(wp, 27))) * K;
+        wp = w;
+        p += 32; l -= 32;
+    }
+
+    h0 += hayahash64_internal_rotl(wp, 27);
+
+    if (l > 16) {
+        h0 = (h0 + hayahash64_internal_injp<bswap>(p + 0)) * K;
+        h1 = (h1 + hayahash64_internal_injp<bswap>(p + 8)) * K;
+    }
+    if (l > 0) {
+        h2 = (h2 + hayahash64_internal_injp<bswap>(p + l - 16)) * K;
+        h3 = (h3 + hayahash64_internal_injp<bswap>(p + l -  8)) * K;
+    }
+
+    uint64_t t0 = (h0 ^ hayahash64_internal_rotl(h1, 13) ^ lenmix) * K;
+    uint64_t t1 = (h2 ^ hayahash64_internal_rotl(h3, 33)) * K;
+    return hayahash128_internal_longmix(s, t0, t1, K);
 }
 
 // Compact 128-bit spelling of the same state walk. The low output is
@@ -814,6 +918,11 @@ static inline hayahash128_t hayahash128(
         return hayahash128_internal_short(x, y, lenmix);
     }
 
+#if !HAYAHASH128_INTERNAL_INLINEBULK && !defined(__wasm__)
+    if (l >= hayahash64_internal_bulk_min)
+        return hayahash128_internal_long<bswap>(keyIn, len, seed);
+#endif
+
 #if defined(__aarch64__) && (defined(__GNUC__) || defined(__clang__))
     HAYAHASH64_INTERNAL_COMPILER_GUARD(K);
 #endif
@@ -823,21 +932,31 @@ static inline hayahash128_t hayahash128(
     uint64_t h3 = hayahash64_internal_rotl(s, 51) + (K << 42);
     uint64_t w, wp = 0;
 
+#if HAYAHASH128_INTERNAL_INLINEBULK || defined(__wasm__)
     if (l >= hayahash64_internal_bulk_min) {
         uint64_t h4 = s + (K >> 27);
         uint64_t h5 = hayahash64_internal_rotl(s, 13) ^ (K << 9);
         uint64_t h6 = hayahash64_internal_rotl(s, 26) + (K >> 40);
         uint64_t h7 = hayahash64_internal_rotl(s, 39) ^ (K << 30);
-#if HAYAHASH64_INTERNAL_VECGCC
-        uint64_t hv[4] = { h2, h3, h4, h5 };
-#endif
+  #if HAYAHASH128_INTERNAL_INLINEBULK && \
+      (defined(__aarch64__) || defined(__x86_64__))
+        const uint8_t * pe = p + ((size_t)l & ~(size_t)127);
+        l &= 127;
+        do {
+            HAYAHASH64_INTERNAL_BULK_BLOCK(p);
+            HAYAHASH64_INTERNAL_BULK_BLOCK(p + 64);
+            p += 128;
+        } while (p != pe);
+        if (l >= 64) {
+            HAYAHASH64_INTERNAL_BULK_BLOCK(p);
+            p += 64; l -= 64;
+        }
+  #else
         do {
             HAYAHASH64_INTERNAL_BULK_BLOCK(p);
             p += 64; l -= 64;
         } while (l >= 64);
-#if HAYAHASH64_INTERNAL_VECGCC
-        h2 = hv[0]; h3 = hv[1]; h4 = hv[2]; h5 = hv[3];
-#endif
+  #endif
         h0 = (h0 ^ hayahash64_internal_rotl_product(h4, 11)) * K;
         h1 = (h1 ^ hayahash64_internal_rotl_product(h5, 19)) * K;
         h2 = (h2 ^ hayahash64_internal_rotl_product(h6, 31)) * K;
@@ -866,6 +985,326 @@ static inline hayahash128_t hayahash128(
             p += 32; l -= 32;
         }
     }
+#elif HAYAHASH64_INTERNAL_TIERS
+    // Same straight-line tiers as hayahash64, same GCC-only gate, each
+    // ending in the two-word extraction; loads, absorbs, walls, and
+    // t0/t1 folds are copied verbatim, so the low word cannot diverge.
+    // Straight-line spelling of the generic 17..31-byte tail below.
+    if (l < 32) {
+        h0 = (h0 + hayahash64_internal_injp<bswap>(p + 0)) * K;
+        h1 = (h1 + hayahash64_internal_injp<bswap>(p + 8)) * K;
+        h2 = (h2 + hayahash64_internal_injp<bswap>(p + l - 16)) * K;
+        h3 = (h3 + hayahash64_internal_injp<bswap>(p + l - 8)) * K;
+        uint64_t t0 =
+            (h0 ^ hayahash64_internal_rotl_product(h1, 13) ^ lenmix) * K;
+        uint64_t t1 =
+            (h2 ^ hayahash64_internal_rotl_product(h3, 33)) * K;
+        return hayahash128_internal_longmix(s, t0, t1, K);
+    }
+    // Straight-line spelling of one mid round plus the generic tail
+    // below for 32..63-byte keys: same loads, absorbs, wall, and
+    // folds, minus the loop and pointer maintenance. The first
+    // absorb folds in wp = 0; the tail conditions test the original
+    // length (l > 48 and l > 32 correspond to the generic path's
+    // post-round l > 16 and l > 0).
+    if (l < 64) {
+        uint64_t w0 = hayahash64_internal_load64le<bswap>(p +  0);
+        uint64_t w1 = hayahash64_internal_load64le<bswap>(p +  8);
+        uint64_t w2 = hayahash64_internal_load64le<bswap>(p + 16);
+        uint64_t w3 = hayahash64_internal_load64le<bswap>(p + 24);
+        h0 = (h0 ^ w0) * K;
+        h1 = (h1 ^ (w1 + hayahash64_internal_rotl(w0, 27))) * K;
+        h2 = (h2 ^ (w2 + hayahash64_internal_rotl(w1, 27))) * K;
+        h3 = (h3 ^ (w3 + hayahash64_internal_rotl(w2, 27))) * K;
+        h0 += hayahash64_internal_rotl(w3, 27);
+        if (l > 48) {
+            h0 = (h0 + hayahash64_internal_injp<bswap>(p + 32)) * K;
+            h1 = (h1 + hayahash64_internal_injp<bswap>(p + 40)) * K;
+        }
+        if (l > 32) {
+            h2 = (h2 + hayahash64_internal_injp<bswap>(p + l - 16)) * K;
+            h3 = (h3 + hayahash64_internal_injp<bswap>(p + l -  8)) * K;
+        }
+        uint64_t t0 =
+            (h0 ^ hayahash64_internal_rotl_product(h1, 13) ^ lenmix) * K;
+        uint64_t t1 =
+            (h2 ^ hayahash64_internal_rotl_product(h3, 33)) * K;
+        return hayahash128_internal_longmix(s, t0, t1, K);
+    }
+    // Straight-line 64..127-byte keys: two shared mid rounds, then
+    // either the generic tail directly (64..95) or one more round
+    // first (96..127). Same loads, absorbs, wall, and folds as the
+    // generic path, minus loop and pointer maintenance.
+    if (l < 128) {
+        uint64_t w0 = hayahash64_internal_load64le<bswap>(p +  0);
+        uint64_t w1 = hayahash64_internal_load64le<bswap>(p +  8);
+        uint64_t w2 = hayahash64_internal_load64le<bswap>(p + 16);
+        uint64_t w3 = hayahash64_internal_load64le<bswap>(p + 24);
+        h0 = (h0 ^ w0) * K;
+        h1 = (h1 ^ (w1 + hayahash64_internal_rotl(w0, 27))) * K;
+        h2 = (h2 ^ (w2 + hayahash64_internal_rotl(w1, 27))) * K;
+        h3 = (h3 ^ (w3 + hayahash64_internal_rotl(w2, 27))) * K;
+        uint64_t w4 = hayahash64_internal_load64le<bswap>(p + 32);
+        uint64_t w5 = hayahash64_internal_load64le<bswap>(p + 40);
+        uint64_t w6 = hayahash64_internal_load64le<bswap>(p + 48);
+        uint64_t w7 = hayahash64_internal_load64le<bswap>(p + 56);
+        h0 = (h0 ^ (w4 + hayahash64_internal_rotl(w3, 27))) * K;
+        h1 = (h1 ^ (w5 + hayahash64_internal_rotl(w4, 27))) * K;
+        h2 = (h2 ^ (w6 + hayahash64_internal_rotl(w5, 27))) * K;
+        h3 = (h3 ^ (w7 + hayahash64_internal_rotl(w6, 27))) * K;
+        if (l >= 96) {
+            uint64_t w8  = hayahash64_internal_load64le<bswap>(p + 64);
+            uint64_t w9  = hayahash64_internal_load64le<bswap>(p + 72);
+            uint64_t w10 = hayahash64_internal_load64le<bswap>(p + 80);
+            uint64_t w11 = hayahash64_internal_load64le<bswap>(p + 88);
+            h0 = (h0 ^ (w8  + hayahash64_internal_rotl(w7,  27))) * K;
+            h1 = (h1 ^ (w9  + hayahash64_internal_rotl(w8,  27))) * K;
+            h2 = (h2 ^ (w10 + hayahash64_internal_rotl(w9,  27))) * K;
+            h3 = (h3 ^ (w11 + hayahash64_internal_rotl(w10, 27))) * K;
+            h0 += hayahash64_internal_rotl(w11, 27);
+            if (l > 112) {
+                h0 = (h0 + hayahash64_internal_injp<bswap>(p +  96)) * K;
+                h1 = (h1 + hayahash64_internal_injp<bswap>(p + 104)) * K;
+            }
+            if (l > 96) {
+                h2 = (h2 + hayahash64_internal_injp<bswap>(p + l - 16)) * K;
+                h3 = (h3 + hayahash64_internal_injp<bswap>(p + l -  8)) * K;
+            }
+        } else {
+            h0 += hayahash64_internal_rotl(w7, 27);
+            if (l > 80) {
+                h0 = (h0 + hayahash64_internal_injp<bswap>(p + 64)) * K;
+                h1 = (h1 + hayahash64_internal_injp<bswap>(p + 72)) * K;
+            }
+            if (l > 64) {
+                h2 = (h2 + hayahash64_internal_injp<bswap>(p + l - 16)) * K;
+                h3 = (h3 + hayahash64_internal_injp<bswap>(p + l -  8)) * K;
+            }
+        }
+        uint64_t t0 =
+            (h0 ^ hayahash64_internal_rotl_product(h1, 13) ^ lenmix) * K;
+        uint64_t t1 =
+            (h2 ^ hayahash64_internal_rotl_product(h3, 33)) * K;
+        return hayahash128_internal_longmix(s, t0, t1, K);
+    }
+    // Straight-line 128..191-byte keys: four shared mid rounds, then
+    // either the generic tail directly (128..159) or one more round
+    // first (160..191). Same loads, absorbs, wall, and folds as the
+    // generic path, minus loop and pointer maintenance.
+    if (l < 192) {
+        uint64_t w0 = hayahash64_internal_load64le<bswap>(p +  0);
+        uint64_t w1 = hayahash64_internal_load64le<bswap>(p +  8);
+        uint64_t w2 = hayahash64_internal_load64le<bswap>(p + 16);
+        uint64_t w3 = hayahash64_internal_load64le<bswap>(p + 24);
+        h0 = (h0 ^ w0) * K;
+        h1 = (h1 ^ (w1 + hayahash64_internal_rotl(w0, 27))) * K;
+        h2 = (h2 ^ (w2 + hayahash64_internal_rotl(w1, 27))) * K;
+        h3 = (h3 ^ (w3 + hayahash64_internal_rotl(w2, 27))) * K;
+        uint64_t w4 = hayahash64_internal_load64le<bswap>(p + 32);
+        uint64_t w5 = hayahash64_internal_load64le<bswap>(p + 40);
+        uint64_t w6 = hayahash64_internal_load64le<bswap>(p + 48);
+        uint64_t w7 = hayahash64_internal_load64le<bswap>(p + 56);
+        h0 = (h0 ^ (w4 + hayahash64_internal_rotl(w3, 27))) * K;
+        h1 = (h1 ^ (w5 + hayahash64_internal_rotl(w4, 27))) * K;
+        h2 = (h2 ^ (w6 + hayahash64_internal_rotl(w5, 27))) * K;
+        h3 = (h3 ^ (w7 + hayahash64_internal_rotl(w6, 27))) * K;
+        uint64_t w8  = hayahash64_internal_load64le<bswap>(p + 64);
+        uint64_t w9  = hayahash64_internal_load64le<bswap>(p + 72);
+        uint64_t w10 = hayahash64_internal_load64le<bswap>(p + 80);
+        uint64_t w11 = hayahash64_internal_load64le<bswap>(p + 88);
+        h0 = (h0 ^ (w8  + hayahash64_internal_rotl(w7,  27))) * K;
+        h1 = (h1 ^ (w9  + hayahash64_internal_rotl(w8,  27))) * K;
+        h2 = (h2 ^ (w10 + hayahash64_internal_rotl(w9,  27))) * K;
+        h3 = (h3 ^ (w11 + hayahash64_internal_rotl(w10, 27))) * K;
+        uint64_t w12 = hayahash64_internal_load64le<bswap>(p +  96);
+        uint64_t w13 = hayahash64_internal_load64le<bswap>(p + 104);
+        uint64_t w14 = hayahash64_internal_load64le<bswap>(p + 112);
+        uint64_t w15 = hayahash64_internal_load64le<bswap>(p + 120);
+        h0 = (h0 ^ (w12 + hayahash64_internal_rotl(w11, 27))) * K;
+        h1 = (h1 ^ (w13 + hayahash64_internal_rotl(w12, 27))) * K;
+        h2 = (h2 ^ (w14 + hayahash64_internal_rotl(w13, 27))) * K;
+        h3 = (h3 ^ (w15 + hayahash64_internal_rotl(w14, 27))) * K;
+        if (l >= 160) {
+            uint64_t w16 = hayahash64_internal_load64le<bswap>(p + 128);
+            uint64_t w17 = hayahash64_internal_load64le<bswap>(p + 136);
+            uint64_t w18 = hayahash64_internal_load64le<bswap>(p + 144);
+            uint64_t w19 = hayahash64_internal_load64le<bswap>(p + 152);
+            h0 = (h0 ^ (w16 + hayahash64_internal_rotl(w15, 27))) * K;
+            h1 = (h1 ^ (w17 + hayahash64_internal_rotl(w16, 27))) * K;
+            h2 = (h2 ^ (w18 + hayahash64_internal_rotl(w17, 27))) * K;
+            h3 = (h3 ^ (w19 + hayahash64_internal_rotl(w18, 27))) * K;
+            h0 += hayahash64_internal_rotl(w19, 27);
+            if (l > 176) {
+                h0 = (h0 + hayahash64_internal_injp<bswap>(p + 160)) * K;
+                h1 = (h1 + hayahash64_internal_injp<bswap>(p + 168)) * K;
+            }
+            if (l > 160) {
+                h2 = (h2 + hayahash64_internal_injp<bswap>(p + l - 16)) * K;
+                h3 = (h3 + hayahash64_internal_injp<bswap>(p + l -  8)) * K;
+            }
+        } else {
+            h0 += hayahash64_internal_rotl(w15, 27);
+            if (l > 144) {
+                h0 = (h0 + hayahash64_internal_injp<bswap>(p + 128)) * K;
+                h1 = (h1 + hayahash64_internal_injp<bswap>(p + 136)) * K;
+            }
+            if (l > 128) {
+                h2 = (h2 + hayahash64_internal_injp<bswap>(p + l - 16)) * K;
+                h3 = (h3 + hayahash64_internal_injp<bswap>(p + l -  8)) * K;
+            }
+        }
+        uint64_t t0 =
+            (h0 ^ hayahash64_internal_rotl_product(h1, 13) ^ lenmix) * K;
+        uint64_t t1 =
+            (h2 ^ hayahash64_internal_rotl_product(h3, 33)) * K;
+        return hayahash128_internal_longmix(s, t0, t1, K);
+    }
+    // Straight-line 192..255-byte keys: six shared mid rounds, then
+    // either the generic tail directly (192..223) or one more round
+    // first (224..255). Same loads, absorbs, wall, and folds as the
+    // generic path, minus loop and pointer maintenance.
+    if (l < 256) {
+        uint64_t w0 = hayahash64_internal_load64le<bswap>(p +  0);
+        uint64_t w1 = hayahash64_internal_load64le<bswap>(p +  8);
+        uint64_t w2 = hayahash64_internal_load64le<bswap>(p + 16);
+        uint64_t w3 = hayahash64_internal_load64le<bswap>(p + 24);
+        h0 = (h0 ^ w0) * K;
+        h1 = (h1 ^ (w1 + hayahash64_internal_rotl(w0, 27))) * K;
+        h2 = (h2 ^ (w2 + hayahash64_internal_rotl(w1, 27))) * K;
+        h3 = (h3 ^ (w3 + hayahash64_internal_rotl(w2, 27))) * K;
+        uint64_t w4 = hayahash64_internal_load64le<bswap>(p + 32);
+        uint64_t w5 = hayahash64_internal_load64le<bswap>(p + 40);
+        uint64_t w6 = hayahash64_internal_load64le<bswap>(p + 48);
+        uint64_t w7 = hayahash64_internal_load64le<bswap>(p + 56);
+        h0 = (h0 ^ (w4 + hayahash64_internal_rotl(w3, 27))) * K;
+        h1 = (h1 ^ (w5 + hayahash64_internal_rotl(w4, 27))) * K;
+        h2 = (h2 ^ (w6 + hayahash64_internal_rotl(w5, 27))) * K;
+        h3 = (h3 ^ (w7 + hayahash64_internal_rotl(w6, 27))) * K;
+        uint64_t w8  = hayahash64_internal_load64le<bswap>(p + 64);
+        uint64_t w9  = hayahash64_internal_load64le<bswap>(p + 72);
+        uint64_t w10 = hayahash64_internal_load64le<bswap>(p + 80);
+        uint64_t w11 = hayahash64_internal_load64le<bswap>(p + 88);
+        h0 = (h0 ^ (w8  + hayahash64_internal_rotl(w7,  27))) * K;
+        h1 = (h1 ^ (w9  + hayahash64_internal_rotl(w8,  27))) * K;
+        h2 = (h2 ^ (w10 + hayahash64_internal_rotl(w9,  27))) * K;
+        h3 = (h3 ^ (w11 + hayahash64_internal_rotl(w10, 27))) * K;
+        uint64_t w12 = hayahash64_internal_load64le<bswap>(p +  96);
+        uint64_t w13 = hayahash64_internal_load64le<bswap>(p + 104);
+        uint64_t w14 = hayahash64_internal_load64le<bswap>(p + 112);
+        uint64_t w15 = hayahash64_internal_load64le<bswap>(p + 120);
+        h0 = (h0 ^ (w12 + hayahash64_internal_rotl(w11, 27))) * K;
+        h1 = (h1 ^ (w13 + hayahash64_internal_rotl(w12, 27))) * K;
+        h2 = (h2 ^ (w14 + hayahash64_internal_rotl(w13, 27))) * K;
+        h3 = (h3 ^ (w15 + hayahash64_internal_rotl(w14, 27))) * K;
+        uint64_t w16 = hayahash64_internal_load64le<bswap>(p + 128);
+        uint64_t w17 = hayahash64_internal_load64le<bswap>(p + 136);
+        uint64_t w18 = hayahash64_internal_load64le<bswap>(p + 144);
+        uint64_t w19 = hayahash64_internal_load64le<bswap>(p + 152);
+        h0 = (h0 ^ (w16 + hayahash64_internal_rotl(w15, 27))) * K;
+        h1 = (h1 ^ (w17 + hayahash64_internal_rotl(w16, 27))) * K;
+        h2 = (h2 ^ (w18 + hayahash64_internal_rotl(w17, 27))) * K;
+        h3 = (h3 ^ (w19 + hayahash64_internal_rotl(w18, 27))) * K;
+        uint64_t w20 = hayahash64_internal_load64le<bswap>(p + 160);
+        uint64_t w21 = hayahash64_internal_load64le<bswap>(p + 168);
+        uint64_t w22 = hayahash64_internal_load64le<bswap>(p + 176);
+        uint64_t w23 = hayahash64_internal_load64le<bswap>(p + 184);
+        h0 = (h0 ^ (w20 + hayahash64_internal_rotl(w19, 27))) * K;
+        h1 = (h1 ^ (w21 + hayahash64_internal_rotl(w20, 27))) * K;
+        h2 = (h2 ^ (w22 + hayahash64_internal_rotl(w21, 27))) * K;
+        h3 = (h3 ^ (w23 + hayahash64_internal_rotl(w22, 27))) * K;
+        if (l >= 224) {
+            uint64_t w24 = hayahash64_internal_load64le<bswap>(p + 192);
+            uint64_t w25 = hayahash64_internal_load64le<bswap>(p + 200);
+            uint64_t w26 = hayahash64_internal_load64le<bswap>(p + 208);
+            uint64_t w27 = hayahash64_internal_load64le<bswap>(p + 216);
+            h0 = (h0 ^ (w24 + hayahash64_internal_rotl(w23, 27))) * K;
+            h1 = (h1 ^ (w25 + hayahash64_internal_rotl(w24, 27))) * K;
+            h2 = (h2 ^ (w26 + hayahash64_internal_rotl(w25, 27))) * K;
+            h3 = (h3 ^ (w27 + hayahash64_internal_rotl(w26, 27))) * K;
+            h0 += hayahash64_internal_rotl(w27, 27);
+            if (l > 240) {
+                h0 = (h0 + hayahash64_internal_injp<bswap>(p + 224)) * K;
+                h1 = (h1 + hayahash64_internal_injp<bswap>(p + 232)) * K;
+            }
+            if (l > 224) {
+                h2 = (h2 + hayahash64_internal_injp<bswap>(p + l - 16)) * K;
+                h3 = (h3 + hayahash64_internal_injp<bswap>(p + l -  8)) * K;
+            }
+        } else {
+            h0 += hayahash64_internal_rotl(w23, 27);
+            if (l > 208) {
+                h0 = (h0 + hayahash64_internal_injp<bswap>(p + 192)) * K;
+                h1 = (h1 + hayahash64_internal_injp<bswap>(p + 200)) * K;
+            }
+            if (l > 192) {
+                h2 = (h2 + hayahash64_internal_injp<bswap>(p + l - 16)) * K;
+                h3 = (h3 + hayahash64_internal_injp<bswap>(p + l -  8)) * K;
+            }
+        }
+        uint64_t t0 =
+            (h0 ^ hayahash64_internal_rotl_product(h1, 13) ^ lenmix) * K;
+        uint64_t t1 =
+            (h2 ^ hayahash64_internal_rotl_product(h3, 33)) * K;
+        return hayahash128_internal_longmix(s, t0, t1, K);
+    }
+    // Only 256..319-byte keys get here (the tiers above return for
+    // anything shorter), so run two rounds per iteration with at
+    // most one single round left over; same absorb sequence, half
+    // the loop control.
+    for (; l >= 64; l -= 64, p += 64) {
+        w = hayahash64_internal_load64le<bswap>(p +  0);
+        h0 = (h0 ^ (w + hayahash64_internal_rotl(wp, 27))) * K;
+        wp = w;
+        w = hayahash64_internal_load64le<bswap>(p +  8);
+        h1 = (h1 ^ (w + hayahash64_internal_rotl(wp, 27))) * K;
+        wp = w;
+        w = hayahash64_internal_load64le<bswap>(p + 16);
+        h2 = (h2 ^ (w + hayahash64_internal_rotl(wp, 27))) * K;
+        wp = w;
+        w = hayahash64_internal_load64le<bswap>(p + 24);
+        h3 = (h3 ^ (w + hayahash64_internal_rotl(wp, 27))) * K;
+        wp = w;
+        w = hayahash64_internal_load64le<bswap>(p + 32);
+        h0 = (h0 ^ (w + hayahash64_internal_rotl(wp, 27))) * K;
+        wp = w;
+        w = hayahash64_internal_load64le<bswap>(p + 40);
+        h1 = (h1 ^ (w + hayahash64_internal_rotl(wp, 27))) * K;
+        wp = w;
+        w = hayahash64_internal_load64le<bswap>(p + 48);
+        h2 = (h2 ^ (w + hayahash64_internal_rotl(wp, 27))) * K;
+        wp = w;
+        w = hayahash64_internal_load64le<bswap>(p + 56);
+        h3 = (h3 ^ (w + hayahash64_internal_rotl(wp, 27))) * K;
+        wp = w;
+    }
+    if (l >= 32) {
+        w = hayahash64_internal_load64le<bswap>(p +  0);
+        h0 = (h0 ^ (w + hayahash64_internal_rotl(wp, 27))) * K;
+        wp = w;
+        w = hayahash64_internal_load64le<bswap>(p +  8);
+        h1 = (h1 ^ (w + hayahash64_internal_rotl(wp, 27))) * K;
+        wp = w;
+        w = hayahash64_internal_load64le<bswap>(p + 16);
+        h2 = (h2 ^ (w + hayahash64_internal_rotl(wp, 27))) * K;
+        wp = w;
+        w = hayahash64_internal_load64le<bswap>(p + 24);
+        h3 = (h3 ^ (w + hayahash64_internal_rotl(wp, 27))) * K;
+        wp = w;
+        p += 32; l -= 32;
+    }
+#else
+    while (l >= 32) {
+        w = hayahash64_internal_load64le<bswap>(p + 0);
+        h0 = (h0 ^ (w + hayahash64_internal_rotl(wp, 27))) * K; wp = w;
+        w = hayahash64_internal_load64le<bswap>(p + 8);
+        h1 = (h1 ^ (w + hayahash64_internal_rotl(wp, 27))) * K; wp = w;
+        w = hayahash64_internal_load64le<bswap>(p + 16);
+        h2 = (h2 ^ (w + hayahash64_internal_rotl(wp, 27))) * K; wp = w;
+        w = hayahash64_internal_load64le<bswap>(p + 24);
+        h3 = (h3 ^ (w + hayahash64_internal_rotl(wp, 27))) * K; wp = w;
+        p += 32; l -= 32;
+    }
+#endif
 
     h0 += hayahash64_internal_rotl(wp, 27);
     if (l > 16) {
@@ -880,7 +1319,7 @@ static inline hayahash128_t hayahash128(
         (h0 ^ hayahash64_internal_rotl_product(h1, 13) ^ lenmix) * K;
     uint64_t t1 =
         (h2 ^ hayahash64_internal_rotl_product(h3, 33)) * K;
-    return hayahash128_internal_long(s, t0, t1, K);
+    return hayahash128_internal_longmix(s, t0, t1, K);
 }
 
 template <bool bswap>
