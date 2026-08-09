@@ -1,6 +1,7 @@
 # C harness binaries
 tests/bench
 tests/quality
+tests/hash128
 
 # SMHasher3 harness: the pinned upstream clone (GPL-3.0, never vendored)
 tests/smhasher3/smhasher3*/
