@@ -263,6 +263,22 @@
       </p>
     </footer>
 
-    <script type="module" src="playground.js"></script>
+    <script type="module">
+      const status = document.getElementById("bench-status");
+      try {
+        const manifestUrl = new URL("playground-assets.json", document.baseURI);
+        const response = await fetch(manifestUrl, { cache: "no-cache" });
+        if (!response.ok) {
+          throw new Error(`asset manifest: HTTP ${response.status}`);
+        }
+        const { entry } = await response.json();
+        if (typeof entry !== "string") {
+          throw new Error("asset manifest has no entry module");
+        }
+        await import(new URL(entry, document.baseURI).href);
+      } catch (error) {
+        status.textContent = `The playground did not load: ${error.message}`;
+      }
+    </script>
   </body>
 </html>

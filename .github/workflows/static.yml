@@ -33,10 +33,9 @@ jobs:
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
-      # The playground page needs two generated artifacts that stay
-      # out of git: the npm package modules (website/vendor/) and the
-      # shootout wasm module (website/bench.wasm). The wasm module
-      # embeds rapidhash (MIT) and xxHash (BSD-2), fetched at
+      # The playground's content-versioned bundle stays out of git. It
+      # contains the npm package modules and the shootout wasm module.
+      # The wasm embeds rapidhash (MIT) and xxHash (BSD-2), fetched at
       # pinned commits, so it is built here and never committed.
       - name: Install Zig
         uses: mlugg/setup-zig@d1434d08867e3ee9daa34448df10607b98908d29 # v2.2.1
@@ -55,8 +54,49 @@ jobs:
       - name: Upload artifact
         uses: actions/upload-pages-artifact@fc324d3547104276b827a68afc52ff2a11cc49c9 # v5.0.0
         with:
-          # Upload entire repository
+          # Upload the static site and its generated, versioned assets.
           path: 'website'
       - name: Deploy to GitHub Pages
         id: deployment
         uses: actions/deploy-pages@cd2ce8fcbc39b97be8ca5fce6e763baed58fa128 # v5.0.0
+      # Hashed assets are immutable and must not be purged. Clear only the
+      # mutable HTML/manifest entry points and the temporary compatibility
+      # aliases used by browsers that cached the old HTML shell.
+      - name: Purge mutable Cloudflare URLs
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ZONE_ID: ${{ vars.CLOUDFLARE_ZONE_ID }}
+        run: |
+          if [ -z "$CLOUDFLARE_ZONE_ID" ]; then
+            echo "::error::Set the CLOUDFLARE_ZONE_ID repository variable."
+            exit 1
+          fi
+          if [ -z "$CLOUDFLARE_API_TOKEN" ]; then
+            echo "::error::Set the CLOUDFLARE_API_TOKEN repository secret."
+            exit 1
+          fi
+
+          response="$(curl --fail-with-body --silent --show-error \
+            --request POST \
+            --url "https://api.cloudflare.com/client/v4/zones/${CLOUDFLARE_ZONE_ID}/purge_cache" \
+            --header "Authorization: Bearer ${CLOUDFLARE_API_TOKEN}" \
+            --header "Content-Type: application/json" \
+            --data '{
+              "files": [
+                "https://hayaha.sh/playground.html",
+                "https://hayaha.sh/playground-assets.json",
+                "https://hayaha.sh/playground.js",
+                "https://hayaha.sh/bench.wasm",
+                "https://hayaha.sh/vendor/index.js",
+                "https://hayaha.sh/vendor/pure.js",
+                "https://hayaha.sh/vendor/wasm.js",
+                "https://hayaha.sh/vendor/wasm-module.js",
+                "https://hayaha.sh/vendor/kat.txt"
+              ]
+            }')"
+
+          if ! printf '%s' "$response" | jq -e '.success == true' >/dev/null; then
+            echo "::error::Cloudflare rejected the cache purge."
+            printf '%s\n' "$response" | jq -c '{errors, messages}'
+            exit 1
+          fi

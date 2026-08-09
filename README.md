@@ -113,6 +113,7 @@ are documented in [`docs/quality.md`](docs/quality.md).
 - [Quality](docs/quality.md) - test coverage and conformance evidence
 - [Ports](docs/ports.md) - installation, language examples, and layout
 - [SMHasher3](docs/smhasher3.md) - reproducing the suite and speed shootouts
+- [Website deployment](docs/deployment.md) - Pages and Cloudflare cache setup
 - [Optimization log](docs/optimization/) - measured changes and rejected ideas
 
 ## License

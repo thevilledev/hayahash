@@ -1,19 +1,19 @@
 #!/bin/sh
 # Assemble the generated artifacts for website/playground.html.
 #
-# The playground needs three build products that stay out of git on
-# purpose:
+# The playground needs a content-versioned asset bundle that stays out of
+# git on purpose:
 #
-#   website/vendor/*.js   the npm package modules (js/dist), so the
-#                         page hashes with the exact code the package
-#                         ships
-#   website/bench.wasm    the tests/wasm shootout module, stripped;
-#                         it embeds rapidhash (MIT) and xxHash (BSD-2), so
-#                         the binary is built at deploy time and
-#                         never committed
-#   website/vendor/kat.txt  known answers of that exact module; the
-#                         page verifies all of them before it
-#                         measures
+#   website/assets/<hash>/playground.js
+#   website/assets/<hash>/vendor/*.js
+#   website/assets/<hash>/bench.wasm
+#   website/assets/<hash>/vendor/kat.txt
+#
+# playground-assets.json is the only mutable pointer. The HTML revalidates it
+# and imports the versioned entry module; every relative import and fetch then
+# stays inside the same immutable directory. The unversioned bench.wasm and
+# vendor/ copies remain as compatibility aliases for browsers that cached the
+# pre-versioning HTML shell.
 #
 # The Pages workflow (.github/workflows/static.yml) runs this script
 # before upload. Run it locally to preview the playground:
@@ -45,5 +45,20 @@ cp tests/wasm/bench.wasm website/bench.wasm
 node tests/wasm/driver.mjs tests/wasm/bench.wasm --kat > website/vendor/kat.txt
 grep '^haya' website/vendor/kat.txt | diff - tests/wasm/kat_haya.txt
 
-printf 'playground artifacts ready: website/bench.wasm (%s bytes), website/vendor/\n' \
-	"$(wc -c < website/bench.wasm | tr -d ' ')"
+# 4. Copy the complete, mutually compatible set into a temporary namespace,
+#    hash file names and contents, then publish it under that hash. The helper
+#    writes playground-assets.json only after the versioned directory exists.
+rm -rf website/assets
+mkdir -p website/assets/.staging/vendor
+cp website/playground.js website/bench.wasm website/assets/.staging/
+cp website/vendor/index.js website/vendor/pure.js website/vendor/wasm.js \
+	website/vendor/wasm-module.js website/vendor/kat.txt \
+	website/assets/.staging/vendor/
+
+asset_version="$(
+	node scripts/version-playground.mjs \
+		website/assets/.staging website/playground-assets.json
+)"
+
+printf 'playground artifacts ready: assets/%s/ (%s-byte wasm)\n' \
+	"$asset_version" "$(wc -c < website/bench.wasm | tr -d ' ')"

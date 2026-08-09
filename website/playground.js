@@ -31,7 +31,8 @@ let mem = null; // view of the 1 MiB benchmark buffer
 let shootoutError = null;
 
 async function loadShootout() {
-	const req = fetch("bench.wasm");
+	const wasmUrl = new URL("./bench.wasm", import.meta.url);
+	const req = fetch(wasmUrl);
 	let result;
 	try {
 		result = await WebAssembly.instantiateStreaming(req, {
@@ -39,7 +40,7 @@ async function loadShootout() {
 		});
 	} catch {
 		// Server without the wasm MIME type: fall back to bytes.
-		const res = await fetch("bench.wasm");
+		const res = await fetch(wasmUrl);
 		if (!res.ok) {
 			throw new Error(`bench.wasm: HTTP ${res.status}`);
 		}
@@ -68,7 +69,7 @@ function fillBuffer(exports) {
 }
 
 async function selfCheck(exports) {
-	const res = await fetch("vendor/kat.txt");
+	const res = await fetch(new URL("./vendor/kat.txt", import.meta.url));
 	if (!res.ok) {
 		throw new Error(`vendor/kat.txt: HTTP ${res.status}`);
 	}

@@ -19,6 +19,8 @@ tests/wasm/xxhash.h
 # deploy time and never committed.
 website/bench.wasm
 website/vendor/
+website/assets/
+website/playground-assets.json
 
 # Rust
 rust/target/
