@@ -1,4 +1,4 @@
-# hayahash64 - MIPS64 assembly port of the reference C implementation
+# hayahash64 and hayahash128 - MIPS64 assembly port of the reference C implementation
 # (hayahash.h at the repository root). See that header for the full
 # design notes.
 #
@@ -8,6 +8,8 @@
 #
 #   uint64_t hayahash64(const void *key, ptrdiff_t len, uint64_t seed);
 #     $a0 = key, $a1 = len, $a2 = seed, result in $v0
+#   hayahash128_t hayahash128(const void *key, ptrdiff_t len, uint64_t seed);
+#     same arguments, result in $v0 (lo) and $v1 (hi)
 #
 # The compact dispatch shape is used (same absorb sequence as the Go,
 # Zig, Java, and wasm ports): 8-lane bulk loop for len >= 320, then the
@@ -26,6 +28,8 @@
 	.align	3
 	.globl	hayahash64
 	.type	hayahash64, @function
+	.globl	hayahash128
+	.type	hayahash128, @function
 
 # ---------------------------------------------------------------------------
 # Constants (materialized at entry; 64-bit immediates need lui/ori/dsll)
@@ -66,6 +70,7 @@
 #  96($sp)  bulk spill h5
 # 104($sp)  bulk spill h6
 # 112($sp)  bulk spill h7
+# 120($sp)  wide-output flag
 # Frame size 128
 
 	.equ	FRM, 128
@@ -84,6 +89,7 @@
 	.equ	OFF_H5, 96
 	.equ	OFF_H6, 104
 	.equ	OFF_H7, 112
+	.equ	OFF_WIDE, 120
 
 # Load an unsigned little-endian 64-bit word from base+off into rd.
 # Clobbers $t8, $t9, $at. rd may alias base.
@@ -176,7 +182,46 @@
 	MUL64	\h, \h, $s3
 .endm
 
+# Bijective finalizer used by the high output word. Clobbers
+# $t1, $t3, $a4, HI/LO.
+.macro	FMIX128 rd
+	dsrl	$t1, \rd, 30
+	xor	\rd, \rd, $t1
+	# N1 = 0xFF51AFD7ED558CCD
+	lui	$t3, 0xFF51
+	ori	$t3, $t3, 0xAFD7
+	dsll	$t3, $t3, 32
+	lui	$a4, 0xED55
+	ori	$a4, $a4, 0x8CCD
+	# lui sign-extends on MIPS64; clear those upper bits before the
+	# low half is combined with 0xFF51AFD7.
+	dsll	$a4, $a4, 32
+	dsrl	$a4, $a4, 32
+	or	$t3, $t3, $a4
+	MUL64	\rd, \rd, $t3
+	dsrl	$t1, \rd, 31
+	xor	\rd, \rd, $t1
+	# N2 = 0xC4CEB9FE1A85EC53
+	lui	$t3, 0xC4CE
+	ori	$t3, $t3, 0xB9FE
+	dsll	$t3, $t3, 32
+	lui	$a4, 0x1A85
+	ori	$a4, $a4, 0xEC53
+	or	$t3, $t3, $a4
+	MUL64	\rd, \rd, $t3
+	dsrl	$t1, \rd, 33
+	xor	\rd, \rd, $t1
+.endm
+
 hayahash64:
+	move	$a3, $zero
+	b	.Lentry
+	nop
+
+hayahash128:
+	daddiu	$a3, $zero, 1
+
+.Lentry:
 	daddiu	$sp, $sp, -FRM
 	sd	$ra, OFF_RA($sp)
 	sd	$fp, OFF_FP($sp)
@@ -193,6 +238,7 @@ hayahash64:
 	move	$s0, $a0			# p
 	move	$s1, $a1			# l = len
 	sd	$a1, OFF_N($sp)			# n
+	sd	$a3, OFF_WIDE($sp)
 
 	# K = 0x9E3779B97F4A7C15
 	lui	$s3, 0x9E37
@@ -264,6 +310,7 @@ hayahash64:
 	xor	$t1, $t1, $s2
 	xor	$t1, $t1, $s3
 	MUL64	$t1, $t1, $s3
+	move	$s4, $t1			# preserve x for hayahash128
 	# y = (inj2(b) ^ rotl(s, 23) ^ (K >> 19)) * M1
 	INJ2	$t2, $s5
 	ROTL64	$t3, $s2, 23
@@ -280,10 +327,11 @@ hayahash64:
 	MUL64	$t2, $t2, $t3
 	# return fmix(rotl(x, 27) ^ y ^ len * K); l = len is intact in
 	# $s1 on the short path and K is in $s3.
-	ROTL64	$t1, $t1, 27
-	xor	$v0, $t1, $t2
+	ROTL64	$t1, $s4, 27
+	xor	$s5, $t1, $t2			# u
 	MUL64	$a4, $s1, $s3
-	xor	$v0, $v0, $a4
+	xor	$s5, $s5, $a4
+	move	$v0, $s5
 	# fmix (moremur)
 	dsrl	$t1, $v0, 27
 	xor	$v0, $v0, $t1
@@ -300,6 +348,13 @@ hayahash64:
 	MUL64	$v0, $v0, $t3
 	dsrl	$t1, $v0, 27
 	xor	$v0, $v0, $t1
+	ld	$t1, OFF_WIDE($sp)
+	beqz	$t1, .Lepilogue
+	nop
+	# hi = fmix128(x + rotl(u, 32))
+	ROTL64	$t1, $s5, 32
+	daddu	$v1, $s4, $t1
+	FMIX128 $v1
 	b	.Lepilogue
 	nop
 
@@ -438,13 +493,15 @@ hayahash64:
 	MUL64	$t2, $t2, $s3
 	xor	$t1, $t1, $t2
 	MUL64	$t1, $t1, $s3
+	move	$s4, $t1			# preserve t0
 	# t1 = (h2 ^ rotl(h3, 33)) * K
 	ROTL64	$t2, $s7, 33
 	xor	$t2, $s6, $t2
 	MUL64	$t2, $t2, $s3
+	move	$s5, $t2			# preserve t1
 	# x = s ^ t0 ^ rotl(t1, 29)
-	ROTL64	$t2, $t2, 29
-	xor	$v0, $s2, $t1
+	ROTL64	$t2, $s5, 29
+	xor	$v0, $s2, $s4
 	xor	$v0, $v0, $t2
 	# long_fmix: x ^= x>>37; x *= K; x ^= x>>32
 	dsrl	$t1, $v0, 37
@@ -452,6 +509,15 @@ hayahash64:
 	MUL64	$v0, $v0, $s3
 	dsrl	$t1, $v0, 32
 	xor	$v0, $v0, $t1
+	ld	$t1, OFF_WIDE($sp)
+	beqz	$t1, .Lepilogue
+	nop
+	# hi = fmix128(rotl(s,32) ^ (t1 + rotl(t0,47)))
+	ROTL64	$v1, $s2, 32
+	ROTL64	$t2, $s4, 47
+	daddu	$t2, $s5, $t2
+	xor	$v1, $v1, $t2
+	FMIX128 $v1
 
 .Lepilogue:
 	ld	$ra, OFF_RA($sp)
@@ -468,3 +534,4 @@ hayahash64:
 	daddiu	$sp, $sp, FRM
 
 	.size	hayahash64, .-hayahash64
+	.size	hayahash128, .-hayahash128

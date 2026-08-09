@@ -1,8 +1,8 @@
 # hayahash
 
 JavaScript/TypeScript package for
-[hayahash64](https://github.com/thevilledev/hayahash), a small, fast,
-portable 64-bit hash function that passes the full
+[hayahash64 and hayahash128](https://github.com/thevilledev/hayahash), small,
+fast, portable hash functions that pass the full
 [SMHasher3](https://gitlab.com/fwojcik/smhasher3) suite.
 
 WebAssembly is the environment hayahash was made for. Its portability
@@ -14,7 +14,7 @@ their speed comes from, while hayahash runs at full design speed.
 
 This package therefore does not port the algorithm to JavaScript for
 its fast path: it ships the untouched reference header (`hayahash.h`
-at the repository root) compiled to a ~1.4 KB wasm32 module, embedded
+at the repository root) compiled to a ~3 KB wasm32 module, embedded
 as base64 and instantiated synchronously at import. Digests are
 bit-exact with the C reference by construction. A pure-JS BigInt port
 serves as the fallback engine where WebAssembly is unavailable, and as
@@ -23,12 +23,13 @@ an independent implementation the tests cross-check the wasm against.
 ## Usage
 
 ```js
-import { hayahash64 } from "hayahash";
+import { hayahash128, hayahash64 } from "hayahash";
 
 hayahash64("hello world");            // 4982310935814193242n
 hayahash64("hello world", 42n);       // seeded
 hayahash64(new Uint8Array([1, 2, 3])); // raw bytes
 hayahash64("abc").toString(16);       // format as hex
+hayahash128("hello world");           // { lo: bigint, hi: bigint }
 ```
 
 - **Input:** `Uint8Array` (including `Buffer`), or a string, which is
@@ -38,6 +39,8 @@ hayahash64("abc").toString(16);       // format as hex
   matching a C caller.
 - **Result:** the 64-bit digest as an unsigned `bigint` in
   `[0, 2^64)`. Identical on every platform, engine, and endianness.
+  The 128-bit API returns `{ lo, hi }`, with `lo` exactly equal to
+  `hayahash64` for the same input and seed.
 
 ### Exports
 
@@ -45,6 +48,9 @@ hayahash64("abc").toString(16);       // format as hex
 |---|---|
 | `hayahash64(input, seed?)` | the hash; wasm engine when available, pure-JS otherwise |
 | `hayahash64Pure(input, seed?)` | same digest, always computed by the pure-JS engine |
+| `hayahash128(input, seed?)` | `{ lo, hi }`; wasm engine when available, pure-JS otherwise |
+| `hayahash128Pure(input, seed?)` | same two words, always computed by the pure-JS engine |
+| `Hash128` | `{ lo: bigint; hi: bigint }` (type) |
 | `getEngine()` | `"wasm"` or `"js"`: which engine `hayahash64` currently uses |
 | `setWasmModule(module)` | activate the wasm engine from a precompiled `WebAssembly.Module` |
 | `HayahashInput` | `Uint8Array \| string` (type) |
@@ -53,7 +59,7 @@ hayahash64("abc").toString(16);       // format as hex
 
 **wasm** (default): the reference C header compiled with
 `zig cc --target=wasm32-freestanding -O3` (see [`wasm/build.sh`](wasm/build.sh)).
-The module exports nothing but the hash, its memory, and `__heap_base`;
+The module exports the two hash functions, its memory, and `__heap_base`;
 input bytes are copied into linear memory before each call. Inputs up
 to ~32 KiB fit in the initial memory page; larger inputs grow the
 instance's memory on demand (it is never shrunk). Inputs longer than

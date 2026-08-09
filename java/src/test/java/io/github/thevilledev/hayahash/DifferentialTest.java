@@ -34,26 +34,29 @@ class DifferentialTest {
     requireRemaining(cursor, 8);
     byte[] magic = new byte[8];
     cursor.get(magic);
-    assertArrayEquals("HAYAFZ01".getBytes(StandardCharsets.US_ASCII), magic);
+    assertArrayEquals("HAYAFZ02".getBytes(StandardCharsets.US_ASCII), magic);
     requireRemaining(cursor, 12);
     long caseCount = Integer.toUnsignedLong(cursor.getInt());
     long prngSeed = cursor.getLong();
 
     for (long caseIndex = 0; caseIndex < caseCount; caseIndex++) {
-      requireRemaining(cursor, 20);
+      requireRemaining(cursor, 28);
       int length = cursor.getInt();
       long hashSeed = cursor.getLong();
-      long expected = cursor.getLong();
+      long expectedLo = cursor.getLong();
+      long expectedHi = cursor.getLong();
       requireRemaining(cursor, length);
       int inputOffset = cursor.position();
-      long actual = Hayahash.hash64(corpus, inputOffset, length, hashSeed);
+      Hayahash.Hash128 actual = Hayahash.hash128(corpus, inputOffset, length, hashSeed);
       cursor.position(inputOffset + length);
       assertEquals(
-          expected,
-          actual,
+          expectedLo,
+          actual.lo(),
           String.format(
               "case=%d len=%d hash_seed=0x%016x corpus_prng_seed=0x%016x",
               caseIndex, length, hashSeed, prngSeed));
+      assertEquals(expectedHi, actual.hi());
+      assertEquals(Hayahash.hash64(corpus, inputOffset, length, hashSeed), actual.lo());
     }
 
     assertEquals(0, cursor.remaining(), "trailing bytes in differential corpus");

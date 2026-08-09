@@ -150,6 +150,28 @@ static const struct vector vectors[] = {
 	{1024, 0xDEADBEEFCAFEBABEull, 0xC93D1F81FD51336Aull},
 };
 
+struct vector128 {
+	size_t len;
+	uint64_t hi;
+};
+
+static const struct vector128 vectors128[] = {
+	{0, UINT64_C(0xBDBDB99AFC307BE6)},
+	{1, UINT64_C(0x38A7F291F946E326)},
+	{3, UINT64_C(0xF41308B1E23E701A)},
+	{7, UINT64_C(0x598517B1629A2661)},
+	{8, UINT64_C(0xE2EF4308D2736A10)},
+	{16, UINT64_C(0x26634ED944557F63)},
+	{17, UINT64_C(0xE4F325B405DF676E)},
+	{31, UINT64_C(0xAF319AB2213F66A1)},
+	{32, UINT64_C(0x9AA61D0A8145639A)},
+	{63, UINT64_C(0xF897985E74078907)},
+	{64, UINT64_C(0x13611650F75C9D77)},
+	{319, UINT64_C(0x2369951A61744E5D)},
+	{320, UINT64_C(0x4BCD20725C38B8B8)},
+	{1000, UINT64_C(0x8700DBF3171144A7)},
+};
+
 int main(void)
 {
 	uint8_t buf[1024];
@@ -171,6 +193,33 @@ int main(void)
 			        (unsigned long long)got,
 			        (unsigned long long)vectors[i].want);
 			failed = 1;
+		}
+	}
+
+	{
+		uint8_t wide_buf[1000];
+		uint32_t x = UINT32_C(0x9E3779B9);
+		for (i = 0; i < sizeof(wide_buf); i++) {
+			x ^= x << 13;
+			x ^= x >> 17;
+			x ^= x << 5;
+			wide_buf[i] = (uint8_t)x;
+		}
+		for (i = 0; i < sizeof(vectors128) / sizeof(vectors128[0]); i++) {
+			hayahash128_t got = hayahash128(
+				wide_buf, (ptrdiff_t)vectors128[i].len, UINT64_C(0x1234));
+			uint64_t narrow = hayahash64(
+				wide_buf, (ptrdiff_t)vectors128[i].len, UINT64_C(0x1234));
+			if (got.lo != narrow || got.hi != vectors128[i].hi) {
+				fprintf(stderr,
+				        "FAIL128 len=%zu got=%016llX:%016llX "
+				        "want_hi=%016llX\n",
+				        vectors128[i].len,
+				        (unsigned long long)got.hi,
+				        (unsigned long long)got.lo,
+				        (unsigned long long)vectors128[i].hi);
+				failed = 1;
+			}
 		}
 	}
 
@@ -202,7 +251,7 @@ int main(void)
 	}
 
 	if (failed) {
-		fprintf(stderr, "mips hayahash64: %d failure(s)\n", failed);
+		fprintf(stderr, "mips hayahash: %d failure(s)\n", failed);
 		return 1;
 	}
 	puts("ok");

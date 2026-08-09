@@ -28,21 +28,28 @@ fn randomized_c_reference_corpus() {
     };
     let corpus = fs::read(&path).unwrap_or_else(|err| panic!("cannot read {path}: {err}"));
     let mut offset = 0;
-    assert_eq!(take(&corpus, &mut offset, 8), b"HAYAFZ01");
+    assert_eq!(take(&corpus, &mut offset, 8), b"HAYAFZ02");
     let case_count = read_u32(&corpus, &mut offset);
     let prng_seed = read_u64(&corpus, &mut offset);
 
     for case_index in 0..case_count {
         let len = read_u32(&corpus, &mut offset) as usize;
         let hash_seed = read_u64(&corpus, &mut offset);
-        let expected = read_u64(&corpus, &mut offset);
+        let expected_lo = read_u64(&corpus, &mut offset);
+        let expected_hi = read_u64(&corpus, &mut offset);
         let input = take(&corpus, &mut offset, len);
-        let actual = hayahash::hayahash64(input, hash_seed);
+        let actual = hayahash::hayahash128(input, hash_seed);
         assert_eq!(
-            actual, expected,
+            actual.lo, expected_lo,
             "case={case_index} len={len} hash_seed={hash_seed:#018x} \
              corpus_prng_seed={prng_seed:#018x}"
         );
+        assert_eq!(
+            actual.hi, expected_hi,
+            "case={case_index} len={len} hash_seed={hash_seed:#018x} \
+             corpus_prng_seed={prng_seed:#018x}"
+        );
+        assert_eq!(hayahash::hayahash64(input, hash_seed), actual.lo);
     }
 
     assert_eq!(

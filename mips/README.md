@@ -1,4 +1,4 @@
-# hayahash64 (MIPS64 assembly)
+# hayahash64 and hayahash128 (MIPS64 assembly)
 
 Bit-exact MIPS64 assembly port of the reference C implementation
 (`hayahash.h` at the repository root). Output matches every other port
@@ -9,10 +9,13 @@ independent of host endianness.
 
 ```c
 uint64_t hayahash64(const void *key, ptrdiff_t len, uint64_t seed);
+hayahash128_t hayahash128(const void *key, ptrdiff_t len, uint64_t seed);
 ```
 
 MIPS64 n64 calling convention: `key` in `$a0`, `len` in `$a1`, `seed`
-in `$a2`, result in `$v0`. The implementation is in [`hayahash.S`](hayahash.S);
+in `$a2`. The 64-bit result is returned in `$v0`; the 128-bit result
+uses `$v0` for `lo` and `$v1` for `hi`, as specified by the n64 struct-return
+ABI. The implementation is in [`hayahash.S`](hayahash.S);
 [`hayahash.h`](hayahash.h) is the C declaration for linking.
 
 The compact dispatch shape is used (same absorb sequence as the

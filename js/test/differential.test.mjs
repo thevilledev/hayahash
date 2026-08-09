@@ -3,7 +3,12 @@ import assert from "node:assert/strict";
 import { readFile } from "node:fs/promises";
 import { test } from "node:test";
 
-import { hayahash64, hayahash64Pure } from "../dist/index.js";
+import {
+	hayahash128,
+	hayahash128Pure,
+	hayahash64,
+	hayahash64Pure,
+} from "../dist/index.js";
 
 const corpusPath = process.env.HAYAHASH_CORPUS;
 
@@ -36,29 +41,30 @@ test(
 			return view.getBigUint64(start, true);
 		};
 
-		assert.equal(new TextDecoder().decode(take(8)), "HAYAFZ01");
+		assert.equal(new TextDecoder().decode(take(8)), "HAYAFZ02");
 		const caseCount = readU32();
 		const prngSeed = readU64();
 		const casesOffset = offset;
 		const engines = [
-			["wasm", hayahash64],
-			["pure JS", hayahash64Pure],
+			["wasm", hayahash128, hayahash64],
+			["pure JS", hayahash128Pure, hayahash64Pure],
 		];
 
-		for (const [engine, hash] of engines) {
+		for (const [engine, hash128, hash64] of engines) {
 			offset = casesOffset;
 			for (let caseIndex = 0; caseIndex < caseCount; caseIndex++) {
 				const length = readU32();
 				const hashSeed = readU64();
-				const expected = readU64();
+				const expected = { lo: readU64(), hi: readU64() };
 				const input = take(length);
-				assert.equal(
-					hash(input, hashSeed),
+				assert.deepEqual(
+					hash128(input, hashSeed),
 					expected,
 					`${engine}: case=${caseIndex} len=${length} ` +
 						`hash_seed=0x${hashSeed.toString(16).padStart(16, "0")} ` +
 						`corpus_prng_seed=0x${prngSeed.toString(16).padStart(16, "0")}`,
 				);
+				assert.equal(hash64(input, hashSeed), expected.lo);
 			}
 			assert.equal(offset, corpus.length, "trailing bytes in differential corpus");
 		}

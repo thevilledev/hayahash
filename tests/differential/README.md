@@ -1,12 +1,15 @@
 # Differential conformance corpus
 
 `generate.c` creates randomized inputs, random 64-bit hash seeds, and the
-expected digest produced by the C reference in `hayahash.h`. The Rust, Go,
-Zig, Java, C#, Python, Swift, and JavaScript test suites read that same
+expected 64- and 128-bit digests produced by the C reference in
+`hayahash.h`. The Rust, Go, Zig, Java, C#, Python, Swift, and JavaScript
+test suites read that same
 binary corpus when `HAYAHASH_CORPUS` points to it. JavaScript checks both
 its WebAssembly and pure-JS engines.
 
-The first 385 cases exhaustively cover input lengths 0 through 384, including
+The `HAYAFZ02` corpus stores the 128-bit result as little-endian `lo`, then
+`hi`; the low word is also checked against every port's 64-bit API. The first
+385 cases exhaustively cover input lengths 0 through 384, including
 every short, tail, mid-loop, tier, and 320-byte bulk dispatch boundary. Larger
 fixed edges and boundary-biased random lengths are followed by broad random
 lengths around the 128 KiB edge. All input bytes and per-hash seeds are

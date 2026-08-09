@@ -6,7 +6,7 @@ import os
 import struct
 import sys
 
-from hayahash import hayahash64
+from hayahash import hayahash64, hayahash128
 
 
 def test_randomized_c_reference_corpus() -> None:
@@ -30,7 +30,7 @@ def test_randomized_c_reference_corpus() -> None:
     require_remaining(8)
     magic = data[cursor : cursor + 8]
     cursor += 8
-    assert magic == b"HAYAFZ01"
+    assert magic == b"HAYAFZ02"
 
     require_remaining(12)
     (case_count,) = struct.unpack_from("<I", data, cursor)
@@ -39,20 +39,22 @@ def test_randomized_c_reference_corpus() -> None:
     cursor += 8
 
     for case_index in range(case_count):
-        require_remaining(20)
+        require_remaining(28)
         (length,) = struct.unpack_from("<I", data, cursor)
         cursor += 4
         (hash_seed,) = struct.unpack_from("<Q", data, cursor)
         cursor += 8
-        (expected,) = struct.unpack_from("<Q", data, cursor)
-        cursor += 8
+        expected = struct.unpack_from("<QQ", data, cursor)
+        cursor += 16
         require_remaining(length)
-        actual = hayahash64(memoryview(data)[cursor : cursor + length], hash_seed)
+        input_data = memoryview(data)[cursor : cursor + length]
+        actual = hayahash128(input_data, hash_seed)
         cursor += length
         assert actual == expected, (
             f"case={case_index} len={length} "
             f"hash_seed=0x{hash_seed:016x} corpus_prng_seed=0x{prng_seed:016x}"
         )
+        assert actual[0] == hayahash64(input_data, hash_seed)
 
     assert cursor == len(data), "trailing bytes in differential corpus"
     print(

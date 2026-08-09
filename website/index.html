@@ -121,8 +121,7 @@
           </tr>
           <tr>
             <th scope="row">Implementations</th>
-            <td>Both widths in the C reference. hayahash64 also has
-              bit-exact ports to Rust, Go, Zig,
+            <td>Both widths have bit-exact ports to Rust, Go, Zig,
               Java, C#, Python, Swift, JavaScript/TypeScript, and MIPS64
               assembly.</td>
           </tr>
@@ -338,8 +337,9 @@
       <h2 id="use">Use it</h2>
 
       <p>
-        The released ports below expose hayahash64 and share one version
-        number. hayahash128 is currently available from the C header.
+        Every port below exposes hayahash64 and hayahash128 and shares one
+        version number. Every 128-bit API returns low and high words, with
+        the low word exactly equal to hayahash64.
       </p>
 
       <div class="table-scroll">
@@ -361,47 +361,56 @@
             <tr>
               <td>Rust</td>
               <td><code>cargo add hayahash</code> (<code>no_std</code>)</td>
-              <td><code>hayahash::hayahash64(buf, seed)</code></td>
+              <td><code>hayahash::hayahash64(buf, seed)</code><br>
+                <code>hayahash::hayahash128(buf, seed)</code></td>
             </tr>
             <tr>
               <td>Go</td>
               <td><code>go get github.com/thevilledev/hayahash/go</code></td>
-              <td><code>hayahash.Hash64(buf, seed)</code></td>
+              <td><code>hayahash.Hash64(buf, seed)</code><br>
+                <code>hayahash.Hash128(buf, seed)</code></td>
             </tr>
             <tr>
               <td>Zig (0.16)</td>
               <td><code>zig fetch --save</code> the release tarball</td>
-              <td><code>hayahash.hayahash64(buf, seed)</code></td>
+              <td><code>hayahash.hayahash64(buf, seed)</code><br>
+                <code>hayahash.hayahash128(buf, seed)</code></td>
             </tr>
             <tr>
               <td>Java (17+)</td>
               <td><code>io.github.thevilledev:hayahash</code> on Maven Central</td>
-              <td><code>Hayahash.hash64(buf, seed)</code></td>
+              <td><code>Hayahash.hash64(buf, seed)</code><br>
+                <code>Hayahash.hash128(buf, seed)</code></td>
             </tr>
             <tr>
               <td>C# (.NET 8+)</td>
               <td><code>dotnet add package Hayahash</code></td>
-              <td><code>Hayahash.Hash64(buf, seed)</code></td>
+              <td><code>Hayahash.Hash64(buf, seed)</code><br>
+                <code>Hayahash.Hash128(buf, seed)</code></td>
             </tr>
             <tr>
               <td>Python (3.9+)</td>
               <td><code>pip install hayahash</code></td>
-              <td><code>hayahash64(buf, seed)</code></td>
+              <td><code>hayahash64(buf, seed)</code><br>
+                <code>hayahash128(buf, seed)</code></td>
             </tr>
             <tr>
               <td>Swift (5.9+)</td>
               <td>SwiftPM, from the release tarball or a local path</td>
-              <td><code>Hayahash.hash64(buf, seed: 0)</code></td>
+              <td><code>Hayahash.hash64(buf, seed: 0)</code><br>
+                <code>Hayahash.hash128(buf, seed: 0)</code></td>
             </tr>
             <tr>
               <td>JS/TS</td>
               <td><code>npm install hayahash</code> (wasm + pure-JS fallback)</td>
-              <td><code>hayahash64(buf, seed)</code></td>
+              <td><code>hayahash64(buf, seed)</code><br>
+                <code>hayahash128(buf, seed)</code></td>
             </tr>
             <tr>
               <td>MIPS64 asm</td>
               <td>copy <code>mips/hayahash.S</code> (n64 ABI)</td>
-              <td><code>hayahash64(buf, len, seed)</code></td>
+              <td><code>hayahash64(buf, len, seed)</code><br>
+                <code>hayahash128(buf, len, seed)</code></td>
             </tr>
           </tbody>
         </table>

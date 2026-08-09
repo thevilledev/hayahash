@@ -5,14 +5,14 @@ build-backend = "setuptools.build_meta"
 [project]
 name = "hayahash"
 version = "0.4.6"
-description = "hayahash64, a small, fast, portable 64-bit hash function; CPython C extension over the C reference"
+description = "hayahash64 and hayahash128; CPython C extension over the C reference"
 readme = "README.md"
 license = { text = "Unlicense" }
 requires-python = ">=3.9"
 authors = [
   { name = "Ville Vesilehto", email = "ville@vesilehto.fi" },
 ]
-keywords = ["hash", "hashing", "non-cryptographic", "hayahash", "hayahash64"]
+keywords = ["hash", "hashing", "non-cryptographic", "hayahash", "hayahash64", "hayahash128"]
 classifiers = [
   "Development Status :: 4 - Beta",
   "Intended Audience :: Developers",

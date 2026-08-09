@@ -21,6 +21,8 @@ const K = 0x9e3779b97f4a7c15n;
 // second multiplier of the short path.
 const M1 = 0x3c79ac492ba7b653n;
 const M2 = 0x1c69b3f74ac4ae35n;
+const N1 = 0xff51afd7ed558ccdn;
+const N2 = 0xc4ceb9fe1a85ec53n;
 
 // Shifted copies of K used for lane IVs, precomputed and masked so
 // the hash body never mixes an over-wide value into an xor.
@@ -51,6 +53,16 @@ function fmix(x: bigint): bigint {
 	return x;
 }
 
+// Bijective finalizer for the high word.
+function fmix128(x: bigint): bigint {
+	x ^= x >> 30n;
+	x = (x * N1) & MASK64;
+	x ^= x >> 31n;
+	x = (x * N2) & MASK64;
+	x ^= x >> 33n;
+	return x;
+}
+
 // The long path has already mixed every input byte through a
 // multiply and a non-linear lane merge, so its final avalanche needs
 // only one serial multiply. Reusing K also avoids another constant.
@@ -76,7 +88,22 @@ function inj2(w: bigint): bigint {
 // multiply or another sum are left unmasked where modular arithmetic
 // makes the deferred mask equivalent; every value that meets an xor
 // or rotl is masked first.
+export interface Hash128 {
+	lo: bigint;
+	hi: bigint;
+}
+
 export function hashPure(data: Uint8Array, seed: bigint): bigint {
+	return hashPureImpl(data, seed, false);
+}
+
+export function hash128Pure(data: Uint8Array, seed: bigint): Hash128 {
+	return hashPureImpl(data, seed, true);
+}
+
+function hashPureImpl(data: Uint8Array, seed: bigint, wide: false): bigint;
+function hashPureImpl(data: Uint8Array, seed: bigint, wide: true): Hash128;
+function hashPureImpl(data: Uint8Array, seed: bigint, wide: boolean): bigint | Hash128 {
 	const len = data.length;
 	const view = new DataView(data.buffer, data.byteOffset, data.byteLength);
 	const load64 = (i: number): bigint => view.getBigUint64(i, true);
@@ -113,7 +140,9 @@ export function hashPure(data: Uint8Array, seed: bigint): bigint {
 		}
 		const x = ((inj(a) ^ s ^ K) * K) & MASK64;
 		const y = ((inj2(b) ^ rotl(s, 23n) ^ K_SHR19) * M1) & MASK64;
-		return fmix(rotl(x, 27n) ^ y ^ lenmix);
+		const u = rotl(x, 27n) ^ y ^ lenmix;
+		const lo = fmix(u);
+		return wide ? { lo, hi: fmix128((x + rotl(u, 32n)) & MASK64) } : lo;
 	}
 
 	let h0 = s ^ K;
@@ -200,5 +229,11 @@ export function hashPure(data: Uint8Array, seed: bigint): bigint {
 
 	const t0 = ((h0 ^ rotl(h1, 13n) ^ lenmix) * K) & MASK64;
 	const t1 = ((h2 ^ rotl(h3, 33n)) * K) & MASK64;
-	return fmixLong(s ^ t0 ^ rotl(t1, 29n));
+	const lo = fmixLong(s ^ t0 ^ rotl(t1, 29n));
+	return wide
+		? {
+			lo,
+			hi: fmix128(rotl(s, 32n) ^ ((t1 + rotl(t0, 47n)) & MASK64)),
+		}
+		: lo;
 }

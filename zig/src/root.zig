@@ -1,4 +1,4 @@
-//! hayahash64 - small, fast, portable 64-bit hash function.
+//! hayahash64 and hayahash128 - small, fast, portable hash functions.
 //!
 //! Bit-exact Zig port of the reference C implementation (`hayahash.h`
 //! at the repository root); see that header for the full design notes.
@@ -16,6 +16,8 @@ const K: u64 = 0x9E3779B97F4A7C15;
 /// second multiplier of the short path.
 const M1: u64 = 0x3C79AC492BA7B653;
 const M2: u64 = 0x1C69B3F74AC4AE35;
+const N1: u64 = 0xFF51AFD7ED558CCD;
+const N2: u64 = 0xC4CEB9FE1A85EC53;
 
 /// Input length (in bytes) at or above which the 8-lane bulk loop
 /// kicks in.
@@ -43,6 +45,16 @@ inline fn fmix(v: u64) u64 {
     return x ^ (x >> 27);
 }
 
+/// Bijective finalizer for the high word.
+inline fn fmix128(v: u64) u64 {
+    var x = v;
+    x ^= x >> 30;
+    x *%= N1;
+    x ^= x >> 31;
+    x *%= N2;
+    return x ^ (x >> 33);
+}
+
 /// Bijective stripe injections (any odd number of rotation terms is
 /// invertible over GF(2)). The short path uses a second injection with
 /// different rotation amounts for its `b` word so the two multiply
@@ -67,11 +79,28 @@ inline fn stripe(h: *u64, wp: *u64, p: []const u8, i: usize) void {
     wp.* = w;
 }
 
+/// A 128-bit digest represented as two words. `lo` is exactly
+/// `hayahash64` for the same input and seed.
+pub const Digest128 = struct {
+    lo: u64,
+    hi: u64,
+};
+
 /// Hashes `key` with `seed`, returning a 64-bit digest.
 ///
 /// Produces exactly the same value as the C reference `hayahash64()`
 /// for all inputs, seeds, and host endiannesses.
 pub fn hayahash64(key: []const u8, seed: u64) u64 {
+    return hash(false, key, seed).lo;
+}
+
+/// Hashes `key` with `seed`, returning both 64-bit output words.
+/// The input is walked once and `lo` is exactly `hayahash64`.
+pub fn hayahash128(key: []const u8, seed: u64) Digest128 {
+    return hash(true, key, seed);
+}
+
+inline fn hash(comptime wide: bool, key: []const u8, seed: u64) Digest128 {
     const len = key.len;
     // The seed premixes into s; the length is absorbed in the
     // finalizer instead (through a multiply against state), so the
@@ -100,7 +129,11 @@ pub fn hayahash64(key: []const u8, seed: u64) u64 {
         // C header for why each word gets its own injection.
         const x = (inj(a) ^ s ^ K) *% K;
         const y = (inj2(b) ^ rotl(s, 23) ^ (K >> 19)) *% M1;
-        return fmix(rotl(x, 27) ^ y ^ lenmix);
+        const u = rotl(x, 27) ^ y ^ lenmix;
+        return .{
+            .lo = fmix(u),
+            .hi = if (wide) fmix128(x +% rotl(u, 32)) else 0,
+        };
     }
 
     var h0 = s ^ K;
@@ -176,10 +209,18 @@ pub fn hayahash64(key: []const u8, seed: u64) u64 {
     // one final multiply is enough to avalanche the merged lanes.
     x ^= x >> 37;
     x *%= K;
-    return x ^ (x >> 32);
+    return .{
+        .lo = x ^ (x >> 32),
+        .hi = if (wide) fmix128(rotl(s, 32) ^ (t1 +% rotl(t0, 47))) else 0,
+    };
 }
 
 test hayahash64 {
     try std.testing.expectEqual(0x68AC507CF298CA3F, hayahash64("", 0));
     try std.testing.expectEqual(0x4524B96611BFC05A, hayahash64("hello world", 0));
+}
+
+test hayahash128 {
+    const wide = hayahash128("hello world", 0);
+    try std.testing.expectEqual(hayahash64("hello world", 0), wide.lo);
 }

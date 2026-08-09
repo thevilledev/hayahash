@@ -52,8 +52,9 @@ trick, the header says so.
 The reference implementation is the single C header
 [`hayahash.h`](hayahash.h) at the repository root. Bit-exact ports to
 Rust, Go, Zig, Java, C#, Python, Swift, JavaScript/TypeScript, and
-MIPS64 assembly cover hayahash64; hayahash128 is currently exposed by
-the C header. See [Usage](#usage).
+MIPS64 assembly expose both hayahash64 and hayahash128. Every 128-bit
+API returns ordered `lo` and `hi` words, with `lo == hayahash64`.
+See [Usage](#usage).
 
 Documentation: [design](docs/design.md) ·
 [quality](docs/quality.md) · [ports & layout](docs/ports.md) ·
@@ -354,17 +355,17 @@ uint64_t h = hayahash64_digest(&st);
 hayahash128_t h128 = hayahash128_digest(&st);
 ```
 
-| language | package | call |
-|---|---|---|
-| [Rust](rust/) | `hayahash` on crates.io (`no_std`) | `hayahash::hayahash64(buf, seed)` |
-| [Go](go/) | `github.com/thevilledev/hayahash/go` | `hayahash.Hash64(buf, seed)` |
-| [Zig](zig/) | `hayahash` module (Zig 0.16) | `hayahash.hayahash64(buf, seed)` |
-| [Java](java/) | `io.github.thevilledev:hayahash` (17+) | `Hayahash.hash64(buf, seed)` |
-| [C#](csharp/) | `Hayahash` on NuGet (.NET 8+) | `Hayahash.Hash64(buf, seed)` |
-| [Python](python/) | `hayahash` on PyPI (3.9+) | `hayahash64(buf, seed)` |
-| [Swift](swift/) | `Hayahash` SwiftPM package (5.9+) | `Hayahash.hash64(buf, seed: 0)` |
-| [JS/TS](js/) | `hayahash` on npm (wasm + pure JS) | `hayahash64(buf, seed)` |
-| [MIPS64](mips/) | `hayahash.S` (n64 ABI) | `hayahash64(buf, len, seed)` |
+| language | package | 64-bit call | 128-bit call |
+|---|---|---|---|
+| [Rust](rust/) | `hayahash` on crates.io (`no_std`) | `hayahash::hayahash64(buf, seed)` | `hayahash::hayahash128(buf, seed)` |
+| [Go](go/) | `github.com/thevilledev/hayahash/go` | `hayahash.Hash64(buf, seed)` | `hayahash.Hash128(buf, seed)` |
+| [Zig](zig/) | `hayahash` module (Zig 0.16) | `hayahash.hayahash64(buf, seed)` | `hayahash.hayahash128(buf, seed)` |
+| [Java](java/) | `io.github.thevilledev:hayahash` (17+) | `Hayahash.hash64(buf, seed)` | `Hayahash.hash128(buf, seed)` |
+| [C#](csharp/) | `Hayahash` on NuGet (.NET 8+) | `Hayahash.Hash64(buf, seed)` | `Hayahash.Hash128(buf, seed)` |
+| [Python](python/) | `hayahash` on PyPI (3.9+) | `hayahash64(buf, seed)` | `hayahash128(buf, seed)` |
+| [Swift](swift/) | `Hayahash` SwiftPM package (5.9+) | `Hayahash.hash64(buf, seed: 0)` | `Hayahash.hash128(buf, seed: 0)` |
+| [JS/TS](js/) | `hayahash` on npm (wasm + pure JS) | `hayahash64(buf, seed)` | `hayahash128(buf, seed)` |
+| [MIPS64](mips/) | `hayahash.S` (n64 ABI) | `hayahash64(buf, len, seed)` | `hayahash128(buf, len, seed)` |
 
 Per-language examples and the full repository layout are in
 [`docs/ports.md`](docs/ports.md).

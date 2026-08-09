@@ -16,7 +16,7 @@ use hashbrown::{HashMap as BaseHashMap, HashSet as BaseHashSet};
 #[cfg(all(feature = "std", not(feature = "hashbrown")))]
 use std::collections::{HashMap as BaseHashMap, HashSet as BaseHashSet};
 
-use crate::hayahash64;
+use crate::{hayahash128, hayahash64, Hash128};
 
 /// Inline write buffer capacity. Typical `HashMap` keys stay within
 /// this and never touch the heap; larger concatenated writes spill.
@@ -83,6 +83,14 @@ impl HayaHasher {
             inline: [0; INLINE_CAP],
             heap: Vec::new(),
         }
+    }
+
+    /// Returns both digest words without consuming the buffered input.
+    ///
+    /// The low word is identical to [`Hasher::finish`].
+    #[must_use]
+    pub fn finish128(&self) -> Hash128 {
+        hayahash128(self.buffer(), self.seed)
     }
 
     #[inline]

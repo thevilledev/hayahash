@@ -57,14 +57,16 @@ uint64_t h = hayahash64(buf, len, seed);
 hayahash128_t h128 = hayahash128(buf, len, seed);
 ```
 
-The language ports below currently expose hayahash64; hayahash128 is
-available from the C header. Its `hayahash128_state`, init, and update
-names are zero-cost aliases for the shared hayahash64 streaming state.
+Every language port exposes both widths. Each 128-bit result has `lo`
+and `hi` words in that order, and `lo` is exactly hayahash64 for the
+same input and seed. In C, the streaming `hayahash128_state`, init, and
+update names are zero-cost aliases for the shared hayahash64 state.
 
 Rust - the `hayahash` crate lives in [`rust/`](../rust/):
 
 ```rust
 let h = hayahash::hayahash64(buf, seed);
+let h128 = hayahash::hayahash128(buf, seed);
 ```
 
 Go - the module lives in [`go/`](../go/):
@@ -73,6 +75,7 @@ Go - the module lives in [`go/`](../go/):
 import hayahash "github.com/thevilledev/hayahash/go"
 
 h := hayahash.Hash64(buf, seed)
+h128 := hayahash.Hash128(buf, seed)
 ```
 
 Zig - the package lives in [`zig/`](../zig/):
@@ -81,6 +84,7 @@ Zig - the package lives in [`zig/`](../zig/):
 const hayahash = @import("hayahash");
 
 const h = hayahash.hayahash64(buf, seed);
+const h128 = hayahash.hayahash128(buf, seed);
 ```
 
 Java - the Maven module lives in [`java/`](../java/):
@@ -89,6 +93,7 @@ Java - the Maven module lives in [`java/`](../java/):
 import io.github.thevilledev.hayahash.Hayahash;
 
 long h = Hayahash.hash64(buf, seed);
+Hayahash.Hash128 h128 = Hayahash.hash128(buf, seed);
 ```
 
 C# / .NET - the NuGet package lives in [`csharp/`](../csharp/):
@@ -97,15 +102,17 @@ C# / .NET - the NuGet package lives in [`csharp/`](../csharp/):
 using Hayahash;
 
 ulong h = Hayahash.Hash64(buf, seed);
+Digest128 h128 = Hayahash.Hash128(buf, seed);
 ```
 
 Python - the PyPI package lives in [`python/`](../python/); a CPython C
 extension wraps `hayahash.h` directly:
 
 ```python
-from hayahash import hayahash64
+from hayahash import hayahash128, hayahash64
 
 h = hayahash64(buf, seed)
+h128 = hayahash128(buf, seed)  # (lo, hi)
 ```
 
 Swift - the SwiftPM package lives in [`swift/`](../swift/):
@@ -114,16 +121,18 @@ Swift - the SwiftPM package lives in [`swift/`](../swift/):
 import Hayahash
 
 let h = Hayahash.hash64(buf, seed: 0)
+let h128 = Hayahash.hash128(buf, seed: 0)
 ```
 
 JavaScript/TypeScript - the npm package lives in [`js/`](../js/); the
-fast path is `hayahash.h` itself, compiled to a ~1.5 KB WebAssembly
+fast path is `hayahash.h` itself, compiled to a ~3 KB WebAssembly
 module, with a pure-JS fallback:
 
 ```js
-import { hayahash64 } from "hayahash";
+import { hayahash128, hayahash64 } from "hayahash";
 
 const h = hayahash64(buf, seed); // unsigned 64-bit bigint
+const h128 = hayahash128(buf, seed); // { lo, hi }
 ```
 
 MIPS64 assembly - the port lives in [`mips/`](../mips/):
@@ -132,4 +141,5 @@ MIPS64 assembly - the port lives in [`mips/`](../mips/):
 #include "hayahash.h" /* mips/hayahash.h */
 
 uint64_t h = hayahash64(buf, len, seed);
+hayahash128_t h128 = hayahash128(buf, len, seed);
 ```

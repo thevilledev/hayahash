@@ -175,3 +175,36 @@ fn smhasher3_verification_value() {
     let total = hayahash::hayahash64(&hashes, 0);
     assert_eq!(total as u32, 0x65F2_AC15);
 }
+
+#[test]
+fn hash128_boundary_vectors() {
+    const VECTORS: &[(usize, u64)] = &[
+        (0, 0xBDBD_B99A_FC30_7BE6),
+        (1, 0x38A7_F291_F946_E326),
+        (3, 0xF413_08B1_E23E_701A),
+        (7, 0x5985_17B1_629A_2661),
+        (8, 0xE2EF_4308_D273_6A10),
+        (16, 0x2663_4ED9_4455_7F63),
+        (17, 0xE4F3_25B4_05DF_676E),
+        (31, 0xAF31_9AB2_213F_66A1),
+        (32, 0x9AA6_1D0A_8145_639A),
+        (63, 0xF897_985E_7407_8907),
+        (64, 0x1361_1650_F75C_9D77),
+        (319, 0x2369_951A_6174_4E5D),
+        (320, 0x4BCD_2072_5C38_B8B8),
+        (1000, 0x8700_DBF3_1711_44A7),
+    ];
+    let mut buf = [0u8; 1000];
+    let mut x = 0x9E37_79B9u32;
+    for byte in &mut buf {
+        x ^= x << 13;
+        x ^= x >> 17;
+        x ^= x << 5;
+        *byte = x as u8;
+    }
+    for &(len, expected_hi) in VECTORS {
+        let wide = hayahash::hayahash128(&buf[..len], 0x1234);
+        assert_eq!(wide.lo, hayahash::hayahash64(&buf[..len], 0x1234));
+        assert_eq!(wide.hi, expected_hi, "len={len}");
+    }
+}

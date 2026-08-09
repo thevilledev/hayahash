@@ -5,7 +5,7 @@
 
 use core::hash::{BuildHasher, Hasher};
 
-use hayahash::{hayahash64, HayaHashMap, HayaHashSet, HayaHasher};
+use hayahash::{hayahash128, hayahash64, HayaHashMap, HayaHashSet, HayaHasher};
 
 #[test]
 fn hasher_matches_one_shot_across_split_writes() {
@@ -54,6 +54,16 @@ fn finish_does_not_consume_buffered_bytes() {
     assert_eq!(h.finish(), first);
     h.write(b"def");
     assert_eq!(h.finish(), hayahash64(b"abcdef", 9));
+}
+
+#[test]
+fn finish128_matches_one_shot_and_finish() {
+    let mut h = HayaHasher::new(9);
+    h.write(b"abc");
+    h.write(b"def");
+    let wide = h.finish128();
+    assert_eq!(wide, hayahash128(b"abcdef", 9));
+    assert_eq!(wide.lo, h.finish());
 }
 
 #[test]

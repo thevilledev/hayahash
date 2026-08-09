@@ -1,13 +1,14 @@
 // Generates a reproducible randomized corpus from the C reference.
 //
 // File format (all integers little-endian):
-//   8 bytes  magic "HAYAFZ01"
+//   8 bytes  magic "HAYAFZ02"
 //   u32      case count
 //   u64      corpus PRNG seed
 //   repeated case count times:
 //     u32    input length
 //     u64    hash seed
-//     u64    expected C-reference digest
+//     u64    expected hayahash128 low word (also hayahash64)
+//     u64    expected hayahash128 high word
 //     u8[]   input bytes
 
 // This is free and unencumbered software released into the public domain.
@@ -171,7 +172,7 @@ int main(int argc, char **argv)
 		return 1;
 	}
 
-	int ok = write_bytes(output, "HAYAFZ01", 8) &&
+	int ok = write_bytes(output, "HAYAFZ02", 8) &&
 	         write_u32le(output, case_count) &&
 	         write_u64le(output, master_seed);
 	for (uint32_t i = 0; ok && i < case_count; ++i) {
@@ -188,10 +189,11 @@ int main(int argc, char **argv)
 			capacity = len;
 		}
 		fill_random(input, len, &random);
-		uint64_t expected = hayahash64(input, len, hash_seed);
+		hayahash128_t expected = hayahash128(input, len, hash_seed);
 		ok = write_u32le(output, len) &&
 		     write_u64le(output, hash_seed) &&
-		     write_u64le(output, expected) &&
+		     write_u64le(output, expected.lo) &&
+		     write_u64le(output, expected.hi) &&
 		     write_bytes(output, input, len);
 		if (len > largest)
 			largest = len;

@@ -45,23 +45,26 @@ test "randomized C-reference corpus" {
     defer std.testing.allocator.free(corpus);
 
     var reader: CorpusReader = .{ .bytes = corpus };
-    try std.testing.expectEqualStrings("HAYAFZ01", try reader.take(8));
+    try std.testing.expectEqualStrings("HAYAFZ02", try reader.take(8));
     const case_count = try reader.readU32();
     const prng_seed = try reader.readU64();
     for (0..case_count) |case_index| {
         const len: usize = try reader.readU32();
         const hash_seed = try reader.readU64();
-        const expected = try reader.readU64();
+        const expected_lo = try reader.readU64();
+        const expected_hi = try reader.readU64();
         const input = try reader.take(len);
-        const actual = hayahash.hayahash64(input, hash_seed);
-        if (actual != expected) {
+        const actual = hayahash.hayahash128(input, hash_seed);
+        if (actual.lo != expected_lo or actual.hi != expected_hi) {
             std.debug.print(
                 "case={d} len={d} hash_seed=0x{x:0>16} " ++
                     "corpus_prng_seed=0x{x:0>16}\n",
                 .{ case_index, len, hash_seed, prng_seed },
             );
-            try std.testing.expectEqual(expected, actual);
+            try std.testing.expectEqual(expected_lo, actual.lo);
+            try std.testing.expectEqual(expected_hi, actual.hi);
         }
+        try std.testing.expectEqual(hayahash.hayahash64(input, hash_seed), actual.lo);
     }
 
     try std.testing.expectEqual(corpus.len, reader.offset);

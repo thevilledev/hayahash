@@ -1,4 +1,4 @@
-//! hayahash64 - small, fast, portable 64-bit hash function.
+//! hayahash64 and hayahash128 - small, fast, portable hash functions.
 //!
 //! Bit-exact Rust port of the reference C implementation (`hayahash.h`
 //! at the repository root); see that header for the full design notes.
@@ -8,6 +8,7 @@
 //! ```
 //! let h = hayahash::hayahash64(b"hello world", 0);
 //! assert_eq!(h, hayahash::hayahash64(b"hello world", 0));
+//! assert_eq!(hayahash::hayahash128(b"hello world", 0).lo, h);
 //! ```
 //!
 //! With the `std` feature (on by default) or the `hashbrown` feature,
@@ -15,7 +16,7 @@
 //! implementation - and the `HayaHashMap`/`HayaHashSet` aliases, so
 //! hayahash64 can be plugged straight into `HashMap`/`HashSet`. With
 //! default features disabled the crate stays dependency-free and
-//! allocation-free and exposes just [`hayahash64`].
+//! allocation-free and exposes [`hayahash64`] and [`hayahash128`].
 //!
 //! This is free and unencumbered software released into the public
 //! domain. For more information, please refer to <https://unlicense.org/>
@@ -41,6 +42,9 @@ const K: u64 = 0x9E37_79B9_7F4A_7C15;
 /// second multiplier of the short path.
 const M1: u64 = 0x3C79_AC49_2BA7_B653;
 const M2: u64 = 0x1C69_B3F7_4AC4_AE35;
+/// MurmurHash3 finalizer constants used only by the high word.
+const N1: u64 = 0xFF51_AFD7_ED55_8CCD;
+const N2: u64 = 0xC4CE_B9FE_1A85_EC53;
 
 /// Input length (in bytes) at or above which the 8-lane bulk loop
 /// kicks in.
@@ -64,6 +68,16 @@ fn fmix(mut x: u64) -> u64 {
     x ^= x >> 33;
     x = x.wrapping_mul(M2);
     x ^ (x >> 27)
+}
+
+/// Bijective finalizer for the high word.
+#[inline(always)]
+fn fmix128(mut x: u64) -> u64 {
+    x ^= x >> 30;
+    x = x.wrapping_mul(N1);
+    x ^= x >> 31;
+    x = x.wrapping_mul(N2);
+    x ^ (x >> 33)
 }
 
 /// One-multiply avalanche for the already-mixed long path.
@@ -93,6 +107,17 @@ fn injp(p: &[u8], i: usize) -> u64 {
     inj(load64le(p, i))
 }
 
+/// A 128-bit digest represented as two words.
+///
+/// `lo` is exactly [`hayahash64`] for the same input and seed.
+#[derive(Clone, Copy, Debug, Default, Eq, Hash, PartialEq)]
+pub struct Hash128 {
+    /// Low output word; identical to [`hayahash64`].
+    pub lo: u64,
+    /// Algebraically independent high output word.
+    pub hi: u64,
+}
+
 /// Hashes `key` with `seed`, returning a 64-bit digest.
 ///
 /// Produces exactly the same value as the C reference `hayahash64()`
@@ -103,6 +128,20 @@ fn injp(p: &[u8], i: usize) -> u64 {
 /// ```
 #[must_use]
 pub fn hayahash64(key: &[u8], seed: u64) -> u64 {
+    hash::<false>(key, seed).lo
+}
+
+/// Hashes `key` with `seed`, returning both 64-bit output words.
+///
+/// The input is walked once and the returned [`Hash128::lo`] is exactly
+/// [`hayahash64`] for the same input and seed.
+#[must_use]
+pub fn hayahash128(key: &[u8], seed: u64) -> Hash128 {
+    hash::<true>(key, seed)
+}
+
+#[inline]
+fn hash<const WIDE: bool>(key: &[u8], seed: u64) -> Hash128 {
     let len = key.len();
     // The seed premixes into s; the length is absorbed in the
     // finalizer instead (through a multiply against state), so the
@@ -133,7 +172,15 @@ pub fn hayahash64(key: &[u8], seed: u64) -> u64 {
         // C header for why each word gets its own injection.
         let x = (inj(a) ^ s ^ K).wrapping_mul(K);
         let y = (inj2(b) ^ s.rotate_left(23) ^ (K >> 19)).wrapping_mul(M1);
-        return fmix(x.rotate_left(27) ^ y ^ lenmix);
+        let u = x.rotate_left(27) ^ y ^ lenmix;
+        return Hash128 {
+            lo: fmix(u),
+            hi: if WIDE {
+                fmix128(x.wrapping_add(u.rotate_left(32)))
+            } else {
+                0
+            },
+        };
     }
 
     let mut h0 = s ^ K;
@@ -217,5 +264,12 @@ pub fn hayahash64(key: &[u8], seed: u64) -> u64 {
 
     let t0 = (h0 ^ h1.rotate_left(13) ^ lenmix).wrapping_mul(K);
     let t1 = (h2 ^ h3.rotate_left(33)).wrapping_mul(K);
-    long_avalanche(s ^ t0 ^ t1.rotate_left(29))
+    Hash128 {
+        lo: long_avalanche(s ^ t0 ^ t1.rotate_left(29)),
+        hi: if WIDE {
+            fmix128(s.rotate_left(32) ^ t1.wrapping_add(t0.rotate_left(47)))
+        } else {
+            0
+        },
+    }
 }

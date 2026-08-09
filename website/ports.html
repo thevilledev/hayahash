@@ -5,7 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <meta
       name="description"
-      content="How to install and use hayahash64 in C, Rust, Go, Zig, Java, C#, Python, Swift, JavaScript/TypeScript, and MIPS64 assembly."
+      content="How to use hayahash64 and hayahash128 in C, Rust, Go, Zig, Java, C#, Python, Swift, JavaScript/TypeScript, and MIPS64 assembly."
     >
     <meta name="theme-color" content="#ffffff">
     <meta property="og:type" content="article">
@@ -64,14 +64,16 @@
       <pre><code>curl -LO https://github.com/thevilledev/hayahash/releases/latest/download/hayahash.h</code></pre>
       <pre><code>#include "hayahash.h"
 
-uint64_t h = hayahash64(buf, len, seed);</code></pre>
+uint64_t h = hayahash64(buf, len, seed);
+hayahash128_t h128 = hayahash128(buf, len, seed);</code></pre>
 
       <h2 id="rust">Rust</h2>
       <p>The <code>hayahash</code> crate is on
         <a href="https://crates.io/crates/hayahash">crates.io</a>. It is
         <code>no_std</code> compatible:</p>
       <pre><code>cargo add hayahash</code></pre>
-      <pre><code>let h = hayahash::hayahash64(buf, seed);</code></pre>
+      <pre><code>let h = hayahash::hayahash64(buf, seed);
+let h128 = hayahash::hayahash128(buf, seed);</code></pre>
 
       <h2 id="go">Go</h2>
       <p>The module is
@@ -79,7 +81,8 @@ uint64_t h = hayahash64(buf, len, seed);</code></pre>
       <pre><code>go get github.com/thevilledev/hayahash/go</code></pre>
       <pre><code>import hayahash "github.com/thevilledev/hayahash/go"
 
-h := hayahash.Hash64(buf, seed)</code></pre>
+h := hayahash.Hash64(buf, seed)
+h128 := hayahash.Hash128(buf, seed)</code></pre>
 
       <h2 id="zig">Zig</h2>
       <p>The port needs Zig 0.16. Get the module from the release:</p>
@@ -89,7 +92,8 @@ h := hayahash.Hash64(buf, seed)</code></pre>
 exe.root_module.addImport("hayahash", hayahash.module("hayahash"));</code></pre>
       <pre><code>const hayahash = @import("hayahash");
 
-const h = hayahash.hayahash64(buf, seed);</code></pre>
+const h = hayahash.hayahash64(buf, seed);
+const h128 = hayahash.hayahash128(buf, seed);</code></pre>
 
       <h2 id="java">Java</h2>
       <p><a href="https://central.sonatype.com/artifact/io.github.thevilledev/hayahash"><code>io.github.thevilledev:hayahash</code></a>
@@ -101,7 +105,8 @@ const h = hayahash.hayahash64(buf, seed);</code></pre>
 &lt;/dependency&gt;</code></pre>
       <pre><code>import io.github.thevilledev.hayahash.Hayahash;
 
-long h = Hayahash.hash64(buf, seed);</code></pre>
+long h = Hayahash.hash64(buf, seed);
+Hayahash.Hash128 h128 = Hayahash.hash128(buf, seed);</code></pre>
 
       <h2 id="csharp">C# / .NET</h2>
       <p>The <a href="https://www.nuget.org/packages/Hayahash"><code>Hayahash</code></a>
@@ -109,7 +114,8 @@ long h = Hayahash.hash64(buf, seed);</code></pre>
       <pre><code>dotnet add package Hayahash</code></pre>
       <pre><code>using Hayahash;
 
-ulong h = Hayahash.Hash64(buf, seed);</code></pre>
+ulong h = Hayahash.Hash64(buf, seed);
+Digest128 h128 = Hayahash.Hash128(buf, seed);</code></pre>
 
       <h2 id="python">Python</h2>
       <p>The <a href="https://pypi.org/project/hayahash/"><code>hayahash</code></a>
@@ -117,9 +123,10 @@ ulong h = Hayahash.Hash64(buf, seed);</code></pre>
         wraps the reference header. Releases include wheels for Linux
         (manylinux and musllinux), Windows, and macOS:</p>
       <pre><code>pip install hayahash</code></pre>
-      <pre><code>from hayahash import hayahash64
+      <pre><code>from hayahash import hayahash128, hayahash64
 
-h = hayahash64(buf, seed)</code></pre>
+h = hayahash64(buf, seed)
+h128 = hayahash128(buf, seed)  # (lo, hi)</code></pre>
 
       <h2 id="swift">Swift</h2>
       <p>The port is a SwiftPM package. It needs Swift 5.9 or later. The
@@ -130,17 +137,19 @@ h = hayahash64(buf, seed)</code></pre>
         That archive has <code>Package.swift</code> at its root:</p>
       <pre><code>import Hayahash
 
-let h = Hayahash.hash64(buf, seed: 0)</code></pre>
+let h = Hayahash.hash64(buf, seed: 0)
+let h128 = Hayahash.hash128(buf, seed: 0)</code></pre>
 
       <h2 id="js">JavaScript / TypeScript</h2>
       <p>The <a href="https://www.npmjs.com/package/hayahash"><code>hayahash</code></a>
         package is on npm. The fast path is the reference header compiled
-        to WebAssembly, approximately 1.4&nbsp;KB. A pure-JS fallback is
+        to WebAssembly, approximately 3&nbsp;KB. A pure-JS fallback is
         included. The tests and the nightly fuzz cover the two engines:</p>
       <pre><code>npm install hayahash</code></pre>
-      <pre><code>import { hayahash64 } from "hayahash";
+      <pre><code>import { hayahash128, hayahash64 } from "hayahash";
 
-const h = hayahash64(buf, seed); // unsigned 64-bit BigInt</code></pre>
+const h = hayahash64(buf, seed); // unsigned 64-bit BigInt
+const h128 = hayahash128(buf, seed); // { lo, hi }</code></pre>
 
       <h2 id="mips">MIPS64 assembly</h2>
       <p>The port is <code>hayahash.S</code>, written by hand for the n64
@@ -150,7 +159,8 @@ const h = hayahash64(buf, seed); // unsigned 64-bit BigInt</code></pre>
         under qemu-mips64el against the shared vectors:</p>
       <pre><code>#include "hayahash.h" /* mips/hayahash.h */
 
-uint64_t h = hayahash64(buf, len, seed);</code></pre>
+uint64_t h = hayahash64(buf, len, seed);
+hayahash128_t h128 = hayahash128(buf, len, seed);</code></pre>
 
       <h2 id="layout">Repository layout</h2>
 
