@@ -65,10 +65,10 @@ jobs:
       - name: Purge mutable Cloudflare URLs
         env:
           CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
-          CLOUDFLARE_ZONE_ID: ${{ vars.CLOUDFLARE_ZONE_ID }}
+          CLOUDFLARE_ZONE_ID: ${{ secrets.CLOUDFLARE_ZONE_ID }}
         run: |
           if [ -z "$CLOUDFLARE_ZONE_ID" ]; then
-            echo "::error::Set the CLOUDFLARE_ZONE_ID repository variable."
+            echo "::error::Set the CLOUDFLARE_ZONE_ID repository secret."
             exit 1
           fi
           if [ -z "$CLOUDFLARE_API_TOKEN" ]; then

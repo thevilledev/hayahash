@@ -75,7 +75,7 @@ does not retroactively change Cloudflare's own cache decision.
 The deploy job purges only the mutable entry points and compatibility aliases
 after GitHub Pages reports a successful deployment. Configure:
 
-- repository variable `CLOUDFLARE_ZONE_ID`
+- repository secret `CLOUDFLARE_ZONE_ID`
 - repository secret `CLOUDFLARE_API_TOKEN`
 
 Scope the API token to **Zone / Cache Purge / Purge** for the `hayaha.sh` zone.
