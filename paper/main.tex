@@ -51,24 +51,20 @@ with 64- and 128-bit Digests}
 \begin{abstract}
 Hayahash is an experimental, seeded, non-cryptographic hash function for
 targets that have ordinary 64-bit multiplication but no cheap 128-bit
-product and no guaranteed SIMD.  Its bulk loop keeps the loop-carried
-dependency chain to an XOR followed by a multiplication, spread over eight
-independent lanes.  Adjacent input words are linked by a chained
-add-and-rotate transform that is bijective on the whole stripe sequence,
-so no structural difference pattern can cancel inside the absorb.  The
-input length is absorbed in the finalizer rather than the initial state,
+product and no guaranteed SIMD.  Its bulk loop carries only an XOR and a
+multiplication per lane, over eight independent lanes.  Adjacent input
+words are linked by a chained add-and-rotate transform that is bijective
+on the whole stripe sequence, so no structural difference pattern can
+cancel inside the absorb.  The input length is absorbed in the finalizer,
 which makes the digest a pure function of the seed and the bytes read so
 far and permits a streaming interface that reproduces the one-shot digest
 exactly.  A 128-bit variant extracts a second word from the same state
 walk; its low word equals the 64-bit digest for every input and seed, and
-on inputs of at most 16 bytes the 128-bit map is injective for each fixed
-length and seed.  This paper specifies the current development snapshot,
-proves the structural properties the design relies on, explains the
-reasoning behind each mechanism, and records the available quality and
-performance evidence.  Both digest widths pass SMHasher3's default suite,
-and the recorded benchmarks lead ChibiHash v2, the closest function in the
-same primitive class, on the measured systems.  There is no proof for the
-complete construction and no cryptographic security claim.
+on inputs of at most 16 bytes it is injective for each fixed length and
+seed.  This paper specifies the current development snapshot, proves these
+structural properties, and records the evidence status.  Both digest
+widths pass SMHasher3's default suite.  There is no proof for the complete
+construction and no cryptographic security claim.
 \end{abstract}
 
 \section*{Preface}
@@ -86,279 +82,213 @@ the header's SHA-256 digest:
 
 The digest, not the commit, identifies the audited artifact: a commit that
 leaves the header byte-identical carries every result in this paper
-forward unchanged.  These values are defined once, in the register file
+forward unchanged.  These values are defined once, in
 \path{paper/snapshot.tex}; an algorithm change updates the register, the
 evaluation records, and this text as one reviewable change, and
 \texttt{make -C paper check} verifies that the register, the checkout, and
 the header agree.
 
 The \texttt{v0.5} release changed every digest value: the length term
-moved from the initial-state premix to the finalizer, which is the change
-that makes the streaming interface possible
-(Section~\ref{sec:spec-streaming}).  Evaluation records produced for
-earlier digests, including the nine-build SMHasher3 sweep archived for
-release \texttt{v0.4.0}, describe a superseded function.  They are cited
-below only as evidence about the project's verification pipeline, never as
-evidence about the current digest.  Every claim in this paper about the
-current snapshot is tied to an entry in the claim register
-\path{paper/AUDIT.md}, which states for each claim whether it is derived
+moved from the initial-state premix to the finalizer, the change that
+makes the streaming interface possible.  Records produced for earlier
+digests describe a superseded function and are never cited as evidence
+about the current one.  Every material claim is tied to an entry in the
+claim register \path{paper/AUDIT.md}, which states whether it is derived
 from the code, reproduced, archived with raw output, reported without a
-local reproduction, or open.
-
-The paper describes the current snapshot only.  Earlier iterations appear
-where they explain a design decision.  Sections that name open work state
-what evidence must exist before the work can be called done.
+local reproduction, or open.  Placeholder sections state what must exist
+before they can be filled in.
 
 \section{Introduction}
 
 \subsection{Motivation}
 \label{sec:motivation}
 
-The fastest current 64-bit hash functions obtain their speed from one of
-two hardware assumptions.  Designs in the wyhash line, including its
-successor rapidhash, fold the two halves of a $64\times64\to128$-bit
-product into their state and depend on that widening multiplication being
-cheap \cite{wang2021wyhash,nicoshev2025rapidhash}.  Vectorized designs,
-including the fast paths of the xxHash family, depend on SIMD widths and
-instruction sets that are negotiated per target
-\cite{collet2023xxhashspec}.
+The fastest current 64-bit hashes obtain their speed from one of two
+hardware assumptions: a cheap \(64\times64\to128\)-bit multiplication,
+folded into the state by designs in the wyhash line
+\cite{wang2021wyhash,nicoshev2025rapidhash}, or SIMD widths negotiated per
+target, as in the fast paths of the xxHash family
+\cite{collet2023xxhashspec}.  Both assumptions fail on real targets:
+baseline WebAssembly has \texttt{i64.mul} but neither a 128-bit product
+nor guaranteed SIMD, and portable-C fallbacks, small in-order cores, and
+older 64-bit processors are in the same position.  The cost is not
+marginal; in the archived WebAssembly record, rapidhash sustains
+6.4~GB/s where Hayahash sustains 23.6 in the same runtime on the same
+machine (Section~\ref{sec:performance}).
 
-Both assumptions fail on real targets.  Baseline WebAssembly has
-\texttt{i64.mul} but neither a 128-bit product nor guaranteed SIMD.  The
-portable subsets of C used for reference implementations, small in-order
-cores, and older 64-bit server processors are in the same position.  The
-cost of the missing primitive is not marginal.  In the archived
-WebAssembly comparison (Section~\ref{sec:bench}), rapidhash sustains
-6.43~GB/s where Hayahash sustains 23.55~GB/s in the same runtime on the
-same machine: the widening product that rapidhash relies on must be
-synthesized from four narrow multiplications, and its speed does not
-survive the translation.
+A second constraint is independent of hardware.  A hash deployed across
+many language runtimes must produce one exact digest everywhere, so every
+required primitive must exist, with identical semantics, in every port.
+Unsigned 64-bit addition, XOR, rotation, shifts, and the low half of
+multiplication meet that bar; widening multiplies, carry flags, and vector
+permutes do not.
 
-There is a second, independent reason to restrict the primitive set.  A
-hash that is deployed across many language runtimes must produce one exact
-digest everywhere.  Every primitive the algorithm requires must therefore
-exist, with identical semantics, in every port: C, Rust, Go, Zig, Java,
-C\#, Python, Swift, JavaScript, and WebAssembly.  Unsigned 64-bit
-addition, XOR, rotation, shifts, and the low
-half of multiplication meet that bar.  A widening multiply, carry flags,
-or vector permutes do not; each port would reimplement them differently,
-and the fast path would again be negotiated per target.
-
-Hayahash explores the resulting question: how fast can a 64-bit hash be
-when it is restricted to portable scalar operations and the low half of
-64-bit multiplication, with alignment-safe reads and a result independent
-of host byte order?
+Hayahash explores the resulting question: how fast can a hash be when
+restricted to portable scalar operations and the low half of 64-bit
+multiplication, with alignment-safe reads and a result independent of
+host byte order?
 
 \subsection{The construction and why it is shaped this way}
 \label{sec:case}
 
-Four decisions carry the design.  Each is stated here with its reason;
-Section~\ref{sec:rationale} develops the reasoning in full and
-Section~\ref{sec:properties} proves what can be proved.
+Four decisions carry the design.  Section~\ref{sec:notes} adds the
+supporting arguments and Section~\ref{sec:properties} proves what can be
+proved.
 
 \textbf{The bulk loop is latency-bound on nothing longer than add and
-multiply.}  On a wide out-of-order core, the throughput limit of a scalar
-hash loop is the loop-carried dependency chain of each lane divided by the
-number of independent lanes.  Hayahash's bulk loop runs eight lanes over
-64-byte blocks; the carried path per lane is one XOR and one
-multiplication, roughly four cycles, with no cross-lane operation on the
-carried path.  ChibiHash v2, the closest published function in the same
-primitive class, carries a chain of roughly five cycles per 8-byte stripe
-across four lanes because a cross-lane addition sits on its carried path
-\cite{nrk2024chibihash}.  The measured consequence at 1~MiB is
-30.73 versus 18.99~GB/s on an Apple M1 performance core and 61.47 versus
-31.13~GB/s on a Zen~5 core (Section~\ref{sec:bench}).
+multiply.}  The throughput limit of a scalar hash loop on a wide core is
+the loop-carried chain per lane divided by the number of independent
+lanes.  Hayahash runs eight lanes over 64-byte blocks; the carried path
+per lane is one XOR and one multiplication, roughly four cycles, with no
+cross-lane operation on it.  ChibiHash v2, the closest published function
+in the same primitive class, carries roughly five cycles per 8-byte
+stripe across four lanes \cite{nrk2024chibihash}.  The archived records
+show the consequence: at 1~MiB, 30.7 versus 19.0~GB/s on an Apple M1 Pro
+and 61.5 versus 31.1~GB/s on a Zen~5 core.
 
 \textbf{The absorb transform is chained, and the chain is bijective.}
-Each stripe is absorbed as $t_i = w_i + \rotl(w_{i-1},27)$, where
-$w_{i-1}$ is the previous raw input word, carried across lane, block, and
-loop boundaries.  The map from the word sequence to the absorbed sequence
-is a bijection (Lemma~\ref{lem:chain}), so no difference pattern in the
-input can cancel to nothing inside the absorb values themselves; an
-earlier variant that combined staggered word copies by XOR was
-GF(2)-linear and had a nullspace, which produced constructed collisions.
-The rotated copy also plants every stripe's bits at low positions of the
-next stripe's absorb, where addition and rotation mix two incompatible
-algebras; cancelling both copies of a difference simultaneously requires
-matching carries by luck rather than by structure
-(Section~\ref{sec:rationale-absorb}).  The rotation is applied to a word
-that is already in a register and sits off the carried path, so the
-mechanism is latency-free.
+Each stripe is absorbed as \(t_i = w_i + \rotl(w_{i-1},27)\), where
+\(w_{i-1}\) is the previous raw input word, carried across lane, block,
+and loop boundaries.  The map from word sequence to absorbed sequence is a
+bijection (Lemma~\ref{lem:chain}), so no difference pattern can cancel
+inside the absorb values; an earlier variant that combined staggered word
+copies by XOR was GF(2)-linear and had a nullspace, which produced
+constructed collisions.  The rotated copy also plants every stripe's bits
+at low positions of the next absorb, where addition and rotation mix two
+incompatible algebras: cancelling both copies of a difference requires
+matching carries by luck, never by structure.  The rotation applies to a
+word already in a register, off the carried path, so the mechanism is
+latency-free.
 
 \textbf{The length is absorbed in the finalizer, not the initial state.}
-Every lane's initial value is derived from the seed alone, so the internal
-state after $k$ bytes depends only on the seed and those $k$ bytes.  This
-purity is what makes a streaming interface with one-shot-identical digests
-possible at all; the previous spelling premixed $n$ into the initial
-state, and a streaming state would have needed the total length before the
-first byte.  The length enters as $nK$ inside a multiplication in the
-finalizer.  Multiplication by the odd constant $K$ makes $n \mapsto nK$
-injective, and Lemma~\ref{lem:length} shows that inputs of different
-lengths that reach the finalizer with identical state still produce
-different digests in both output words.  That is the property that makes
-the overlapping tail reads safe: all-zero inputs of lengths 17 through 31,
-for example, produce identical absorb sequences and are separated by the
-length term alone.  The simpler spelling that XORs $nK$ after the final
-multiplications leaves modular low-bit structure across lengths and fails
-SMHasher3's SeedZeroes differentials; the chosen spelling costs no
-additional multiplication.
+All lane initial values derive from the seed alone, so the state after
+\(k\) bytes depends only on the seed and those bytes.  This purity is what
+makes a streaming interface with one-shot-identical digests possible; the
+previous spelling premixed the length into the initial state, and a
+streaming state would have needed the total before the first byte.  The
+length enters as \(nK\) inside a finalizer multiplication:
+\(n \mapsto nK\) is injective, and Lemma~\ref{lem:length} shows that
+inputs of different lengths reaching the finalizer with identical state
+still produce different digests in both output words.  That property is
+what makes the overlapping tail reads safe; all-zero inputs of lengths 17
+through 31 produce identical absorb sequences and are separated by the
+length term alone.  A simpler spelling that XORs \(nK\) after the final
+multiplications fails SMHasher3's SeedZeroes differentials; the chosen
+spelling costs no additional multiplication.
 
 \textbf{Tails read overlapping whole words; short inputs take a dedicated
 two-multiply path.}  Inputs longer than 16 bytes are consumed only as
-whole 64-bit words, with the final reads taken from the end of the input
-at overlapping offsets, a technique adopted from wyhash
+whole 64-bit words, the final reads taken from the end of the input at
+overlapping offsets, a technique adopted from wyhash
 \cite{wang2021wyhash}; no byte-at-a-time loop exists for any length.
 Inputs of at most 16 bytes load two words, spread each through a different
-bijective three-rotation injection, multiply each by a different odd
-constant, and merge through a strong finalizer.  For the 128-bit digest
-this path is injective for every fixed length and seed
-(Theorem~\ref{thm:short128}), and on exactly 16-byte inputs it is a
-permutation of the 128-bit space.
+bijective injection, multiply each by a different odd constant, and merge
+through a strong finalizer.  For the 128-bit digest this path is injective
+for every fixed length and seed (Theorem~\ref{thm:short128}); on exactly
+16-byte inputs it is a permutation of the 128-bit space.
 
-Two further properties fall out of the same state walk rather than being
-bolted on.  The 128-bit digest reuses the identical absorb and fold
-sequence and extracts a second word at the end; its low word equals the
-64-bit digest for every input and seed, and its marginal cost is confined
-to the finalizer.  The streaming interface buffers at most 448 bytes,
-consumes input in the exact block order of the one-shot function, and
-reproduces both digest widths bit for bit under every split of the input;
-this is proved as Proposition~\ref{prop:streaming} and checked by a
-differential test that replays fixed and randomized split patterns.
-
-The design was hardened by failure.  SMHasher3 \cite{wojcik2022smhasher3}
-found five distinct structural collision classes in earlier iterations:  a
-GF(2) nullspace in a staggered-load absorb, seed-copy erasure by aligned
-key bits in two forms, carry-matched difference ladders, and a fold
-rotation that resonated with the absorb rotation.  Each current mechanism
-that responds to one of these failures is documented with the failure that
-produced it (Section~\ref{sec:failures}), and a deterministic regression
-for the constructed rotation-orbit family is kept in the test suite.
+Two properties fall out of the same state walk rather than being bolted
+on: the 128-bit digest extracts a second word at the end, with its low
+word equal to the 64-bit digest and its cost confined to the finalizer,
+and the streaming interface reproduces both widths bit for bit under
+every split of the input (Proposition~\ref{prop:streaming}).  The design
+was hardened by failure: SMHasher3 \cite{wojcik2022smhasher3} found five
+structural collision classes in earlier iterations, and every current
+anti-collision mechanism is documented with the failure that produced it
+(Table~\ref{tab:failures}) and covered by a regression test.
 
 \subsection{Contributions}
 
 \begin{enumerate}
-\item An exact specification of the Hayahash construction at the audited
-      snapshot: both digest widths, the streaming interface, and the fixed
-      algorithm parameters (Section~\ref{sec:spec}).
-\item Proofs of the structural properties the design relies on: the
-      absorb chain is bijective on stripe sequences, the injections and
-      finalizers are bijections, equal-state inputs of different lengths
-      cannot collide, the short 128-bit path is injective per length, and
-      the streaming interface is equivalent to the one-shot functions
+\item An exact specification of both digest widths, the streaming
+      interface, and the fixed algorithm parameters
+      (Section~\ref{sec:spec}).
+\item Proofs of the structural properties the design relies on
       (Section~\ref{sec:properties}).
-\item The design rationale written out mechanism by mechanism, including
-      the five structural failure classes that shaped the construction and
-      the specific response to each (Section~\ref{sec:rationale}).
-\item An evaluation with stated evidence standards: a deterministic local
-      quality harness, SMHasher3 results for both widths, benchmarks on
-      two bare-metal systems and one WebAssembly runtime against the
-      closest same-class baseline, and cross-implementation conformance
-      across nine ports (Section~\ref{sec:evaluation}).
+\item The design arguments behind each mechanism, with the failure classes
+      that shaped them (Section~\ref{sec:notes}).
+\item An evidence register separating code-derived, reproduced, archived,
+      reported, and open claims (Section~\ref{sec:evaluation}).
 \end{enumerate}
 
 \subsection{Scope and non-goals}
 
 Hayahash maps a byte string and a 64-bit seed to a 64-bit or 128-bit
-result.  The intended uses are hash tables, checksums internal to a
-process, and similar non-adversarial tasks.  It is not intended for
-passwords, signatures, message authentication, untrusted hash-table keys,
-or any use that requires collision or preimage resistance.  The seed is an
-input, not a secret-key security mechanism.  The algorithm is
-experimental: constants, thresholds, and digest values may change between
-releases, and nothing should persist Hayahash values yet.
+result, for hash tables, in-process checksums, and similar non-adversarial
+uses.  It is not for passwords, signatures, message authentication,
+untrusted hash-table keys, or any use requiring collision or preimage
+resistance; the seed is an input, not a security mechanism.  The algorithm
+is experimental: constants, thresholds, and digests may change, and
+nothing should persist Hayahash values yet.
 
-The design constraints are:
-
-\begin{itemize}
-\item unsigned 64-bit scalar arithmetic;
-\item ordinary multiplication modulo \(2^{64}\), without the high product;
-\item no required SIMD or architecture-specific instruction extension;
-\item alignment-safe reads and a result independent of host byte order;
-      and
-\item one reference mapping across all supported implementations.
-\end{itemize}
-
-The C source contains architecture- and compiler-specific scheduling
-choices.  These use the same operations and are specified to preserve the
-digest.  The portability claim concerns required primitives and output,
-not identical source code on every target.
+The design constraints are: unsigned 64-bit scalar arithmetic;
+multiplication modulo \(2^{64}\) without the high product; no required
+SIMD or architecture-specific extension; alignment-safe reads independent
+of host byte order; and one reference mapping across all implementations.
+The C source contains per-target scheduling choices; they use the same
+operations and are specified to preserve the digest.
 
 \section{Related work}
 \label{sec:related}
 
-MurmurHash3 established the pattern of multiply-and-rotate scalar mixing
-with a strong bijective finalizer \cite{appleby2011murmurhash3}; its
-64-bit finalizer constants are reused in Hayahash's 128-bit output path,
-and the short-input finalizer is Evensen's \texttt{moremur} refinement of
-the same shape \cite{evensen2018moremur}.  The xxHash family documents the
-scalar and vectorized state of the art and its verification discipline
-\cite{collet2023xxhashspec}.  wyhash and rapidhash define the current
-speed frontier on hardware with a cheap widening multiplication
-\cite{wang2021wyhash,nicoshev2025rapidhash}; they are outside Hayahash's
-primitive class, and Section~\ref{sec:bench} shows what happens to that
-frontier on a target without the primitive.
+MurmurHash3 established multiply-and-rotate scalar mixing with a strong
+bijective finalizer \cite{appleby2011murmurhash3}; Hayahash reuses its
+finalizer constants in the 128-bit output path, and the short-input
+finalizer is Evensen's \texttt{moremur} refinement of the same shape
+\cite{evensen2018moremur}.  wyhash and rapidhash define the speed frontier
+where a widening multiplication is cheap
+\cite{wang2021wyhash,nicoshev2025rapidhash}; the xxHash family documents
+the scalar and vectorized state of the art \cite{collet2023xxhashspec}.
+ChibiHash v2 is the baseline used throughout because it occupies the same
+narrow class, a small portable scalar function on the low half of
+multiplication \cite{nrk2024chibihash}, so comparisons are between design
+choices rather than primitive sets; Hayahash also borrows its 1-to-3-byte
+load pattern.
 
-ChibiHash v2 is the baseline used throughout this paper because it
-occupies the same narrow implementation class: a small, portable, scalar
-64-bit function using the low half of ordinary multiplication
-\cite{nrk2024chibihash}.  The comparison is therefore between design
-choices, not between primitive sets.  Hayahash also borrows directly from
-it: the 1-to-3-byte load pattern is ChibiHash v2's, and ChibiHash v1 used
-the same \texttt{moremur} finalizer.
-
-Empirical test suites and mathematical guarantees are separate kinds of
-evidence.  SMHasher3 tests distribution, collisions on generated key sets,
-and performance \cite{wojcik2022smhasher3}; a clean run does not prove
-collision resistance, and Section~\ref{sec:smhasher} records a concrete
-case where a clean run coexisted with a constructed collision.  At the
-other end, PolymurHash states an almost-universality bound under an
-explicit model \cite{peters2023polymurhash}.  Hayahash currently has no
-comparable bound, and Section~\ref{sec:limitations} lists producing one,
-or documenting why the construction does not admit one, as open work.
+Empirical suites and mathematical guarantees are separate evidence.
+SMHasher3 tests distribution and collisions on generated key sets
+\cite{wojcik2022smhasher3}; a clean run does not prove collision
+resistance, and an earlier Hayahash digest passed the suite while a
+constructed collision existed.  PolymurHash states an almost-universality
+bound under an explicit model \cite{peters2023polymurhash}; Hayahash has
+no comparable bound, and producing one, or documenting why the
+construction admits none, is open work.
 
 \section{Notation and interface contract}
 \label{sec:contract}
 
 All state values are unsigned 64-bit words.  Addition, multiplication, and
-left shift discard bits above bit 63.  Right shift is logical.
-\(\rotl(x,r)\) rotates a word left by \(r\) bits.  \(\load(B,p)\) reads
-eight bytes starting at offset \(p\) of buffer \(B\), with the first byte
-as the least significant byte; a corresponding four-byte load is
-zero-extended.  The implementation realizes these loads with
-\texttt{memcpy} and byte swaps on known big-endian hosts, or explicit
-byte assembly when no byte-order macro exists, so no alignment or
-endianness assumption leaks into the digest.
+left shift discard bits above bit 63; right shift is logical.
+\(\rotl(x,r)\) rotates left by \(r\).  \(\load(B,p)\) reads eight bytes at
+offset \(p\), first byte least significant; a four-byte load is
+zero-extended.  The implementation realizes loads with \texttt{memcpy}
+plus byte swaps on known big-endian hosts, or explicit byte assembly, so
+no alignment or endianness assumption reaches the digest.
 
-The constants are:
+The constants, all odd, are:
 
 \begin{align*}
 K   &= \mathtt{9E3779B97F4A7C15}_{16}, &&\text{\(\lfloor 2^{64}/\varphi
-\rfloor\), odd,}\\
-M_1 &= \mathtt{3C79AC492BA7B653}_{16}, &&\text{\texttt{moremur}
-multiplier,}\\
-M_2 &= \mathtt{1C69B3F74AC4AE35}_{16}, &&\text{\texttt{moremur}
-multiplier,}\\
-N_1 &= \mathtt{FF51AFD7ED558CCD}_{16}, &&\text{MurmurHash3 finalizer
-multiplier,}\\
-N_2 &= \mathtt{C4CEB9FE1A85EC53}_{16}, &&\text{MurmurHash3 finalizer
-multiplier.}
+\rfloor\),}\\
+M_1 &= \mathtt{3C79AC492BA7B653}_{16}, &&\text{\texttt{moremur},}\\
+M_2 &= \mathtt{1C69B3F74AC4AE35}_{16}, &&\text{\texttt{moremur},}\\
+N_1 &= \mathtt{FF51AFD7ED558CCD}_{16}, &&\text{MurmurHash3 finalizer,}\\
+N_2 &= \mathtt{C4CEB9FE1A85EC53}_{16}, &&\text{MurmurHash3 finalizer.}
 \end{align*}
 
-All five constants are odd.  The input length \(n\) must be non-negative,
-and the caller must provide \(n\) readable bytes; a null pointer is
-permitted only when \(n=0\).
-
-Two linear word injections are used:
+The input length \(n\) must be non-negative with \(n\) readable bytes; a
+null pointer is permitted only when \(n=0\).  Two linear word injections
+are used:
 
 \begin{align*}
 \inj(w)  &= w \oplus \rotl(w,21) \oplus \rotl(w,41),\\
 \injb(w) &= w \oplus \rotl(w,11) \oplus \rotl(w,50).
 \end{align*}
 
-Three finalizers are used.  \texttt{fmix} is the \texttt{moremur} map
+Three finalizers are used: \texttt{fmix} is the \texttt{moremur} map
 \cite{evensen2018moremur}, \texttt{fmix128} is the MurmurHash3 finalizer
 \cite{appleby2011murmurhash3}, and \texttt{long\_fmix} is a single-multiply
-avalanche used after the long paths:
+avalanche:
 
 \begin{lstlisting}
 fmix(x):                fmix128(x):             long_fmix(x):
@@ -373,16 +303,14 @@ fmix(x):                fmix128(x):             long_fmix(x):
 \section{Specification}
 \label{sec:spec}
 
-Every path begins with the seed premix and the length term
+Every path begins with
 \[
     s = \mathit{seed} \oplus K, \qquad \mathit{lenmix} = nK .
 \]
 The length appears nowhere else: the initial state depends on the seed
-alone, and \(\mathit{lenmix}\) is consumed by the finalizer.
-
-Three length regimes exist.  Inputs of at most 16 bytes take the short
-path; inputs of 17 to 319 bytes run four lanes over 32-byte blocks;
-inputs of at least 320 bytes run eight lanes over 64-byte blocks and then
+alone, and \(\mathit{lenmix}\) is consumed by the finalizer.  Inputs of at
+most 16 bytes take the short path; 17 to 319 bytes run four lanes over
+32-byte blocks; 320 bytes and up run eight lanes over 64-byte blocks, then
 fall through to the four-lane machinery for the remainder.
 
 \subsection{Inputs of at most 16 bytes}
@@ -405,10 +333,10 @@ else:
     b = 0
 \end{lstlisting}
 
-The head and end reads overlap for some lengths; this is intentional, and
-Lemma~\ref{lem:length} is what makes it safe.  The two words are spread by
-different injections, combined with different seed derivations, and
-multiplied by different odd constants:
+The head and end reads overlap for some lengths; Lemma~\ref{lem:length} is
+what makes that safe.  The words are spread by different injections,
+combined with different seed derivations, and multiplied by different odd
+constants:
 
 \begin{align*}
 x &= (\inj(a) \oplus s \oplus K)\,K,\\
@@ -416,16 +344,14 @@ y &= (\injb(b) \oplus \rotl(s,23) \oplus (K \mathbin{\gg} 19))\,M_1.
 \end{align*}
 
 The 64-bit result is
-\[
-    \operatorname{fmix}(\rotl(x,27) \oplus y \oplus \mathit{lenmix}).
-\]
+\(\operatorname{fmix}(\rotl(x,27) \oplus y \oplus \mathit{lenmix})\).
 
 \subsection{The absorb chain}
 \label{sec:spec-absorb}
 
-All longer inputs consume the input as a sequence of 64-bit words
-\(w_0, w_1, \ldots\) called stripes.  Let \(w_p\) be the previous stripe,
-initially zero.  One stripe is absorbed into a lane \(h\) as
+Longer inputs are consumed as a sequence of 64-bit words
+\(w_0, w_1, \ldots\) called stripes.  With \(w_p\) the previous stripe,
+initially zero, one stripe is absorbed into a lane \(h\) as
 
 \begin{lstlisting}
 absorb(h, w):
@@ -434,13 +360,13 @@ absorb(h, w):
 \end{lstlisting}
 
 The addition happens before the XOR with the lane.  The previous stripe
-carries across lane boundaries, block boundaries, and the boundary
-between the eight-lane and four-lane loops.
+carries across lane boundaries, block boundaries, and the boundary between
+the eight-lane and four-lane loops.
 
 \subsection{Inputs of 17 to 319 bytes}
 \label{sec:spec-mid}
 
-The four-lane state is derived from \(s\) and shifted copies of \(K\):
+The four-lane state derives from \(s\) and shifted copies of \(K\):
 
 \begin{align*}
 h_0 &= s \oplus K, &
@@ -450,8 +376,8 @@ h_3 &= \rotl(s,51) + (K \mathbin{\ll} 42).
 \end{align*}
 
 Each complete 32-byte block absorbs four consecutive stripes into
-\(h_0,h_1,h_2,h_3\) in that order.  The remainder \(r < 32\) then goes to
-the wall and tail (Section~\ref{sec:spec-tail}).
+\(h_0,h_1,h_2,h_3\) in that order.  The remainder \(r < 32\) goes to the
+wall and tail.
 
 \subsection{Inputs of at least 320 bytes}
 \label{sec:spec-bulk}
@@ -466,14 +392,13 @@ h_7 &= \rotl(s,39) \oplus (K \mathbin{\ll} 30).
 \end{align*}
 
 Each complete 64-byte block absorbs eight consecutive stripes into
-\(h_0,\ldots,h_7\).  After the eighth absorb of every block, the raw
-eighth stripe is added to \(h_0\):
+\(h_0,\ldots,h_7\); after the eighth absorb, the raw eighth stripe is
+added to \(h_0\):
 \[
     h_0 \mathrel{+}= w_p .
 \]
-This checkpoint is part of the digest
-(Section~\ref{sec:rationale-rotation}).  After the last complete 64-byte
-block, the upper lanes are folded into the lower lanes:
+This checkpoint is part of the digest.  After the last complete block, the
+upper lanes fold into the lower:
 
 \begin{align*}
 h_0 &\leftarrow (h_0 \oplus \rotl(h_4,11))\,K, &
@@ -482,30 +407,25 @@ h_2 &\leftarrow (h_2 \oplus \rotl(h_6,31))\,K, &
 h_3 &\leftarrow (h_3 \oplus \rotl(h_7,47))\,K.
 \end{align*}
 
-If at least 32 bytes remain, one four-lane block is then processed; the
-previous-stripe chain continues across the fold.  The remainder \(r < 32\)
-goes to the wall and tail.
-
-The threshold of 320 bytes is an algorithm parameter, not a tuning knob.
-An input of exactly 320 bytes takes the eight-lane path and processes five
-complete blocks; moving the threshold changes digests.  Its value also
-keeps the four-lane path shorter than the absorb rotation's 64-stripe
-orbit (Section~\ref{sec:rationale-rotation}).
+If at least 32 bytes remain, one four-lane block runs; the previous-stripe
+chain continues across the fold.  The 320-byte threshold is an algorithm
+parameter, not a tuning knob: an input of exactly 320 bytes takes the
+eight-lane path, moving the threshold changes digests, and its value keeps
+the four-lane path shorter than the absorb rotation's 64-stripe orbit
+(Section~\ref{sec:notes}).
 
 \subsection{Wall, tail, and finalizer}
 \label{sec:spec-tail}
 
 After the complete-block loops, the final stripe's dangling rotated copy
-is absorbed:
+is absorbed; this is called the wall, and it is a no-op when no complete
+stripe was processed:
 \[
     h_0 \mathrel{+}= \rotl(w_p,27).
 \]
-This operation is called the wall.  It is a no-op when no complete stripe
-was processed, because \(w_p\) is then still zero.
 
-Let \(p\) be the offset of the first unconsumed byte and \(r\) the
-remaining length, \(0 \leq r < 32\) on both paths.  The tail absorbs whole
-words through the bijective injection \(\inj\):
+With \(p\) the offset of the first unconsumed byte and \(r < 32\) the
+remaining length, the tail absorbs whole words through \(\inj\):
 
 \begin{lstlisting}
 if r > 16:
@@ -518,9 +438,9 @@ if r > 0:
 \end{lstlisting}
 
 The last two reads always cover the final 16 bytes of the input and may
-overlap bytes that were already absorbed; at \(r = 0\) there are no tail
-reads at all.  The finalizer folds the lanes, absorbs the length term
-inside the first multiplication, and avalanches:
+overlap bytes already absorbed; at \(r = 0\) there are no tail reads.  The
+finalizer folds the lanes, absorbs the length inside the first
+multiplication, and avalanches:
 
 \begin{align*}
 t_0 &= (h_0 \oplus \rotl(h_1,13) \oplus \mathit{lenmix})\,K,\\
@@ -534,9 +454,7 @@ The 64-bit result is \(\operatorname{long\_fmix}(z)\).
 \label{sec:spec-128}
 
 hayahash128 runs the identical state walk and extracts two words at the
-end, so producing both words needs no second pass over the input.  On the
-short path, with \(x\), \(y\), and \(\mathit{lenmix}\) as in
-Section~\ref{sec:spec-short} and
+end.  On the short path, with
 \(u = \rotl(x,27) \oplus y \oplus \mathit{lenmix}\):
 
 \begin{align*}
@@ -544,8 +462,7 @@ Section~\ref{sec:spec-short} and
 \mathit{hi} &= \operatorname{fmix128}(x + \rotl(u,32)).
 \end{align*}
 
-On the longer paths, with \(t_0\) and \(t_1\) as in
-Section~\ref{sec:spec-tail}:
+On the longer paths, with \(t_0\) and \(t_1\) as above:
 
 \begin{align*}
 \mathit{lo} &= \operatorname{long\_fmix}(s \oplus t_0 \oplus
@@ -556,8 +473,8 @@ Section~\ref{sec:spec-tail}:
 
 The low word is exactly hayahash64 for every input and seed.  The high
 word combines \(t_0\) and \(t_1\) with addition where the low word uses
-XOR, so a single GF(2)-linear cancellation cannot erase a difference from
-both output words, and it is finalized by a different bijection.
+XOR, so one GF(2)-linear cancellation cannot erase a difference from both
+words, and it is finalized by a different bijection.
 
 \subsection{The streaming interface}
 \label{sec:spec-streaming}
@@ -565,81 +482,71 @@ both output words, and it is finalized by a different bijection.
 The streaming state holds the eight lanes, the previous stripe, the seed,
 the running total, and a 448-byte buffer with a 128-byte retention floor.
 \texttt{update} appends bytes; \texttt{digest} may be called at any time,
-does not modify the state, and returns either digest width.  Two
-invariants govern the buffer: bytes are consumed only in whole 64-byte
-blocks, in one-shot block order from stream offset zero, and at digest
-time the buffer always retains at least 128 trailing bytes, which contains
-every address the tail reads.  Totals below 448 bytes remain fully
-buffered and dispatch to the one-shot function at digest time.
-Proposition~\ref{prop:streaming} states the resulting guarantee: both
-digest widths equal their one-shot values under every split of the input
-into update calls.
+does not modify the state, and returns either width.  Bytes are consumed
+only in whole 64-byte blocks, in one-shot block order from stream offset
+zero; at digest time the buffer retains at least 128 trailing bytes, which
+contains every address the tail reads; totals below 448 bytes remain fully
+buffered and dispatch to the one-shot function.
+Proposition~\ref{prop:streaming} states the resulting guarantee.
 
 \section{Structural properties}
 \label{sec:properties}
 
-This section proves the properties the construction relies on.  The scope
-of each statement is deliberately narrow, and the section ends by stating
-what is not proved.  Throughout, arithmetic is modulo \(2^{64}\) and
-\(\mathbb{W} = \{0,1\}^{64}\) is the set of 64-bit words.
+This section proves the properties the construction relies on.  Each
+statement is deliberately narrow, and the section ends by stating what is
+not proved.  Arithmetic is modulo \(2^{64}\);
+\(\mathbb{W} = \{0,1\}^{64}\).
 
 \begin{lemma}[Absorb chain bijectivity]
 \label{lem:chain}
 Fix \(w_{-1} \in \mathbb{W}\) and \(m \geq 0\), and define
 \(\Phi(w_0,\ldots,w_m) = (t_0,\ldots,t_m)\) with
 \(t_i = w_i + \rotl(w_{i-1},27)\).  Then \(\Phi\) is a bijection on
-\(\mathbb{W}^{m+1}\).  Moreover, if two stripe sequences first differ at
-index \(j\), their images agree before index \(j\) and differ at index
-\(j\).
+\(\mathbb{W}^{m+1}\), and if two stripe sequences first differ at index
+\(j\), their images agree before index \(j\) and differ at index \(j\).
 \end{lemma}
 
 \begin{proof}
-Given \((t_0,\ldots,t_m)\), the preimage is recovered in order:
-\(w_0 = t_0 - \rotl(w_{-1},27)\), and
-\(w_i = t_i - \rotl(w_{i-1},27)\) once \(w_{i-1}\) is known.  So \(\Phi\)
-is invertible.  For the second claim, if the sequences agree before index
-\(j\), the images agree there and the values \(w_{j-1}\) coincide, so
-\(t_j = w_j + \rotl(w_{j-1},27)\) differs exactly when \(w_j\) differs,
-because adding a fixed word is injective.
+Given \((t_0,\ldots,t_m)\), recover \(w_0 = t_0 - \rotl(w_{-1},27)\) and
+\(w_i = t_i - \rotl(w_{i-1},27)\) in order, so \(\Phi\) is invertible.  If
+the sequences agree before index \(j\), the images agree there and the
+values \(w_{j-1}\) coincide, so \(t_j\) differs exactly when \(w_j\)
+differs, because adding a fixed word is injective.
 \end{proof}
 
-Consequently, two distinct inputs that disagree in some stripe always feed
-the lane machinery different absorb values at the first differing stripe:
-no difference pattern cancels inside the transformed sequence.  The lemma
-says nothing about what the lane recurrence and folds do with those
-values afterward.
+Two distinct inputs that disagree in some stripe therefore feed the lane
+machinery different absorb values at the first differing stripe.  The
+lemma says nothing about what the lane recurrence and folds do afterward.
 
 \begin{lemma}[Injection bijectivity]
 \label{lem:inj}
 For \(0 < a < b < 64\), the map
 \(\iota(w) = w \oplus \rotl(w,a) \oplus \rotl(w,b)\) is a bijection on
-\(\mathbb{W}\).  In particular \(\inj\) and \(\injb\) are bijections.
+\(\mathbb{W}\); in particular \(\inj\) and \(\injb\) are.
 \end{lemma}
 
 \begin{proof}
-\(\iota\) is GF(2)-linear and commutes with rotation, so it lies in the
-algebra \(\mathbb{F}_2[z]/(z^{64}+1)\), with \(\rotl(\cdot,k)\)
-corresponding to \(z^k\) and \(\iota\) to \(p(z) = 1 + z^a + z^b\).  Over
-\(\mathbb{F}_2\), \(z^{64}+1 = (z+1)^{64}\), so \(p\) is invertible in the
-algebra if and only if \(z+1\) does not divide \(p\), that is
-\(p(1) \neq 0\).  Since \(p\) has three terms, \(p(1) = 1\).
+\(\iota\) is GF(2)-linear and commutes with rotation, so it lies in
+\(\mathbb{F}_2[z]/(z^{64}+1)\), with \(\iota\) corresponding to
+\(p(z) = 1 + z^a + z^b\).  Over \(\mathbb{F}_2\),
+\(z^{64}+1 = (z+1)^{64}\), so \(p\) is invertible if and only if
+\(p(1) \neq 0\); with three terms, \(p(1) = 1\).
 \end{proof}
 
 \begin{lemma}[Finalizer bijectivity]
 \label{lem:fmix}
-The maps \(x \mapsto x \oplus (x \mathbin{\gg} k)\) for
-\(1 \leq k \leq 63\) and \(x \mapsto cx\) for odd \(c\) are bijections on
-\(\mathbb{W}\).  Hence \(\operatorname{fmix}\),
-\(\operatorname{fmix128}\), and \(\operatorname{long\_fmix}\) are
-bijections.
+The maps \(x \mapsto x \oplus (x \mathbin{\gg} k)\), \(1 \leq k \leq 63\),
+and \(x \mapsto cx\) for odd \(c\) are bijections on \(\mathbb{W}\); hence
+\(\operatorname{fmix}\), \(\operatorname{fmix128}\), and
+\(\operatorname{long\_fmix}\) are bijections.
 \end{lemma}
 
 \begin{proof}
-For the shift map, the top \(k\) bits of the image equal the top \(k\)
-bits of the argument, and each lower bit is the argument bit XOR an
-already-recovered higher bit, so the argument is recovered from the top
-down.  An odd \(c\) is a unit modulo \(2^{64}\).  The finalizers are
-compositions of these maps.
+For the shift map the top \(k\) bits of the image equal those of the
+argument, and each lower bit is the argument bit XOR an already-recovered
+higher bit, so the argument is recovered from the top down.  An odd \(c\)
+is a unit modulo \(2^{64}\).  The finalizers are compositions of these
+maps.
 \end{proof}
 
 \begin{lemma}[Length separation]
@@ -648,310 +555,163 @@ Fix a seed, and let two inputs have lengths \(n \neq n'\) with
 \(0 \leq n, n' < 2^{63}\).
 \begin{enumerate}
 \item If both lengths are at most 16 and the inputs load equal word pairs
-      \((a,b)\), then the 64-bit digests differ, and the 128-bit digests
-      differ in the low word.
+      \((a,b)\), the 64-bit digests differ, and the 128-bit digests differ
+      in the low word.
 \item If both lengths are at least 17 and the inputs reach the finalizer
-      with equal lane values \((h_0,h_1,h_2,h_3)\), then the 64-bit
-      digests differ, and the 128-bit digests differ in both words.
+      with equal lane values \((h_0,h_1,h_2,h_3)\), the 64-bit digests
+      differ, and the 128-bit digests differ in both words.
 \end{enumerate}
 \end{lemma}
 
 \begin{proof}
-Since \(K\) is odd, \(n \mapsto nK\) is injective on \(\mathbb{W}\), and
-lengths below \(2^{63}\) are distinct as words, so
-\(\mathit{lenmix} \neq \mathit{lenmix}'\).
+\(K\) is odd, so \(n \mapsto nK\) is injective, and lengths below
+\(2^{63}\) are distinct as words: \(\mathit{lenmix} \neq
+\mathit{lenmix}'\).
 
-Case 1.  Equal \((a,b)\) and equal seed give equal \((x,y)\), so the
-finalizer inputs \(u = \rotl(x,27) \oplus y \oplus \mathit{lenmix}\) and
-\(u'\) differ.  \(\operatorname{fmix}\) is a bijection
-(Lemma~\ref{lem:fmix}), so the low words differ.
+Case 1.  Equal \((a,b)\) and seed give equal \((x,y)\), so the inputs
+\(u = \rotl(x,27) \oplus y \oplus \mathit{lenmix}\) and \(u'\) differ, and
+\(\operatorname{fmix}\) is a bijection (Lemma~\ref{lem:fmix}).
 
-Case 2.  Equal lane values give equal
-\(h_0 \oplus \rotl(h_1,13)\), so
-\(t_0 = (h_0 \oplus \rotl(h_1,13) \oplus \mathit{lenmix})K\) and
-\(t_0'\) differ: their pre-multiplication values differ and
+Case 2.  Equal lane values give equal \(h_0 \oplus \rotl(h_1,13)\), so
+\(t_0\) and \(t_0'\) differ: their pre-multiplication values differ and
 multiplication by odd \(K\) is injective.  \(t_1 = t_1'\).  The low-word
-finalizer input \(s \oplus t_0 \oplus \rotl(t_1,29)\) then differs, and
+input \(s \oplus t_0 \oplus \rotl(t_1,29)\) differs and
 \(\operatorname{long\_fmix}\) is a bijection.  The high-word input
-\(\rotl(s,32) \oplus (t_1 + \rotl(t_0,47))\) differs because
-\(\rotl(\cdot,47)\) is injective and adding the fixed \(t_1\) is
-injective, and \(\operatorname{fmix128}\) is a bijection.
+\(\rotl(s,32) \oplus (t_1 + \rotl(t_0,47))\) differs because rotation and
+addition of the fixed \(t_1\) are injective, and \(\operatorname{fmix128}\)
+is a bijection.
 \end{proof}
 
-The lemma covers exactly the collision class that overlapping reads
-create.  Distinct-length inputs can produce identical loaded words and
-identical absorb sequences; the concrete extreme is all-zero inputs of
-lengths 17 through 31, whose lane states are identical at the finalizer.
-Within each path family, such pairs never collide.  No claim is made for
-pairs that take different paths with different state shapes; there the
-inputs differ structurally and the empirical evidence of
-Section~\ref{sec:evaluation} is what speaks.
+The lemma covers exactly the collision class the overlapping reads
+create: distinct-length inputs can produce identical loaded words and
+absorb sequences, all-zero inputs of lengths 17 through 31 being the
+extreme case, and within each path family such pairs never collide.
 
 \begin{theorem}[Short-input 128-bit injectivity]
 \label{thm:short128}
 Fix a seed and a length \(n \leq 16\).  The map from \(n\)-byte inputs to
-the 128-bit digest \((\mathit{lo},\mathit{hi})\) is injective.
+\((\mathit{lo},\mathit{hi})\) is injective.
 \end{theorem}
 
 \begin{proof}
-The map factors as
-\(B \mapsto (a,b) \mapsto (x,y) \mapsto (u,x) \mapsto
+The map factors as \(B \mapsto (a,b) \mapsto (x,y) \mapsto (u,x) \mapsto
 (\mathit{lo},\mathit{hi})\).
 
-\((a,b)\) determines \(B\):  for \(8 \leq n \leq 16\), \(a\) holds bytes
-\(0..7\) and \(b\) holds bytes \(n-8..n-1\), and since \(n - 8 \leq 8\)
-every input byte occupies a fixed position of \(a\) or \(b\); for
+\((a,b)\) determines \(B\): for \(8 \leq n \leq 16\), \(a\) holds bytes
+\(0..7\) and \(b\) holds bytes \(n-8..n-1\), and \(n-8 \leq 8\), so every
+input byte occupies a fixed position of \(a\) or \(b\); for
 \(4 \leq n \leq 7\) the same holds with four-byte words; for
 \(1 \leq n \leq 3\), \(a = B[0]\) and \(b\) holds \(B[n/2]\) and
-\(B[n-1]\) in disjoint bit ranges, and the positions \(0\), \(n/2\),
-\(n-1\) cover every index below \(n\); for \(n = 0\) the domain has one
-element.  Two distinct inputs of length \(n\) therefore differ in some
-fixed bit of \((a,b)\).
+\(B[n-1]\) in disjoint bit ranges, and positions \(0\), \(n/2\), \(n-1\)
+cover every index below \(n\).  Distinct equal-length inputs therefore
+differ in a fixed bit of \((a,b)\).
 
-\((a,b) \mapsto (x,y)\) is a bijection for a fixed seed: each coordinate
+\((a,b) \mapsto (x,y)\) is a bijection for fixed seed: each coordinate
 composes a bijective injection (Lemma~\ref{lem:inj}), an XOR with a
-constant, and a multiplication by an odd constant
-(Lemma~\ref{lem:fmix}).
-
-\((x,y) \mapsto (u,x)\) with
-\(u = \rotl(x,27) \oplus y \oplus \mathit{lenmix}\) is a bijection for a
-fixed length: \(y\) is recovered as
-\(u \oplus \rotl(x,27) \oplus \mathit{lenmix}\).
-
-\((u,x) \mapsto (\operatorname{fmix}(u),
-\operatorname{fmix128}(x + \rotl(u,32)))\) is a bijection: \(u\) is
-recovered from \(\mathit{lo}\) by Lemma~\ref{lem:fmix}, then \(x\) from
-\(\mathit{hi}\).
+constant, and an odd multiplication (Lemma~\ref{lem:fmix}).
+\((x,y) \mapsto (u,x)\) is a bijection for fixed length: \(y\) is
+recovered as \(u \oplus \rotl(x,27) \oplus \mathit{lenmix}\).
+\((u,x) \mapsto (\operatorname{fmix}(u), \operatorname{fmix128}(x +
+\rotl(u,32)))\) is a bijection: recover \(u\) from \(\mathit{lo}\), then
+\(x\) from \(\mathit{hi}\).
 \end{proof}
 
 \begin{corollary}
 For each seed, hayahash128 restricted to inputs of exactly 16 bytes is a
-permutation of the 128-bit space, and restricted to inputs of exactly 8
-bytes it is injective into it.
+permutation of the 128-bit space.
 \end{corollary}
 
-No analogous claim holds for the 64-bit digest alone, which discards
-\(x\), nor across distinct lengths, nor above 16 bytes; a 64-bit digest of
-arbitrarily long inputs necessarily has collisions.
+No analogous claim holds for the 64-bit digest alone, nor across distinct
+lengths, nor above 16 bytes; a 64-bit digest of arbitrarily long inputs
+necessarily has collisions.
 
 \begin{proposition}[Streaming equivalence]
 \label{prop:streaming}
-For every seed, every byte sequence, and every partition of the sequence
-into update calls, \texttt{hayahash64\_digest} equals
-\texttt{hayahash64} of the whole sequence, and
-\texttt{hayahash128\_digest} equals \texttt{hayahash128}.
+For every seed, byte sequence, and partition of the sequence into update
+calls, \texttt{hayahash64\_digest} equals \texttt{hayahash64} of the whole
+sequence, and \texttt{hayahash128\_digest} equals \texttt{hayahash128}.
 \end{proposition}
 
 \begin{proof}[Proof sketch]
-If the total stays below the 448-byte buffer capacity, the bytes are still
-contiguous in the buffer at digest time and the state dispatches to the
-one-shot function directly.  Otherwise the total exceeds 320 bytes, so the
-one-shot function would take the eight-lane path, and the state machine
-has committed to the same path.  Update calls consume input only in
-complete 64-byte blocks, in stream order from offset zero, through the
-identical absorb-and-checkpoint block transform; this matches the one-shot
-path, which consumes complete 64-byte blocks while at least 64 bytes
-remain.  At digest time the remaining buffered bytes replay the one-shot
-epilogue on a copy of the lanes: leftover complete blocks, the fold, at
-most one 32-byte round, the wall, the tail, and the finalizer with
-\(\mathit{lenmix}\) computed from the running total.  The buffer's
+Totals below the 448-byte capacity stay contiguous in the buffer and
+dispatch to the one-shot function directly.  Otherwise the total exceeds
+320 bytes, so the one-shot function would take the eight-lane path, and
+the state machine has committed to the same path.  Updates consume input
+only in complete 64-byte blocks, in stream order from offset zero, through
+the identical absorb-and-checkpoint transform, matching the one-shot
+path, which consumes complete blocks while at least 64 bytes remain.  At
+digest time the buffered remainder replays the one-shot epilogue on a copy
+of the lanes: leftover blocks, fold, at most one 32-byte round, wall,
+tail, and finalizer with \(\mathit{lenmix}\) from the running total.  The
 128-byte retention floor guarantees the buffered suffix contains the last
-16 bytes of the stream, which is the deepest address the tail reads back;
-all other reads are within the unconsumed remainder.  Since the operation
-sequences are identical and every read returns the same byte, the digests
-agree, for both widths, and \texttt{digest} reads the state without
-modifying it.
+16 bytes of the stream, the deepest address the tail reads back.  The
+operation sequences are identical and every read returns the same byte.
 \end{proof}
 
-The mechanical check of this proposition is part of the test suite: a
-differential test replays every length through 512 under three seeds and
-five fixed split patterns, plus 1{,}000 randomized cases through 20~KiB
-under three split distributions, and requires one-shot and streaming
-equality for both widths together with the invariant
-\(\mathtt{hayahash128.lo} = \mathtt{hayahash64}\).
+A differential test checks this mechanically: every length through 512
+under three seeds and five split patterns, plus 1{,}000 randomized cases
+through 20~KiB, requiring one-shot and streaming equality for both widths
+and \(\mathtt{hayahash128.lo} = \mathtt{hayahash64}\).
 
-\textbf{What is not proved.}  The lemmas above are local.  They do not
-bound collisions of the complete construction: the lane recurrence, the
-folds, and the 64-bit truncation are outside their scope.  Hayahash has no
-almost-universality bound and no adversarial guarantee of any kind.  The
-value of the lemmas is negative-space: they close the specific structural
-collision channels that broke earlier iterations, and they delimit exactly
-where only empirical evidence exists.
+\textbf{What is not proved.}  These lemmas are local.  They do not bound
+collisions of the complete construction: the lane recurrence, the folds,
+and the 64-bit truncation are outside their scope, and Hayahash has no
+almost-universality bound and no adversarial guarantee.  Their value is
+negative-space: they close the structural collision channels that broke
+earlier iterations and delimit exactly where only empirical evidence
+exists.
 
-\section{Design rationale}
-\label{sec:rationale}
+\section{Design notes}
+\label{sec:notes}
 
-\subsection{The dependency-chain budget}
-\label{sec:rationale-chain}
+The header commentary and \path{docs/design.md} carry the full reasoning
+and its measurement history; this section records the arguments the
+proofs do not cover.
 
-A scalar bulk loop is bound either by its loop-carried dependency chains
-or by execution throughput.  Per lane, Hayahash's carried path is
-\(h \leftarrow (h \oplus t)\,K\): one XOR and one multiplication, roughly
-four cycles on current cores.  The absorb value \(t\) is computed from
-loaded stripes off the carried path, and the rotation applies to a word
-already in a register, so neither lengthens the chain.  With a chain of
-roughly four cycles, eight lanes can keep two multiplications in flight
-per cycle, which matches the scalar multiply throughput of current wide
-cores and leaves headroom for loads and loop overhead; four lanes can
-keep only one in flight, leaving a single-multiplier core no headroom at
-all.  This is the reason for eight lanes on the bulk path and four on the
-mid path, where inputs are too short to amortize the wider state's setup
-and fold.
+\textbf{Absorb algebra.}  An odd multiplier spreads a difference only
+upward, and the top of the word is a fixed point: \(K \equiv 1 \pmod 4\),
+so a difference confined to bits 62 and 63 passes through multiplication
+by \(K\) unchanged.  A difference planted near the top therefore stays
+there, and an XOR-linked absorb could cancel it with a matching later
+difference.  The chained rotated copy gives every stripe a second life at
+low positions of the next absorb, under addition rather than XOR, so
+cancelling both copies requires specific carry patterns rather than a
+structural identity.
 
-The comparison function in the same primitive class, ChibiHash v2, keeps a
-cross-lane addition on its carried path, which makes the chain roughly
-five cycles per 8-byte stripe across four lanes.  The measured outcome at
-1~MiB, 30.73 versus 18.99~GB/s on the M1 and 61.47 versus 31.13~GB/s on
-Zen~5, is consistent with the chain arithmetic.  This is a scheduling
-rationale, not a portable cycle-count guarantee; instruction latency,
-register allocation, and code layout vary by compiler and target, which is
-why the C implementation carries output-equivalent per-target
-specializations.
+\textbf{Rotation 27, checkpoint, wall.}  A difference ladder flips bits in
+stripe \(i+1\) to cancel, with carry luck, the rotated copy from stripe
+\(i\); the residual walks 27 positions per stripe, visiting every position
+with period 64 since \(\gcd(27,64)=1\).  Termination requires reaching the
+multiplication's fixed region at the top in a same-lane stripe.  With
+rotation 21, three hops return to the top (\(3 \cdot 21 = 63\)) and an
+earlier iteration produced exact collisions; with 27, every same-lane
+revisit stays far from the top for all practical lengths.  The checkpoint
+(raw eighth stripe into \(h_0\) each block) was added after a 64-stripe
+rotation-orbit family produced deterministic 576-byte collisions; the wall
+stops ladders marching off the end of the input; the 320-byte threshold
+keeps the four-lane path under 64 stripes, so the full orbit exists only
+where the checkpoint interrupts it.
 
-An earlier design absorbed each stripe twice by loading it at two
-staggered offsets.  Beyond its algebraic failure
-(Section~\ref{sec:failures}), it was load-bound: three loads per 16 input
-bytes were the measured throughput limiter on the M1.  The chained
-rotation replaced the second load with one register operation.
+\textbf{Length placement.}  Premixing the length into the initial state
+destroys the purity streaming needs; XORing \(nK\) after the final
+multiplications leaves modular low-bit structure across lengths that
+SMHasher3's SeedZeroes differentials detect.  Absorbing \(nK\) inside the
+\(t_0\) multiplication satisfies both constraints at no extra
+multiplication.
 
-\subsection{Why the absorb chains raw stripes}
-\label{sec:rationale-absorb}
+\textbf{Short path.}  Each loaded word is injected before its
+multiplication, so a difference confined to the top bits, which would face
+only a few bits of carry luck after an upward-spreading multiply, first
+receives low copies.  The two words use different injections and
+multipliers because an earlier iteration with one injection on both sides
+admitted sparse seed differences erasable by aligned key bits on both
+sides at once.
 
-The absorb must prevent structural cancellation: a difference pattern
-across stripes that erases itself in the state regardless of the input
-values.  Two facts about multiplication modulo \(2^{64}\) shape the
-mechanism.  First, an odd multiplier spreads a difference only upward: the
-lowest set bit of \(\Delta \cdot K\) is the lowest set bit of \(\Delta\).
-Second, the top of the word is a fixed point: since \(K \equiv 1 \pmod 4\),
-any difference confined to bits 62 and 63 is preserved exactly by
-multiplication by \(K\).  A difference planted near the top therefore
-stays there, un-avalanched, and an XOR-linked absorb could cancel it with
-a matching top difference in a later stripe.
-
-The response is to give every stripe a second life at low positions of the
-next absorb: \(t_i = w_i + \rotl(w_{i-1},27)\).  Cancelling a stripe
-difference now requires cancelling both the raw copy in \(t_i\) and the
-rotated copy in \(t_{i+1}\).  The raw copy sits under an XOR into the
-lane, the rotated copy under a modular addition; addition and rotation
-commute with neither GF(2) algebra nor each other, so a difference that is
-linear in one view is nonlinear in the other, and simultaneous
-cancellation requires specific carry patterns, never a structural
-identity.  Lemma~\ref{lem:chain} states the guarantee that holds
-unconditionally: the transformed sequence itself never collides.  The
-earlier XOR-of-staggered-copies variant had exactly the structural
-identity this excludes; XOR-combining shifted stripe copies is
-GF(2)-linear, and once absorbs chain, the combined map has a nullspace.
-
-The tail rounds use the bijective injection \(\inj\) instead of the
-chain.  A tail contributes at most two rounds per digest, each feeding its
-own lane, so per-absorb bijectivity is sufficient there, and the injection
-spreads each tail word across the full width before its multiplication.
-
-\subsection{Rotation 27, the checkpoint, and the wall}
-\label{sec:rationale-rotation}
-
-The rotation amount is chosen against difference ladders.  A ladder flips
-bits in stripe \(i+1\) to cancel, with carry luck, the rotated copy of a
-difference in stripe \(i\); the residual difference then walks 27 bit
-positions per stripe.  Because \(\gcd(27,64)=1\), the walk visits every
-position with period 64 stripes.  Termination of a ladder requires the
-walking difference to reach the multiplication's fixed region at the top
-of the word in a stripe that lands in the same lane, so the relevant
-revisits happen at stripe distances that are multiples of the lane count.
-With \(r = 21\), three hops return to the top
-(\(3 \cdot 21 = 63\)), and an earlier iteration produced exact collisions
-through anchors of the form \(2^{62}(K-1) \equiv 0 \pmod{2^{64}}\).  With
-\(r = 27\), every same-lane revisit stays far from the top for all
-practical lengths.
-
-Two mechanisms close the remaining exits.  The checkpoint adds the raw
-eighth stripe to \(h_0\) after every 64-byte block; it was added after a
-64-stripe rotation-orbit family produced deterministic 576-byte collisions
-in an earlier digest, and a deterministic regression for that family is
-kept in the test suite.  The wall absorbs the final stripe's dangling
-rotated copy after the loops, so a ladder cannot march its residual off
-the end of the input; constructed collisions at multiples of 32 bytes
-found by SMHasher3 in a wall-less iteration are the evidence.  The
-320-byte threshold bounds the four-lane path to fewer than 64 stripes, so
-the full orbit exists only on the eight-lane path, where the checkpoint
-interrupts it every block.
-
-\subsection{The length in the finalizer}
-\label{sec:rationale-length}
-
-Section~\ref{sec:case} stated the two constraints: the digest must be a
-pure function of the seed and the bytes read so far, or no streaming
-interface can reproduce it; and the length term must separate equal-state
-inputs of different lengths, or the overlapping tail reads become a
-collision channel.  The chosen spelling absorbs \(nK\) inside the
-\(t_0\) multiplication, satisfying both (Lemma~\ref{lem:length}) at no
-additional multiplication: the multiply was already there.  Two rejected
-spellings mark the boundaries.  Premixing the length into the lane initial
-values, as before \texttt{v0.5}, satisfies separation but destroys purity;
-the streaming state would need the total before the first byte.  XORing
-\(nK\) after the final multiplications preserves purity but leaves
-modular low-bit structure across lengths of equal-state keys, which
-SMHasher3's SeedZeroes differentials detect; with the term inside the
-multiplication, both \texttt{fmix} multiplications on the short path and
-the \(K\)-multiplication in \(t_0\) stand between the length and the
-output.
-
-\subsection{Derived lane constants}
-\label{sec:rationale-iv}
-
-All eight lane initial values are derived from the premixed seed \(s\) and
-shifted copies of \(K\).  Materializing eight arbitrary 64-bit literals
-would cost four instructions each on AArch64 before the first byte is
-absorbed; shifted copies of a constant already in a register fold into the
-initialization arithmetic at compile time.  Deriving every lane from
-\(s\) also seeds the full state for free: no lane starts at a value an
-attacker can match independently of the seed.
-
-\subsection{The short path}
-\label{sec:rationale-short}
-
-Inputs of at most 16 bytes get two multiplications and one strong
-finalizer.  The structure exists to defeat two specific failure shapes.
-First, each loaded word passes through a bijective injection before its
-multiplication, so a difference confined to the top bits of a word, which
-would face only a few bits of carry luck after the upward-spreading
-multiply, is first copied to low positions and the difference window of
-the multiplication is always wide.  Second, the two words use different
-injections, different seed derivations, and different multipliers.  An
-earlier iteration used the same injection on both sides; the key-to-state
-maps of the two multiply terms then commuted with the rotation relating
-the two seed copies, and SMHasher3 found sparse seed differences,
-erasable by aligned key bits on both sides at once.  With distinct
-rotation sets, simultaneous erasure requires dense key patterns that
-sparse-difference key sets cannot reach.
-
-The 1-to-3-byte load pattern, head byte plus middle and last byte packed
-into disjoint bit ranges, is ChibiHash v2's; it covers every input byte
-without a branch per byte, and Theorem~\ref{thm:short128} depends on that
-coverage.
-
-\subsection{Fold choices}
-\label{sec:rationale-fold}
-
-The lane folds and the finalizer combine values as
-\((h \oplus \rotl(h',r))\,K\).  An additive fold could cancel exactly
-against the additive structure of the absorb; an XOR of multiply-spread
-values cancels only through carry luck.  The rotation amounts avoid one
-specific resonance: the \(t_1\) fold uses rotation 33 because rotation 37,
-the additive inverse of the absorb rotation modulo 64, re-aligned a lane's
-raw stripe difference with the next lane's rotated copy at the fold, and
-the aligned pair could cancel.  The upper-lane fold rotations 11, 19, 31,
-47 and the finalizer rotations 13, 33, 29 are pairwise distinct and
-distinct from 27 and 37.
-
-\subsection{Failure-driven changes}
-\label{sec:failures}
-
-Several earlier iterations passed ordinary avalanche checks and then
-failed against constructed inputs.  Table~\ref{tab:failures} records the
-failure classes that shaped the current construction.  Each response above
-is regression-tested: the structured key sets of the local harness
-(Section~\ref{sec:quality}) include a reproduction of every class.
+\textbf{Folds.}  Folds combine as \((h \oplus \rotl(h',r))\,K\): an XOR of
+multiply-spread values cancels only through carry luck, where an additive
+fold could cancel exactly against the additive absorb.  The \(t_1\) fold
+uses rotation 33 because 37, the additive inverse of 27 modulo 64,
+re-aligned a stripe difference with its rotated copy at the fold.
 
 \small
 \begin{longtable}{@{}L{0.25\linewidth}L{0.30\linewidth}L{0.34\linewidth}@{}}
@@ -996,53 +756,33 @@ regression retained. \\
 \section{Evaluation}
 \label{sec:evaluation}
 
-\subsection{Evidence policy}
-
 The claim register \path{paper/AUDIT.md} classifies each material
-statement as code-derived, reproduced, archived, reported, or open.  A
-reported result is not promoted to a result about the current snapshot
-without the tested source, tool revision, command, host information, and
-raw output.  Raw outputs live under \path{paper/results}, each with its
-provenance header.
+statement as code-derived, reproduced, archived, reported, or open; raw
+outputs live under \path{paper/results} with provenance headers.
 
-\subsection{Local quality harness}
+\subsection{Quality}
 \label{sec:quality}
 
-The local C harness performs strict-avalanche measurements over input and
-seed bits and exact collision checks over structured key sets.  It is
-deterministic: the generator is fixed-seeded, so its numbers depend on the
-digest, not the host.  For long inputs it samples 192 input-bit positions;
-every avalanche cell uses 4{,}000 trials, warns above an absolute bias of
-0.03, and fails above 0.045.  These are smoke-test thresholds without a
-correction for all multiple comparisons.
-
-At the current snapshot the harness reports a worst input-bit bias of
-0.0360 at length 129 and a worst seed-bit bias of 0.0330 at length 4;
-neither crosses its failure threshold.  All 24 structured collision sets
-are clean.  The sets include sequential, sparse, high-byte-only,
-zero-extension, repeated-block, text, seed-block, combination, and
-rotation-orbit inputs, that is, reproductions of every failure class of
-Table~\ref{tab:failures}.  The streaming differential test of
-Proposition~\ref{prop:streaming} passes in the same run.  Command and
-output are archived in \path{paper/results/quality.txt}.
-
-As a control, the same harness finds 512 collisions in ChibiHash v2's
-rotation-orbit set while its other 23 sets stay clean
-(\path{paper/results/quality-chibihash-v2.txt}).  This does not contradict
-ChibiHash's clean record in general-purpose suites; it shows that
-statistical suites and construction-specific differential tests serve
-different roles.  No collision observed in a finite test establishes only
-that the tested set was clean.
+The local harness is deterministic (fixed-seeded), so its numbers depend
+on the digest, not the host: strict-avalanche measurements over input and
+seed bits (4{,}000 trials per cell, warn above 0.03, fail above 0.045) and
+exact collision checks over 24 structured key sets that reproduce every
+failure class of Table~\ref{tab:failures}.  At this snapshot the worst
+input-bit bias is 0.0360 and the worst seed-bit bias 0.0330, neither near
+the failure threshold; all 24 sets are clean, and the streaming
+differential of Proposition~\ref{prop:streaming} passes in the same run
+(archived in \path{paper/results/quality.txt}).  As a control, the same
+harness finds 512 collisions in ChibiHash v2's rotation-orbit set: a
+constructed-set result, not a quality ranking, showing that statistical
+suites and construction-specific tests serve different roles.
 
 \subsection{SMHasher3}
 \label{sec:smhasher}
 
-SMHasher3 computes a verification value per registered hash before running
-its suite.  For the current digest the canonical values are reproduced
-directly from the reference header by
-\path{paper/tools/reference_check.c}; the byte-swapped values are the ones
-registered in the translation and exercised by the tool's self-test in
-every suite run:
+The canonical verification values are reproduced directly from the
+reference header by \path{paper/tools/reference_check.c}; the byte-swapped
+values are registered in the SMHasher3 translation and exercised by the
+tool's self-test in every run:
 
 \begin{center}
 \begin{tabular}{@{}lcc@{}}
@@ -1055,238 +795,82 @@ hayahash128 & \texttt{\SnapshotVerificationWide} & \texttt{0x46140A64} \\
 \end{tabular}
 \end{center}
 
-The SMHasher3 harness in \path{tests/smhasher3} pins upstream commit
-\texttt{51d3cd1a} and installs a self-contained translation of the
-reference implementation in SMHasher3's house style, written for upstream
-submission.  The translation is a second implementation, not an inclusion
-of the header; its agreement with the header is enforced by the
-verification values above and by the repository's conformance machinery,
-the same standard every language port is held to
-(Section~\ref{sec:conformance}).
+The harness in \path{tests/smhasher3} pins upstream commit
+\texttt{51d3cd1a} and installs a self-contained translation written for
+upstream submission; its agreement with the header is enforced by the
+verification values and the repository's conformance machinery.  Archived
+for the current digest: the full default suite passes 188 of 188 for
+hayahash128 on an EPYC 9655 at that pin
+(\path{paper/results/epyc9655-smhasher3-128-conformance.txt}).  Reported,
+without an archived raw dump: both widths pass the full suite on an Apple
+M1 Pro.  The previous digest's nine-build sweep across four hosts and five
+compilers demonstrates the verification pipeline but says nothing about
+the current digest; repeating it is open work.  A clean run is a
+black-box statistical result: it neither proves collision resistance nor
+ranks passing functions, as this project's own constructed collision after
+a clean run demonstrated.
 
-Archived for the current digest: on an AMD EPYC 9655 KVM guest, the full
-default suite passes 188 of 188 for hayahash128 at that pin, in a
-consolidated record that also runs eight other 128-bit functions under
-identical conditions and audits each function's instruction class from its
-source
-(\path{paper/results/epyc9655-smhasher3-128-conformance.txt}).  In that
-audit, MuseAir, a5hash, t1ha2, and XXH3 use a \(64\times64\to128\)
-multiplication and MeowHash uses x86 AES instructions; SpookyHash2,
-prvhash, FarmHash-CC, and hayahash are ordinary-scalar.  Two of the nine
-fail the suite at this pin (XXH3-128 by 26 test groups, SpookyHash2-128 by
-10), which places a clean 188 of 188 in context.  Reported, with the
-project's documentation but without an archived raw dump: the full default
-suite also passes for both hayahash widths on an Apple M1 Pro, the 128-bit
-run taking 839.5 seconds.
+\subsection{Performance (TBD)}
+\label{sec:performance}
 
-Superseded: release \texttt{v0.4.0}, the previous digest, passed 188 of
-188 on nine builds spanning four hosts, two architectures, five compilers,
-and every dispatch shape that header compiled, with all 2{,}187 non-timing
-output lines identical across builds.  Those records remain archived and
-demonstrate the verification pipeline, including that genuinely different
-machine code, scalar and auto-vectorized, produces identical digests.  The
-equivalent multi-host sweep has not yet been repeated for the current
-digest; Section~\ref{sec:limitations} carries it as open work.
-
-A clean SMHasher3 run is a statistical black-box result on generated key
-sets.  It neither proves collision resistance nor ranks two passing
-functions, and the constructed rotation-orbit collision that an earlier
-digest exhibited after a clean run is this project's own demonstration of
-the gap.
-
-\subsection{Benchmarks}
-\label{sec:bench}
-
-The repository benchmark compares the reference C implementations through
-non-inlined wrappers with the same signature and reports bulk throughput,
-seed-chained latency, where each digest becomes the next seed, and
-independent throughput.  Each cell is the median of nine calibrated
-samples of approximately 40~ms; candidate order is rotated.  The recorded
-runs on two bare-metal hosts are archived with source checksums, host and
-compiler details, and per-run notes:
+This draft deliberately carries no benchmark tables.  The archived records
+under \path{paper/results} support the following summary, which is what
+the tables must substantiate when they return:
 
 \begin{itemize}
-\item Apple M1 Pro, Apple Clang 21, \texttt{-O3 -mcpu=native};\\
-      archived in \path{paper/results/apple-m1-pro-hayahash128.txt};
-\item AMD Ryzen AI 9 HX PRO 370, Zen 5 core pinned near 5.16 GHz,
-      GCC 16.1.1, \texttt{-O3 -march=native};\\
-      archived in \path{paper/results/ryzen-ai9-hayahash128.txt}.
+\item hayahash64 leads ChibiHash v2, the closest same-class function, in
+      every cell of the two archived bare-metal records (Apple M1 Pro and
+      Zen 5): bulk throughput, seed-chained latency, and independent
+      throughput, from 1 byte to 1~MiB.  The statement was verified
+      mechanically over both records.
+\item hayahash128 reaches bulk parity with hayahash64 on every recorded
+      host; producing the second word costs under 2.3~ns in the recorded
+      small-input cells.
+\item On baseline wasm32, without SIMD or a widening multiply, hayahash
+      sustains 23.6~GB/s where rapidhash sustains 6.4 in the same runtime,
+      consistent with the primitive-class argument of
+      Section~\ref{sec:motivation}.
+\item Records carry source checksums, host and compiler provenance, and a
+      stated method: medians of nine calibrated samples through
+      non-inlined wrappers, candidate order rotated.
 \end{itemize}
 
-The Zen 5 record's header checksum matches the audited header exactly.
-The M1 Pro record was taken the same day from a late development state of
-the sixth optimization pass whose header differs from the released one by
-a documented output-identical dispatch follow-up; its checksum is recorded
-in the file.  ChibiHash v2 was compiled from vendored source in the same
-executable.  Tables~\ref{tab:bulk} through \ref{tab:ind} transcribe
-selected cells from the archived logs.
+The tables return when: the M1 Pro record is retaken at the released
+header (the current one measured a documented output-identical
+development state); the harness retains raw samples and an environment
+manifest rather than medians alone; and the transcription is generated
+from the records instead of copied.
 
-\begin{table}[ht]
-\centering
-\small
-\caption{Bulk throughput in GB/s.  Higher is better.  C2 is ChibiHash v2,
-H64 is hayahash64, H128 is hayahash128.}
-\label{tab:bulk}
-\begin{tabular}{r rrr rrr}
-\toprule
-& \multicolumn{3}{c}{Apple M1 Pro} & \multicolumn{3}{c}{Zen 5} \\
-\cmidrule(lr){2-4}\cmidrule(lr){5-7}
-Bytes & C2 & H64 & H128 & C2 & H64 & H128 \\
-\midrule
-64      & 10.04 & 13.00 & 10.39 & 13.76 & 17.82 & 14.47 \\
-256     & 18.00 & 20.67 & 19.03 & 25.41 & 29.61 & 27.30 \\
-320     & 18.89 & 22.26 & 20.58 & 26.83 & 33.35 & 29.34 \\
-512     & 19.29 & 24.53 & 23.06 & 29.32 & 42.06 & 38.01 \\
-1024    & 19.72 & 27.55 & 26.28 & 31.55 & 52.21 & 48.85 \\
-1048576 & 18.99 & 30.73 & 30.76 & 31.13 & 61.47 & 61.31 \\
-\bottomrule
-\end{tabular}
-\end{table}
-
-\begin{table}[ht]
-\centering
-\small
-\caption{Small-input latency in ns/hash, seed-chained.  Lower is better.}
-\label{tab:dep}
-\begin{tabular}{r rrr rrr}
-\toprule
-& \multicolumn{3}{c}{Apple M1 Pro} & \multicolumn{3}{c}{Zen 5} \\
-\cmidrule(lr){2-4}\cmidrule(lr){5-7}
-Bytes & C2 & H64 & H128 & C2 & H64 & H128 \\
-\midrule
-8   &  9.54 &  7.88 &  9.25 & 4.97 & 4.29 & 4.90 \\
-16  &  9.77 &  7.87 &  9.25 & 5.06 & 4.29 & 4.90 \\
-32  & 11.34 &  8.41 & 10.52 & 5.80 & 4.30 & 5.63 \\
-64  & 12.91 &  9.68 & 11.74 & 6.61 & 5.13 & 6.45 \\
-128 & 16.52 & 12.18 & 14.46 & 8.31 & 6.84 & 8.12 \\
-\bottomrule
-\end{tabular}
-\end{table}
-
-\begin{table}[ht]
-\centering
-\small
-\caption{Small-input time in ns/hash with independent seeds.  Lower is
-better.}
-\label{tab:ind}
-\begin{tabular}{r rrr rrr}
-\toprule
-& \multicolumn{3}{c}{Apple M1 Pro} & \multicolumn{3}{c}{Zen 5} \\
-\cmidrule(lr){2-4}\cmidrule(lr){5-7}
-Bytes & C2 & H64 & H128 & C2 & H64 & H128 \\
-\midrule
-8   & 4.42 & 2.70 & 3.81 & 3.05 & 1.97 & 2.67 \\
-16  & 4.88 & 2.70 & 3.81 & 3.31 & 1.97 & 2.67 \\
-32  & 5.17 & 3.72 & 4.98 & 3.73 & 2.76 & 3.62 \\
-64  & 6.38 & 4.92 & 6.15 & 4.67 & 3.62 & 4.45 \\
-128 & 8.90 & 7.38 & 8.53 & 6.48 & 5.31 & 6.06 \\
-\bottomrule
-\end{tabular}
-\end{table}
-
-hayahash64 leads ChibiHash v2 in every transcribed cell and in every cell
-of the two archived records.  hayahash128 reaches bulk parity with
-hayahash64 on both hosts and costs 0.6 to 2.3~ns over it in the
-transcribed small-input cells; against the 64-bit ChibiHash v2 it leads in
-most recorded cells, and every exception in the records lies below 64
-bytes.
-These are measurements on two systems, not a general ordering.  Functions
-built on a widening product are faster where that product is cheap; they
-use a different primitive class, which is the point of the next
-measurement.
-
-The WebAssembly record runs the same harness logic inside a baseline
-wasm32 module, compiled with \texttt{zig cc} without SIMD or a wide
-multiply, under Node 26 on the M1 Pro
-(\path{paper/results/apple-m1-pro-wasm-hayahash128.txt}).
-Table~\ref{tab:wasm} transcribes it.  rapidhash, whose native speed rests
-on the widening multiply, sustains 6.43~GB/s in this runtime; the two
-Hayahash widths sustain 23.5~GB/s, ahead of every function in the
-harness at bulk sizes, while xxh64 leads the smallest keys.
-
-\begin{table}[ht]
-\centering
-\small
-\caption{Baseline wasm32 under Node 26 on the M1 Pro.  Bulk in GB/s
-(higher is better), 8-byte seed-chained latency in ns/hash (lower is
-better).}
-\label{tab:wasm}
-\begin{tabular}{l rrrrrr}
-\toprule
- & H64 & H128 & C2 & rapidhash & XXH3 & XXH64 \\
-\midrule
-16 KiB (GB/s)  & 23.38 & 23.21 & 18.48 & 6.40 & 17.24 & 14.67 \\
-1 MiB (GB/s)   & 23.55 & 23.34 & 18.57 & 6.43 & 17.41 & 14.71 \\
-8 B (ns)       &  7.7  & 10.6  & 10.4  & 22.6 &  8.2  &  5.9  \\
-\bottomrule
-\end{tabular}
-\end{table}
-
-The benchmark retains a median per cell rather than raw samples, so
-distribution estimates cannot be reconstructed from the archived logs; a
-harness revision that retains every sample is open work.
-
-\subsection{Cross-implementation conformance}
+\subsection{Conformance}
 \label{sec:conformance}
 
 The C reference is ported to Rust, Go, Zig, Java, C\#, Python, Swift,
-JavaScript, and MIPS64 assembly, each covering both digest widths.  Every
-port's test suite asserts the shared known-answer vectors, the 64-bit
-verification value, fixed 128-bit boundary vectors, and the invariant
-\(\mathtt{hayahash128.lo} = \mathtt{hayahash64}\).  Repository CI
-additionally runs a nightly differential harness that generates one
-C-reference corpus, random inputs and seeds, exhaustive lengths 0 to 384,
-and boundary-biased lengths through 128~KiB, and replays it through every
-port; endianness is covered by an s390x big-endian known-answer run under
-emulation, the ILP32 case by wasm32, and the Windows ABI by MSVC x64.
-
-Reproduced while preparing this draft, on the drafting host: the paper's
-reference check, 17 vectors for both widths plus both direct-interface
-verification values; the quality harness and streaming differential; and
-the Go, Rust, and Python suites.  Commands, toolchains, and results are
-archived in \path{paper/results/conformance.txt}.  The remaining ports
-were not run in this environment and rest on repository CI.
+JavaScript, and MIPS64 assembly, each covering both widths and asserting
+the shared vectors, the verification value, and
+\(\mathtt{hayahash128.lo} = \mathtt{hayahash64}\).  CI replays a nightly
+C-reference differential corpus through every port and covers big-endian
+(s390x under emulation), ILP32 (wasm32), and MSVC x64.  Rerun for this
+draft: the reference check for both widths and both verification values,
+the quality harness, and the Go, Rust, and Python suites
+(\path{paper/results/conformance.txt}).
 
 \section{Limitations and open work}
 \label{sec:limitations}
 
-Standing properties of the design or its stage:
+Standing properties: the algorithm is experimental and digests may change;
+there is no cryptographic or adversarial claim of any kind; the structural
+lemmas do not bound the complete construction; the harness and SMHasher3
+are statistical evidence only; the streaming state buffers up to 448
+bytes.
 
-\begin{itemize}
-\item The algorithm is experimental.  Constants, thresholds, and digests
-      may change; nothing should persist Hayahash values yet.
-\item There is no cryptographic security claim, no keyed-security
-      analysis, and no protection against adversarial hash-table inputs.
-\item The structural lemmas of Section~\ref{sec:properties} do not bound
-      collisions of the complete construction.
-\item The local harness is a deterministic smoke test; SMHasher3 is a
-      black-box statistical suite.  Neither bounds constructed inputs, and
-      an earlier digest passed the suite while a constructed collision
-      existed.
-\item The streaming state buffers up to 448 bytes; callers needing a
-      smaller state need a different construction.
-\end{itemize}
-
-Open work with defined completion criteria:
-
-\begin{itemize}
-\item An explicit model of the absorb recurrence and folds precise enough
-      that a bound or a counterexample is checkable, and either an
-      almost-universality-style bound comparable in form to PolymurHash's
-      statement \cite{peters2023polymurhash} or a documented argument why
-      the construction admits none.
-\item A rerunnable, archived differential search over the absorb chain
-      with pinned solver versions and bounds, replacing the informal
-      searches in the development notes.
-\item A multi-host, multi-compiler SMHasher3 sweep for the current digest
-      matching the superseded \texttt{v0.4.0} nine-build record, and an
-      archived raw full-suite run for both widths on bare metal.
-\item Benchmark coverage for MSVC, 32-bit targets, big-endian hardware,
-      and small in-order cores, and a harness revision that retains raw
-      samples and an environment manifest.
-\item A single generated, machine-readable vector table consumed by every
-      port's test suite, replacing the current copied tables.
-\end{itemize}
+Open work, each item filled in only with its artifacts: an explicit model
+of the absorb recurrence and folds, and either an almost-universality
+bound comparable in form to PolymurHash's \cite{peters2023polymurhash} or
+a documented argument why none exists; a rerunnable archived differential
+search over the absorb chain; a multi-host SMHasher3 sweep and archived
+raw full-suite runs for the current digest; the benchmark completion
+criteria of Section~\ref{sec:performance}; and one generated
+machine-readable vector table consumed by every port.
 
 \section{Reproducibility}
 \label{sec:repro}
@@ -1295,43 +879,26 @@ From the repository root at the paper snapshot:
 
 \begin{lstlisting}
 make -C paper check          # reference vectors, quality, snapshot
-make -C tests/smhasher3 run  # full suite, 64-bit registration
-make -C tests/smhasher3 run HASH=hayahash128
-make -B -C tests CC=clang ARCH=-mcpu=native \
-  CFLAGS="-O3 -std=c11 -Wall -Wextra" run-bench
+make -C tests/smhasher3 run  # full suite; HASH=hayahash128 for the wide one
 make -C paper                # build this PDF with Tectonic
 \end{lstlisting}
 
-\texttt{make -C paper check} compiles the reference check directly against
-\path{hayahash.h}, reruns the quality harness, and verifies that the
-snapshot register, the checkout, and the header digest agree.  The
-SMHasher3 targets clone the pinned upstream commit, install the
-translation, build, and run; they are separate from \texttt{check} because
-they fetch and build an external tool.  Benchmark reruns require
-\texttt{make -B} because the test Makefile does not track changed compiler
-variables.  A paper update that changes the algorithm snapshot must update
-the register, the known-answer vectors, the quality output, the affected
-tables, and the claim register as one reviewable change; the procedure is
-written out in \path{paper/README.md}.
+A snapshot change must update the register, the vectors, the quality
+output, and the claim register as one reviewable change; the procedure is
+in \path{paper/README.md}.
 
 \section{Conclusion}
 
-Hayahash explores a narrow question: how fast a hash can be when limited
-to portable scalar operations and the low half of 64-bit multiplication,
-under the constraint of one exact digest across every implementation.
-The mechanisms that answer it are a bulk loop whose carried path is one
-XOR and one multiplication across eight lanes, a chained absorb that is
-bijective on the stripe sequence, a length term absorbed in the finalizer,
-which is what permits an exact streaming interface, overlapping whole-word
-tails, and a 128-bit extraction from the same state walk whose low word is
-the 64-bit digest and whose short path is injective per length.  Each
-anti-collision mechanism is tied to a documented failure that produced it,
-and each carries a regression.  The current evidence, a deterministic
-local harness, SMHasher3 passes for both widths, benchmarks against the
-closest same-class function on two systems and one WebAssembly runtime,
-and nine conformant ports, justifies continued work.  It does not justify
-security claims or universal quality claims, and the paper is structured
-so that stronger claims can be added only together with their artifacts.
+Hayahash asks how fast a hash can be on portable scalar operations and the
+low half of 64-bit multiplication, under one exact digest across every
+implementation.  The answer is a bulk loop carrying one XOR and one
+multiplication across eight lanes, an absorb chain that is bijective on
+the stripe sequence, a length term in the finalizer that permits an exact
+streaming interface, and a 128-bit extraction whose low word is the 64-bit
+digest.  Every anti-collision mechanism is tied to a documented failure
+and a regression.  The evidence justifies continued work, not security or
+universal quality claims, and the paper is structured so that stronger
+claims can be added only together with their artifacts.
 
 \section*{Revision history}
 
@@ -1339,12 +906,12 @@ so that stronger claims can be added only together with their artifacts.
 \toprule
 Date & Paper snapshot & Change \\
 \midrule
-2026-08-09 & \texttt{v0.5.0} & Restructured: preface, introduction with
-the design case, specification of both digest widths and the streaming
-interface, structural properties as proved lemmas, rationale per
-mechanism.  Snapshot advanced to the \texttt{v0.5} digest; reference
-vectors regenerated for both widths; quality harness rerun; evaluation
-rebuilt on the current records; references trimmed to load-bearing
+2026-08-09 & \texttt{v0.5.0} & Restructured and condensed: preface,
+introduction with the design case, exact specification of both widths and
+the streaming interface, proved structural properties, compact design
+notes.  Snapshot advanced to the \texttt{v0.5} digest with regenerated
+vectors and a rerun quality harness; benchmark tables replaced by a
+placeholder with completion criteria; references trimmed to load-bearing
 entries. \\
 \addlinespace
 2026-08-01 & \texttt{v0.4.0} & Snapshot advanced to \texttt{v0.4.0} after

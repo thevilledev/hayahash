@@ -6,8 +6,8 @@ snapshot of Hayahash64.
 The draft is intentionally tied to a source revision. The audited commit,
 header digest, verification values, and date are defined once, in
 `snapshot.tex`; the LaTeX source and the Makefile checks both read from it.
-The paper's open-work list states completion criteria for missing evidence;
-fill items in only together with their artifacts.
+Placeholder sections and the open-work list state completion criteria for
+missing evidence; fill them in only together with their artifacts.
 
 ## Build
 
