@@ -1,14 +1,15 @@
 # hayahash for Python
 
-CPython C extension over [`hayahash.h`](../hayahash.h): a small, fast,
-portable 64-bit non-cryptographic hash for targets with ordinary
+CPython C extension over [`hayahash.h`](../hayahash.h): small, fast,
+portable 64- and 128-bit non-cryptographic hashes for targets with ordinary
 wrapping 64×64→64 multiply.
 
 ```python
-from hayahash import hayahash64
+from hayahash import hayahash128, hayahash64
 
 h = hayahash64(b"hello world", 0)
 h = hayahash64(data, seed=0x9E3779B97F4A7C15)
+lo, hi = hayahash128(data, seed=0x9E3779B97F4A7C15)
 ```
 
 Requires CPython 3.9+. Package version tracks the shared algorithm

@@ -200,6 +200,36 @@ public class KatTests
     }
 
     [Fact]
+    public void Hash128BoundaryVectors()
+    {
+        (int Length, ulong Hi)[] vectors =
+        [
+            (0, 0xBDBDB99AFC307BE6UL), (1, 0x38A7F291F946E326UL),
+            (3, 0xF41308B1E23E701AUL), (7, 0x598517B1629A2661UL),
+            (8, 0xE2EF4308D2736A10UL), (16, 0x26634ED944557F63UL),
+            (17, 0xE4F325B405DF676EUL), (31, 0xAF319AB2213F66A1UL),
+            (32, 0x9AA61D0A8145639AUL), (63, 0xF897985E74078907UL),
+            (64, 0x13611650F75C9D77UL), (319, 0x2369951A61744E5DUL),
+            (320, 0x4BCD20725C38B8B8UL), (1000, 0x8700DBF3171144A7UL),
+        ];
+        byte[] buf = new byte[1000];
+        uint x = 0x9E3779B9U;
+        for (int i = 0; i < buf.Length; i++)
+        {
+            x ^= x << 13;
+            x ^= x >> 17;
+            x ^= x << 5;
+            buf[i] = (byte)x;
+        }
+        foreach ((int length, ulong expectedHi) in vectors)
+        {
+            Digest128 wide = Hayahash.Hash128(buf, 0, length, 0x1234);
+            Assert.Equal(Hayahash.Hash64(buf, 0, length, 0x1234), wide.Lo);
+            Assert.Equal(expectedHi, wide.Hi);
+        }
+    }
+
+    [Fact]
     public void RangeOverloadMatchesCopy()
     {
         byte[] buf = KatBuffer();

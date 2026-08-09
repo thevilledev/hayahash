@@ -30,7 +30,7 @@ public class DifferentialTests
         }
 
         RequireRemaining(8);
-        Assert.Equal("HAYAFZ01", Encoding.ASCII.GetString(corpus, cursor, 8));
+        Assert.Equal("HAYAFZ02", Encoding.ASCII.GetString(corpus, cursor, 8));
         cursor += 8;
         RequireRemaining(12);
         uint caseCount = BinaryPrimitives.ReadUInt32LittleEndian(corpus.AsSpan(cursor));
@@ -40,20 +40,23 @@ public class DifferentialTests
 
         for (uint caseIndex = 0; caseIndex < caseCount; caseIndex++)
         {
-            RequireRemaining(20);
+            RequireRemaining(28);
             int length = BinaryPrimitives.ReadInt32LittleEndian(corpus.AsSpan(cursor));
             cursor += 4;
             ulong hashSeed = BinaryPrimitives.ReadUInt64LittleEndian(corpus.AsSpan(cursor));
             cursor += 8;
-            ulong expected = BinaryPrimitives.ReadUInt64LittleEndian(corpus.AsSpan(cursor));
+            ulong expectedLo = BinaryPrimitives.ReadUInt64LittleEndian(corpus.AsSpan(cursor));
+            cursor += 8;
+            ulong expectedHi = BinaryPrimitives.ReadUInt64LittleEndian(corpus.AsSpan(cursor));
             cursor += 8;
             RequireRemaining(length);
             int inputOffset = cursor;
-            ulong actual = Hayahash.Hash64(corpus, inputOffset, length, hashSeed);
+            Digest128 actual = Hayahash.Hash128(corpus, inputOffset, length, hashSeed);
             cursor = inputOffset + length;
             Assert.True(
-                expected == actual,
+                expectedLo == actual.Lo && expectedHi == actual.Hi,
                 $"case={caseIndex} len={length} hash_seed=0x{hashSeed:x16} corpus_prng_seed=0x{prngSeed:x16}");
+            Assert.Equal(Hayahash.Hash64(corpus, inputOffset, length, hashSeed), actual.Lo);
         }
 
         Assert.Equal(0, corpus.Length - cursor);

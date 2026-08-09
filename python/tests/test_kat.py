@@ -10,7 +10,7 @@ import struct
 
 import pytest
 
-from hayahash import hayahash64
+from hayahash import hayahash64, hayahash128
 
 
 # Deterministic key material shared with the C generator:
@@ -176,6 +176,37 @@ def test_hello_world_example() -> None:
 
 def test_default_seed_is_zero() -> None:
     assert hayahash64(b"hello world") == hayahash64(b"hello world", 0)
+
+
+def test_hayahash128_boundary_vectors() -> None:
+    vectors = [
+        (0, 0xBDBDB99AFC307BE6),
+        (1, 0x38A7F291F946E326),
+        (3, 0xF41308B1E23E701A),
+        (7, 0x598517B1629A2661),
+        (8, 0xE2EF4308D2736A10),
+        (16, 0x26634ED944557F63),
+        (17, 0xE4F325B405DF676E),
+        (31, 0xAF319AB2213F66A1),
+        (32, 0x9AA61D0A8145639A),
+        (63, 0xF897985E74078907),
+        (64, 0x13611650F75C9D77),
+        (319, 0x2369951A61744E5D),
+        (320, 0x4BCD20725C38B8B8),
+        (1000, 0x8700DBF3171144A7),
+    ]
+    buf = bytearray(1000)
+    x = 0x9E3779B9
+    for i in range(len(buf)):
+        x ^= (x << 13) & 0xFFFFFFFF
+        x ^= x >> 17
+        x ^= (x << 5) & 0xFFFFFFFF
+        x &= 0xFFFFFFFF
+        buf[i] = x & 0xFF
+    for length, expected_hi in vectors:
+        lo, hi = hayahash128(memoryview(buf)[:length], 0x1234)
+        assert lo == hayahash64(memoryview(buf)[:length], 0x1234)
+        assert hi == expected_hi
 
 
 def test_rejects_non_buffer() -> None:

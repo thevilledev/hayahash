@@ -59,3 +59,12 @@ uint64_t wasm_hayahash64(const uint8_t *p, uint32_t len, uint64_t seed)
 {
 	return hayahash64(p, (ptrdiff_t)len, seed);
 }
+
+__attribute__((export_name("hayahash128")))
+void wasm_hayahash128(const uint8_t *p, uint32_t len, uint64_t seed,
+                     uint64_t out[2])
+{
+	hayahash128_t digest = hayahash128(p, (ptrdiff_t)len, seed);
+	out[0] = digest.lo;
+	out[1] = digest.hi;
+}

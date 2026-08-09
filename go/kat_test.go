@@ -185,6 +185,38 @@ func TestSMHasher3VerificationValue(t *testing.T) {
 	}
 }
 
+func TestHash128BoundaryVectors(t *testing.T) {
+	vectors := []struct {
+		length int
+		hi     uint64
+	}{
+		{0, 0xBDBDB99AFC307BE6}, {1, 0x38A7F291F946E326},
+		{3, 0xF41308B1E23E701A}, {7, 0x598517B1629A2661},
+		{8, 0xE2EF4308D2736A10}, {16, 0x26634ED944557F63},
+		{17, 0xE4F325B405DF676E}, {31, 0xAF319AB2213F66A1},
+		{32, 0x9AA61D0A8145639A}, {63, 0xF897985E74078907},
+		{64, 0x13611650F75C9D77}, {319, 0x2369951A61744E5D},
+		{320, 0x4BCD20725C38B8B8}, {1000, 0x8700DBF3171144A7},
+	}
+	buf := make([]byte, 1000)
+	x := uint32(0x9E3779B9)
+	for i := range buf {
+		x ^= x << 13
+		x ^= x >> 17
+		x ^= x << 5
+		buf[i] = byte(x)
+	}
+	for _, vector := range vectors {
+		wide := hayahash.Hash128(buf[:vector.length], 0x1234)
+		if wide.Lo != hayahash.Hash64(buf[:vector.length], 0x1234) {
+			t.Errorf("len=%d: low word differs from Hash64", vector.length)
+		}
+		if wide.Hi != vector.hi {
+			t.Errorf("len=%d: high word got %#016X, want %#016X", vector.length, wide.Hi, vector.hi)
+		}
+	}
+}
+
 func ExampleHash64() {
 	fmt.Printf("%016X\n", hayahash.Hash64([]byte("hello world"), 0))
 	// Output: 4524B96611BFC05A

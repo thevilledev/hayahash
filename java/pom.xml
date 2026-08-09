@@ -10,7 +10,7 @@
   <packaging>jar</packaging>
 
   <name>hayahash</name>
-  <description>hayahash64, a small, fast, portable 64-bit hash function; bit-exact Java port of the C reference implementation</description>
+  <description>hayahash64 and hayahash128; bit-exact Java port of the C reference implementation</description>
   <url>https://github.com/thevilledev/hayahash</url>
 
   <licenses>

@@ -29,7 +29,7 @@ func TestDifferentialConformance(t *testing.T) {
 	readU32 := func() uint32 { return binary.LittleEndian.Uint32(take(4)) }
 	readU64 := func() uint64 { return binary.LittleEndian.Uint64(take(8)) }
 
-	if magic := string(take(8)); magic != "HAYAFZ01" {
+	if magic := string(take(8)); magic != "HAYAFZ02" {
 		t.Fatalf("invalid differential corpus magic %q", magic)
 	}
 	caseCount := readU32()
@@ -37,13 +37,18 @@ func TestDifferentialConformance(t *testing.T) {
 	for caseIndex := uint32(0); caseIndex < caseCount; caseIndex++ {
 		length := int(readU32())
 		hashSeed := readU64()
-		expected := readU64()
+		expectedLo := readU64()
+		expectedHi := readU64()
 		input := take(length)
-		if actual := hayahash.Hash64(input, hashSeed); actual != expected {
+		actual := hayahash.Hash128(input, hashSeed)
+		if actual.Lo != expectedLo || actual.Hi != expectedHi {
 			t.Fatalf(
-				"case=%d len=%d hash_seed=%#016x corpus_prng_seed=%#016x: got %#016x, want %#016x",
-				caseIndex, length, hashSeed, prngSeed, actual, expected,
+				"case=%d len=%d hash_seed=%#016x corpus_prng_seed=%#016x: got {%#016x,%#016x}, want {%#016x,%#016x}",
+				caseIndex, length, hashSeed, prngSeed, actual.Lo, actual.Hi, expectedLo, expectedHi,
 			)
+		}
+		if hayahash.Hash64(input, hashSeed) != actual.Lo {
+			t.Fatalf("case=%d: Hash128.Lo differs from Hash64", caseIndex)
 		}
 	}
 	if offset != len(corpus) {

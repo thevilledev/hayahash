@@ -198,6 +198,34 @@ final class KatTests: XCTestCase {
         XCTAssertEqual(Hayahash.hash64(input), Hayahash.hash64(input, seed: 0))
     }
 
+    func testHash128BoundaryVectors() {
+        let vectors: [(Int, UInt64)] = [
+            (0, 0xBDBDB99AFC307BE6), (1, 0x38A7F291F946E326),
+            (3, 0xF41308B1E23E701A), (7, 0x598517B1629A2661),
+            (8, 0xE2EF4308D2736A10), (16, 0x26634ED944557F63),
+            (17, 0xE4F325B405DF676E), (31, 0xAF319AB2213F66A1),
+            (32, 0x9AA61D0A8145639A), (63, 0xF897985E74078907),
+            (64, 0x13611650F75C9D77), (319, 0x2369951A61744E5D),
+            (320, 0x4BCD20725C38B8B8), (1000, 0x8700DBF3171144A7),
+        ]
+        var buf = [UInt8](repeating: 0, count: 1000)
+        var x: UInt32 = 0x9E3779B9
+        for i in buf.indices {
+            x ^= x << 13
+            x ^= x >> 17
+            x ^= x << 5
+            buf[i] = UInt8(truncatingIfNeeded: x)
+        }
+        for (length, expectedHi) in vectors {
+            let wide = Hayahash.hash128(buf, offset: 0, length: length, seed: 0x1234)
+            XCTAssertEqual(
+                wide.lo,
+                Hayahash.hash64(buf, offset: 0, length: length, seed: 0x1234)
+            )
+            XCTAssertEqual(wide.hi, expectedHi, "len=\(length)")
+        }
+    }
+
     func testRangeOverloadMatchesCopy() {
         let buf = Self.katBuffer()
         let offsets = [0, 1, 7, 13, 64, 401]

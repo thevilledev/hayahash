@@ -1,5 +1,5 @@
 /*
- * hayahash64 - small, fast, portable 64-bit hash function.
+ * hayahash64 and hayahash128 - small, fast, portable hash functions.
  *
  * This is free and unencumbered software released into the public
  * domain. For more information, please refer to https://unlicense.org/
@@ -10,8 +10,27 @@ using System.Runtime.CompilerServices;
 
 namespace Hayahash;
 
+/// <summary>A 128-bit digest represented as two words.</summary>
+public readonly record struct Digest128
+{
+    /// <summary>Creates a two-word digest.</summary>
+    /// <param name="lo">The low word.</param>
+    /// <param name="hi">The high word.</param>
+    public Digest128(ulong lo, ulong hi)
+    {
+        Lo = lo;
+        Hi = hi;
+    }
+
+    /// <summary>The low word, exactly <see cref="Hayahash.Hash64(ReadOnlySpan{byte}, ulong)"/>.</summary>
+    public ulong Lo { get; }
+
+    /// <summary>The algebraically independent high word.</summary>
+    public ulong Hi { get; }
+}
+
 /// <summary>
-/// hayahash64, a small, fast, portable 64-bit hash function.
+/// hayahash64 and hayahash128, small, fast, portable hash functions.
 /// </summary>
 /// <remarks>
 /// <para>
@@ -40,6 +59,8 @@ public static class Hayahash
     // second multiplier of the short path.
     private const ulong M1 = 0x3C79AC492BA7B653UL;
     private const ulong M2 = 0x1C69B3F74AC4AE35UL;
+    private const ulong N1 = 0xFF51AFD7ED558CCDUL;
+    private const ulong N2 = 0xC4CEB9FE1A85EC53UL;
 
     // Input length (in bytes) at or above which the 8-lane bulk loop
     // kicks in.
@@ -85,6 +106,26 @@ public static class Hayahash
         return Hash64(key.AsSpan(offset, length), seed);
     }
 
+    /// <summary>Hashes <paramref name="key"/> once and returns both output words.</summary>
+    /// <param name="key">The bytes to hash.</param>
+    /// <param name="seed">The seed.</param>
+    /// <returns>A digest whose low word is exactly <see cref="Hash64(ReadOnlySpan{byte}, ulong)"/>.</returns>
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    public static Digest128 Hash128(ReadOnlySpan<byte> key, ulong seed)
+        => Hash128Impl(key, seed);
+
+    /// <summary>Hashes a byte-array range once and returns both output words.</summary>
+    /// <param name="key">The array holding the bytes to hash.</param>
+    /// <param name="offset">The index of the first byte to hash.</param>
+    /// <param name="length">The number of bytes to hash.</param>
+    /// <param name="seed">The seed.</param>
+    /// <returns>A 128-bit digest.</returns>
+    public static Digest128 Hash128(byte[] key, int offset, int length, ulong seed)
+    {
+        ArgumentNullException.ThrowIfNull(key);
+        return Hash128(key.AsSpan(offset, length), seed);
+    }
+
     private static ulong HashImpl(ReadOnlySpan<byte> key, ulong seed)
     {
         // The seed premixes into s; the length is absorbed in the
@@ -101,6 +142,140 @@ public static class Hayahash
             return HashShort(key, s);
         }
         return HashLong(key, s);
+    }
+
+    private static Digest128 Hash128Impl(ReadOnlySpan<byte> key, ulong seed)
+    {
+        ulong s = seed ^ K;
+        if (key.Length <= 16)
+        {
+            return Hash128Short(key, s);
+        }
+        return Hash128Long(key, s);
+    }
+
+    private static Digest128 Hash128Short(ReadOnlySpan<byte> key, ulong s)
+    {
+        int len = key.Length;
+        ulong a;
+        ulong b;
+        if (len >= 8)
+        {
+            a = Load64(key);
+            b = Load64(key.Slice(len - 8));
+        }
+        else if (len >= 4)
+        {
+            a = Load32(key);
+            b = Load32(key.Slice(len - 4));
+        }
+        else if (len > 0)
+        {
+            a = key[0];
+            b = ((ulong)key[len >> 1] << 8) | ((ulong)key[len - 1] << 16);
+        }
+        else
+        {
+            a = 0;
+            b = 0;
+        }
+        ulong x = (Inj(a) ^ s ^ K) * K;
+        ulong y = (Inj2(b) ^ Rotl(s, 23) ^ (K >> 19)) * M1;
+        ulong u = Rotl(x, 27) ^ y ^ ((ulong)(uint)len * K);
+        return new Digest128(Fmix(u), Fmix128(x + Rotl(u, 32)));
+    }
+
+    private static Digest128 Hash128Long(ReadOnlySpan<byte> key, ulong s)
+    {
+        ulong h0 = s ^ K;
+        ulong h1 = Rotl(s, 17) + (K << 21);
+        ulong h2 = Rotl(s, 34) ^ (K >> 13);
+        ulong h3 = Rotl(s, 51) + (K << 42);
+        ulong w;
+        ulong wp = 0;
+        int p = 0;
+        int l = key.Length;
+
+        if (l >= BulkMin)
+        {
+            ulong h4 = s + (K >> 27);
+            ulong h5 = Rotl(s, 13) ^ (K << 9);
+            ulong h6 = Rotl(s, 26) + (K >> 40);
+            ulong h7 = Rotl(s, 39) ^ (K << 30);
+            do
+            {
+                w = Load64(key, p);
+                h0 = (h0 ^ (w + Rotl(wp, 27))) * K;
+                wp = w;
+                w = Load64(key, p + 8);
+                h1 = (h1 ^ (w + Rotl(wp, 27))) * K;
+                wp = w;
+                w = Load64(key, p + 16);
+                h2 = (h2 ^ (w + Rotl(wp, 27))) * K;
+                wp = w;
+                w = Load64(key, p + 24);
+                h3 = (h3 ^ (w + Rotl(wp, 27))) * K;
+                wp = w;
+                w = Load64(key, p + 32);
+                h4 = (h4 ^ (w + Rotl(wp, 27))) * K;
+                wp = w;
+                w = Load64(key, p + 40);
+                h5 = (h5 ^ (w + Rotl(wp, 27))) * K;
+                wp = w;
+                w = Load64(key, p + 48);
+                h6 = (h6 ^ (w + Rotl(wp, 27))) * K;
+                wp = w;
+                w = Load64(key, p + 56);
+                h7 = (h7 ^ (w + Rotl(wp, 27))) * K;
+                wp = w;
+                h0 += wp;
+                p += 64;
+                l -= 64;
+            } while (l >= 64);
+            h0 = (h0 ^ Rotl(h4, 11)) * K;
+            h1 = (h1 ^ Rotl(h5, 19)) * K;
+            h2 = (h2 ^ Rotl(h6, 31)) * K;
+            h3 = (h3 ^ Rotl(h7, 47)) * K;
+        }
+
+        for (; l >= 32; l -= 32, p += 32)
+        {
+            w = Load64(key, p);
+            h0 = (h0 ^ (w + Rotl(wp, 27))) * K;
+            wp = w;
+            w = Load64(key, p + 8);
+            h1 = (h1 ^ (w + Rotl(wp, 27))) * K;
+            wp = w;
+            w = Load64(key, p + 16);
+            h2 = (h2 ^ (w + Rotl(wp, 27))) * K;
+            wp = w;
+            w = Load64(key, p + 24);
+            h3 = (h3 ^ (w + Rotl(wp, 27))) * K;
+            wp = w;
+        }
+
+        h0 += Rotl(wp, 27);
+        if (l > 16)
+        {
+            h0 = (h0 + InjAt(key, p)) * K;
+            h1 = (h1 + InjAt(key, p + 8)) * K;
+            p += 16;
+            l -= 16;
+        }
+        if (l > 0)
+        {
+            h2 = (h2 + InjAt(key, p + l - 16)) * K;
+            h3 = (h3 + InjAt(key, p + l - 8)) * K;
+        }
+
+        ulong t0 = (h0 ^ Rotl(h1, 13) ^ ((ulong)(uint)key.Length * K)) * K;
+        ulong t1 = (h2 ^ Rotl(h3, 33)) * K;
+        ulong x = s ^ t0 ^ Rotl(t1, 29);
+        x ^= x >> 37;
+        x *= K;
+        return new Digest128(
+            x ^ (x >> 32),
+            Fmix128(Rotl(s, 32) ^ (t1 + Rotl(t0, 47))));
     }
 
     // Inputs of at most 16 bytes: two independent multiplies (one per
@@ -261,6 +436,16 @@ public static class Hayahash
         x ^= x >> 33;
         x *= M2;
         return x ^ (x >> 27);
+    }
+
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    private static ulong Fmix128(ulong x)
+    {
+        x ^= x >> 30;
+        x *= N1;
+        x ^= x >> 31;
+        x *= N2;
+        return x ^ (x >> 33);
     }
 
     // inj and inj2 are bijective stripe injections (any odd number of

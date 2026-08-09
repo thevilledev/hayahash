@@ -1,8 +1,8 @@
-// hayahash64 - small, fast, portable 64-bit hash function.
+// hayahash64 and hayahash128 - small, fast, portable hash functions.
 //
 // npm port of the reference C implementation (hayahash.h at the
 // repository root); see that header for the full design notes. The
-// fast path runs the reference header itself, compiled to a ~1.4 KB
+// fast path runs the reference header itself, compiled to a ~3 KB
 // WebAssembly module; a pure-JS BigInt port takes over where wasm is
 // unavailable. Output is identical for every input and seed on every
 // platform and engine.
@@ -10,7 +10,7 @@
 // This is free and unencumbered software released into the public
 // domain. For more information, please refer to <https://unlicense.org/>
 
-import { hashPure } from "./pure.js";
+import { hash128Pure, hashPure, type Hash128 } from "./pure.js";
 import { initWasm, initWasmFromModule } from "./wasm.js";
 
 const MASK64 = 0xffffffffffffffffn;
@@ -25,8 +25,9 @@ const encoder = new TextEncoder();
 /** Input accepted by the hash functions: raw bytes, or a string
  * (hashed as its UTF-8 encoding). */
 export type HayahashInput = Uint8Array | string;
+export type { Hash128 };
 
-/** Which engine `hayahash64` currently uses: `"wasm"` (the reference
+/** Which engine the hash functions currently use: `"wasm"` (the reference
  * C header compiled to WebAssembly) or `"js"` (the pure BigInt
  * fallback). */
 export function getEngine(): "wasm" | "js" {
@@ -79,6 +80,19 @@ export function hayahash64(input: HayahashInput, seed: bigint | number = 0n): bi
 	return hashPure(data, s);
 }
 
+/** Hashes `input` once and returns `{ lo, hi }`. `lo` is exactly
+ * `hayahash64` for the same input and seed. */
+export function hayahash128(
+	input: HayahashInput,
+	seed: bigint | number = 0n,
+): Hash128 {
+	const [data, s] = normalize(input, seed);
+	if (wasm !== null && data.length <= WASM_MAX_LEN) {
+		return wasm.hash128(data, s);
+	}
+	return hash128Pure(data, s);
+}
+
 /**
  * Same digest as `hayahash64`, always computed by the pure-JS BigInt
  * engine. Slow; exists for environments without WebAssembly and as
@@ -88,4 +102,13 @@ export function hayahash64(input: HayahashInput, seed: bigint | number = 0n): bi
 export function hayahash64Pure(input: HayahashInput, seed: bigint | number = 0n): bigint {
 	const [data, s] = normalize(input, seed);
 	return hashPure(data, s);
+}
+
+/** Pure-JavaScript form of `hayahash128`. */
+export function hayahash128Pure(
+	input: HayahashInput,
+	seed: bigint | number = 0n,
+): Hash128 {
+	const [data, s] = normalize(input, seed);
+	return hash128Pure(data, s);
 }

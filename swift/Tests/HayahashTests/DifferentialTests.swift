@@ -46,7 +46,7 @@ final class DifferentialTests: XCTestCase {
         requireRemaining(8)
         let magic = String(decoding: corpus[cursor..<(cursor + 8)], as: UTF8.self)
         cursor += 8
-        XCTAssertEqual(magic, "HAYAFZ01")
+        XCTAssertEqual(magic, "HAYAFZ02")
 
         let caseCount = readUInt32()
         let prngSeed = readUInt64()
@@ -54,21 +54,27 @@ final class DifferentialTests: XCTestCase {
         for caseIndex in 0..<caseCount {
             let length = Int(readUInt32())
             let hashSeed = readUInt64()
-            let expected = readUInt64()
+            let expectedLo = readUInt64()
+            let expectedHi = readUInt64()
             requireRemaining(length)
             let inputOffset = cursor
-            let actual = corpus.withUnsafeBytes { buf in
-                Hayahash.hash64(
-                    UnsafeRawBufferPointer(rebasing: buf[inputOffset..<(inputOffset + length)]),
-                    seed: hashSeed
+            let (actual, narrow) = corpus.withUnsafeBytes { buf in
+                let input = UnsafeRawBufferPointer(
+                    rebasing: buf[inputOffset..<(inputOffset + length)]
+                )
+                return (
+                    Hayahash.hash128(input, seed: hashSeed),
+                    Hayahash.hash64(input, seed: hashSeed)
                 )
             }
             cursor = inputOffset + length
             XCTAssertEqual(
-                actual,
-                expected,
+                actual.lo,
+                expectedLo,
                 "case=\(caseIndex) len=\(length) hash_seed=0x\(String(hashSeed, radix: 16)) corpus_prng_seed=0x\(String(prngSeed, radix: 16))"
             )
+            XCTAssertEqual(actual.hi, expectedHi)
+            XCTAssertEqual(actual.lo, narrow)
         }
 
         XCTAssertEqual(cursor, corpus.count, "trailing bytes in differential corpus")

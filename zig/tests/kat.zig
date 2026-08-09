@@ -168,3 +168,36 @@ test "smhasher3 verification value" {
     const total = hayahash.hayahash64(&hashes, 0);
     try std.testing.expectEqual(0x65F2AC15, @as(u32, @truncate(total)));
 }
+
+test "hayahash128 boundary vectors" {
+    const Vector128 = struct { len: usize, hi: u64 };
+    const wide_vectors = [_]Vector128{
+        .{ .len = 0, .hi = 0xBDBDB99AFC307BE6 },
+        .{ .len = 1, .hi = 0x38A7F291F946E326 },
+        .{ .len = 3, .hi = 0xF41308B1E23E701A },
+        .{ .len = 7, .hi = 0x598517B1629A2661 },
+        .{ .len = 8, .hi = 0xE2EF4308D2736A10 },
+        .{ .len = 16, .hi = 0x26634ED944557F63 },
+        .{ .len = 17, .hi = 0xE4F325B405DF676E },
+        .{ .len = 31, .hi = 0xAF319AB2213F66A1 },
+        .{ .len = 32, .hi = 0x9AA61D0A8145639A },
+        .{ .len = 63, .hi = 0xF897985E74078907 },
+        .{ .len = 64, .hi = 0x13611650F75C9D77 },
+        .{ .len = 319, .hi = 0x2369951A61744E5D },
+        .{ .len = 320, .hi = 0x4BCD20725C38B8B8 },
+        .{ .len = 1000, .hi = 0x8700DBF3171144A7 },
+    };
+    var buf: [1000]u8 = undefined;
+    var x: u32 = 0x9E3779B9;
+    for (&buf) |*byte| {
+        x ^= x << 13;
+        x ^= x >> 17;
+        x ^= x << 5;
+        byte.* = @truncate(x);
+    }
+    for (wide_vectors) |vector| {
+        const wide = hayahash.hayahash128(buf[0..vector.len], 0x1234);
+        try std.testing.expectEqual(hayahash.hayahash64(buf[0..vector.len], 0x1234), wide.lo);
+        try std.testing.expectEqual(vector.hi, wide.hi);
+    }
+}

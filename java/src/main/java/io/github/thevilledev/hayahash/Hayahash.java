@@ -1,5 +1,5 @@
 /*
- * hayahash64 - small, fast, portable 64-bit hash function.
+ * hayahash64 and hayahash128 - small, fast, portable hash functions.
  *
  * This is free and unencumbered software released into the public
  * domain. For more information, please refer to https://unlicense.org/
@@ -12,7 +12,7 @@ import java.nio.ByteOrder;
 import java.util.Objects;
 
 /**
- * hayahash64, a small, fast, portable 64-bit hash function.
+ * hayahash64 and hayahash128, small, fast, portable hash functions.
  *
  * <p>This is a bit-exact Java port of the reference C implementation ({@code hayahash.h} at the
  * repository root); see that header for the full design notes. Output is identical for every input
@@ -24,7 +24,8 @@ import java.util.Objects;
  * rotations and logical shifts, and loads go through little-endian {@link VarHandle} byte-array
  * views, which HotSpot compiles to single load instructions.
  *
- * <p>All methods are static, allocation-free, and thread-safe.
+ * <p>All methods are static and thread-safe. The 64-bit API is allocation-free; the 128-bit API
+ * returns a compact two-word value record.
  */
 public final class Hayahash {
 
@@ -41,12 +42,19 @@ public final class Hayahash {
   // second multiplier of the short path.
   private static final long M1 = 0x3C79AC492BA7B653L;
   private static final long M2 = 0x1C69B3F74AC4AE35L;
+  private static final long N1 = 0xFF51AFD7ED558CCDL;
+  private static final long N2 = 0xC4CEB9FE1A85EC53L;
 
   // Input length (in bytes) at or above which the 8-lane bulk loop
   // kicks in.
   private static final int BULK_MIN = 320;
 
   private Hayahash() {}
+
+  /**
+   * A 128-bit digest represented as two words. {@code lo} is exactly {@link #hash64(byte[], long)}.
+   */
+  public record Hash128(long lo, long hi) {}
 
   /**
    * Hashes {@code key} with {@code seed}, returning a 64-bit digest.
@@ -82,6 +90,17 @@ public final class Hayahash {
     return hashImpl(key, offset, length, seed);
   }
 
+  /** Hashes {@code key} once and returns both output words. */
+  public static Hash128 hash128(byte[] key, long seed) {
+    return hash128Impl(key, 0, key.length, seed);
+  }
+
+  /** Hashes a byte-array range once and returns both output words. */
+  public static Hash128 hash128(byte[] key, int offset, int length, long seed) {
+    Objects.checkFromIndexSize(offset, length, key.length);
+    return hash128Impl(key, offset, length, seed);
+  }
+
   private static long hashImpl(byte[] key, int off, int len, long seed) {
     // The seed premixes into s; the length is absorbed in the
     // finalizer instead (through a multiply against state), so the
@@ -94,6 +113,124 @@ public final class Hayahash {
       return hashShort(key, off, len, s);
     }
     return hashLong(key, off, len, s);
+  }
+
+  private static Hash128 hash128Impl(byte[] key, int off, int len, long seed) {
+    long s = seed ^ K;
+    if (len <= 16) {
+      return hash128Short(key, off, len, s);
+    }
+    return hash128Long(key, off, len, s);
+  }
+
+  private static Hash128 hash128Short(byte[] key, int off, int len, long s) {
+    long a;
+    long b;
+    if (len >= 8) {
+      a = load64(key, off);
+      b = load64(key, off + len - 8);
+    } else if (len >= 4) {
+      a = load32(key, off);
+      b = load32(key, off + len - 4);
+    } else if (len > 0) {
+      a = Byte.toUnsignedLong(key[off]);
+      b =
+          Byte.toUnsignedLong(key[off + (len >> 1)]) << 8
+              | Byte.toUnsignedLong(key[off + len - 1]) << 16;
+    } else {
+      a = 0;
+      b = 0;
+    }
+    long x = (inj(a) ^ s ^ K) * K;
+    long y = (inj2(b) ^ Long.rotateLeft(s, 23) ^ (K >>> 19)) * M1;
+    long u = Long.rotateLeft(x, 27) ^ y ^ (long) len * K;
+    return new Hash128(fmix(u), fmix128(x + Long.rotateLeft(u, 32)));
+  }
+
+  private static Hash128 hash128Long(byte[] key, int off, int len, long s) {
+    long h0 = s ^ K;
+    long h1 = Long.rotateLeft(s, 17) + (K << 21);
+    long h2 = Long.rotateLeft(s, 34) ^ (K >>> 13);
+    long h3 = Long.rotateLeft(s, 51) + (K << 42);
+    long w;
+    long wp = 0;
+    int p = off;
+    int l = len;
+
+    if (l >= BULK_MIN) {
+      long h4 = s + (K >>> 27);
+      long h5 = Long.rotateLeft(s, 13) ^ (K << 9);
+      long h6 = Long.rotateLeft(s, 26) + (K >>> 40);
+      long h7 = Long.rotateLeft(s, 39) ^ (K << 30);
+      do {
+        w = load64(key, p);
+        h0 = (h0 ^ (w + Long.rotateLeft(wp, 27))) * K;
+        wp = w;
+        w = load64(key, p + 8);
+        h1 = (h1 ^ (w + Long.rotateLeft(wp, 27))) * K;
+        wp = w;
+        w = load64(key, p + 16);
+        h2 = (h2 ^ (w + Long.rotateLeft(wp, 27))) * K;
+        wp = w;
+        w = load64(key, p + 24);
+        h3 = (h3 ^ (w + Long.rotateLeft(wp, 27))) * K;
+        wp = w;
+        w = load64(key, p + 32);
+        h4 = (h4 ^ (w + Long.rotateLeft(wp, 27))) * K;
+        wp = w;
+        w = load64(key, p + 40);
+        h5 = (h5 ^ (w + Long.rotateLeft(wp, 27))) * K;
+        wp = w;
+        w = load64(key, p + 48);
+        h6 = (h6 ^ (w + Long.rotateLeft(wp, 27))) * K;
+        wp = w;
+        w = load64(key, p + 56);
+        h7 = (h7 ^ (w + Long.rotateLeft(wp, 27))) * K;
+        wp = w;
+        h0 += wp;
+        p += 64;
+        l -= 64;
+      } while (l >= 64);
+      h0 = (h0 ^ Long.rotateLeft(h4, 11)) * K;
+      h1 = (h1 ^ Long.rotateLeft(h5, 19)) * K;
+      h2 = (h2 ^ Long.rotateLeft(h6, 31)) * K;
+      h3 = (h3 ^ Long.rotateLeft(h7, 47)) * K;
+    }
+
+    for (; l >= 32; l -= 32, p += 32) {
+      w = load64(key, p);
+      h0 = (h0 ^ (w + Long.rotateLeft(wp, 27))) * K;
+      wp = w;
+      w = load64(key, p + 8);
+      h1 = (h1 ^ (w + Long.rotateLeft(wp, 27))) * K;
+      wp = w;
+      w = load64(key, p + 16);
+      h2 = (h2 ^ (w + Long.rotateLeft(wp, 27))) * K;
+      wp = w;
+      w = load64(key, p + 24);
+      h3 = (h3 ^ (w + Long.rotateLeft(wp, 27))) * K;
+      wp = w;
+    }
+
+    h0 += Long.rotateLeft(wp, 27);
+    if (l > 16) {
+      h0 = (h0 + injAt(key, p)) * K;
+      h1 = (h1 + injAt(key, p + 8)) * K;
+      p += 16;
+      l -= 16;
+    }
+    if (l > 0) {
+      h2 = (h2 + injAt(key, p + l - 16)) * K;
+      h3 = (h3 + injAt(key, p + l - 8)) * K;
+    }
+
+    long t0 = (h0 ^ Long.rotateLeft(h1, 13) ^ (long) len * K) * K;
+    long t1 = (h2 ^ Long.rotateLeft(h3, 33)) * K;
+    long x = s ^ t0 ^ Long.rotateLeft(t1, 29);
+    x ^= x >>> 37;
+    x *= K;
+    return new Hash128(
+        x ^ (x >>> 32), fmix128(Long.rotateLeft(s, 32) ^ (t1 + Long.rotateLeft(t0, 47))));
   }
 
   // Inputs of at most 16 bytes: two independent multiplies (one per
@@ -236,6 +373,14 @@ public final class Hayahash {
     x ^= x >>> 33;
     x *= M2;
     return x ^ (x >>> 27);
+  }
+
+  private static long fmix128(long x) {
+    x ^= x >>> 30;
+    x *= N1;
+    x ^= x >>> 31;
+    x *= N2;
+    return x ^ (x >>> 33);
   }
 
   // inj and inj2 are bijective stripe injections (any odd number of

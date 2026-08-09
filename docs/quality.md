@@ -45,14 +45,16 @@ one-shot and streaming equality and `hayahash128.lo == hayahash64`.
 ## Cross-port conformance
 
 The Rust, Go, Zig, Java, C#, Python, Swift, JavaScript, and MIPS64
-assembly ports of hayahash64 are bit-exact against the C reference:
-each port's test suite checks the SMHasher3 verification value and a
-shared table of known-answer vectors generated from `hayahash.h`.
+assembly ports of both digest widths are bit-exact against the C reference:
+each port's test suite checks the 64-bit SMHasher3 verification value,
+shared 64-bit known-answer vectors, fixed 128-bit boundary vectors, and
+the invariant `hayahash128.lo == hayahash64`.
 (The JavaScript package checks both of its engines: the wasm build of
 the reference header and the pure-JS fallback.)
 
 Nightly differential conformance fuzzing generates one C-reference
-corpus with random input bytes, random 64-bit hash seeds, exhaustive
+corpus containing both output words, with random input bytes, random
+64-bit hash seeds, exhaustive
 lengths 0..384, and boundary-biased random lengths through the
 128 KiB edge. Every language port consumes the identical corpus
 (including both JavaScript engines); the MIPS assembly port is not in

@@ -10,7 +10,14 @@ import assert from "node:assert/strict";
 import { readFile } from "node:fs/promises";
 import { test } from "node:test";
 
-import { getEngine, hayahash64, hayahash64Pure, setWasmModule } from "../dist/index.js";
+import {
+	getEngine,
+	hayahash128,
+	hayahash128Pure,
+	hayahash64,
+	hayahash64Pure,
+	setWasmModule,
+} from "../dist/index.js";
 
 const K = 0x9e3779b97f4a7c15n;
 
@@ -198,6 +205,33 @@ test("string input is hashed as UTF-8", () => {
 		hayahash64("häyähäsh \u{1F680}"),
 		hayahash64(new TextEncoder().encode("häyähäsh \u{1F680}")),
 	);
+});
+
+test("hayahash128 boundary vectors (wasm and pure JS)", () => {
+	const vectors128 = [
+		[0, 0xbdbdb99afc307be6n], [1, 0x38a7f291f946e326n],
+		[3, 0xf41308b1e23e701an], [7, 0x598517b1629a2661n],
+		[8, 0xe2ef4308d2736a10n], [16, 0x26634ed944557f63n],
+		[17, 0xe4f325b405df676en], [31, 0xaf319ab2213f66a1n],
+		[32, 0x9aa61d0a8145639an], [63, 0xf897985e74078907n],
+		[64, 0x13611650f75c9d77n], [319, 0x2369951a61744e5dn],
+		[320, 0x4bcd20725c38b8b8n], [1000, 0x8700dbf3171144a7n],
+	];
+	const buf = new Uint8Array(1000);
+	let x = 0x9e3779b9;
+	for (let i = 0; i < buf.length; i++) {
+		x ^= (x << 13) | 0;
+		x ^= x >>> 17;
+		x ^= (x << 5) | 0;
+		buf[i] = x & 0xff;
+	}
+	for (const [length, hi] of vectors128) {
+		for (const [wide, narrow] of [[hayahash128, hayahash64], [hayahash128Pure, hayahash64Pure]]) {
+			const actual = wide(buf.subarray(0, length), 0x1234n);
+			assert.equal(actual.lo, narrow(buf.subarray(0, length), 0x1234n));
+			assert.equal(actual.hi, hi, `len=${length}`);
+		}
+	}
 });
 
 test("seed handling", () => {

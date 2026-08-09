@@ -197,6 +197,33 @@ class KatTest {
   }
 
   @Test
+  void hash128BoundaryVectors() {
+    long[][] vectors = {
+      {0, 0xBDBDB99AFC307BE6L}, {1, 0x38A7F291F946E326L},
+      {3, 0xF41308B1E23E701AL}, {7, 0x598517B1629A2661L},
+      {8, 0xE2EF4308D2736A10L}, {16, 0x26634ED944557F63L},
+      {17, 0xE4F325B405DF676EL}, {31, 0xAF319AB2213F66A1L},
+      {32, 0x9AA61D0A8145639AL}, {63, 0xF897985E74078907L},
+      {64, 0x13611650F75C9D77L}, {319, 0x2369951A61744E5DL},
+      {320, 0x4BCD20725C38B8B8L}, {1000, 0x8700DBF3171144A7L},
+    };
+    byte[] buf = new byte[1000];
+    int x = 0x9E3779B9;
+    for (int i = 0; i < buf.length; i++) {
+      x ^= x << 13;
+      x ^= x >>> 17;
+      x ^= x << 5;
+      buf[i] = (byte) x;
+    }
+    for (long[] vector : vectors) {
+      int length = (int) vector[0];
+      Hayahash.Hash128 wide = Hayahash.hash128(buf, 0, length, 0x1234);
+      assertEquals(Hayahash.hash64(buf, 0, length, 0x1234), wide.lo());
+      assertEquals(vector[1], wide.hi(), "len=" + length);
+    }
+  }
+
+  @Test
   void rangeOverloadMatchesCopy() {
     byte[] buf = katBuffer();
     int[] offsets = {0, 1, 7, 13, 64, 401};

@@ -8,6 +8,7 @@
 // domain. For more information, please refer to <https://unlicense.org/>
 
 import { wasmBase64 } from "./wasm-module.js";
+import type { Hash128 } from "./pure.js";
 
 const PAGE = 65536;
 
@@ -15,10 +16,12 @@ interface WasmApi {
 	memory: WebAssembly.Memory;
 	__heap_base: WebAssembly.Global;
 	hayahash64: (ptr: number, len: number, seed: bigint) => bigint;
+	hayahash128: (ptr: number, len: number, seed: bigint, out: number) => void;
 }
 
 export interface Engine {
 	hash(data: Uint8Array, seed: bigint): bigint;
+	hash128(data: Uint8Array, seed: bigint): Hash128;
 }
 
 function decodeBase64(b64: string): Uint8Array<ArrayBuffer> {
@@ -41,11 +44,12 @@ export function initWasmFromModule(module: WebAssembly.Module): Engine {
 	const api = instance.exports as unknown as WasmApi;
 	if (
 		typeof api.hayahash64 !== "function" ||
+		typeof api.hayahash128 !== "function" ||
 		!(api.memory instanceof WebAssembly.Memory) ||
 		typeof api.__heap_base?.value !== "number"
 	) {
 		throw new TypeError(
-			"not a hayahash wasm module (expected exports: hayahash64, memory, __heap_base)",
+			"not a hayahash wasm module (expected exports: hayahash64, hayahash128, memory, __heap_base)",
 		);
 	}
 	const memory = api.memory;
@@ -64,6 +68,23 @@ export function initWasmFromModule(module: WebAssembly.Module): Engine {
 			mem.set(data, heapBase);
 			return BigInt.asUintN(64, api.hayahash64(heapBase, data.length, seed));
 		},
+		hash128(data: Uint8Array, seed: bigint): Hash128 {
+			const input = heapBase + 16;
+			const needed = input + data.length;
+			if (memory.buffer.byteLength < needed) {
+				memory.grow(Math.ceil((needed - memory.buffer.byteLength) / PAGE));
+			}
+			if (mem.buffer !== memory.buffer) {
+				mem = new Uint8Array(memory.buffer);
+			}
+			mem.set(data, input);
+			api.hayahash128(input, data.length, seed, heapBase);
+			const view = new DataView(memory.buffer);
+			return {
+				lo: view.getBigUint64(heapBase, true),
+				hi: view.getBigUint64(heapBase + 8, true),
+			};
+		},
 	};
 }
 
@@ -71,7 +92,7 @@ export function initWasmFromModule(module: WebAssembly.Module): Engine {
 // embedded bytes is blocked (a Content Security Policy without
 // 'wasm-unsafe-eval', or edge runtimes like Cloudflare Workers that
 // disallow runtime wasm compilation); index.ts then falls back to
-// the pure engine. The module is ~1.4 KB, below the 4 KB limit
+// the pure engine. The module is ~3 KB, below the 4 KB limit
 // browsers place on synchronous compilation, so no async
 // initialization is needed.
 export function initWasm(): Engine | null {

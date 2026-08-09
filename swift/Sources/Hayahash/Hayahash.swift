@@ -1,5 +1,5 @@
 /*
- * hayahash64 - small, fast, portable 64-bit hash function.
+ * hayahash64 and hayahash128 - small, fast, portable hash functions.
  *
  * This is free and unencumbered software released into the public
  * domain. For more information, please refer to https://unlicense.org/
@@ -7,7 +7,20 @@
 
 import Foundation
 
-/// hayahash64, a small, fast, portable 64-bit hash function.
+/// A 128-bit digest represented as two words.
+public struct Hash128: Equatable, Sendable {
+    /// Low output word; exactly `Hayahash.hash64` for the same input and seed.
+    public let lo: UInt64
+    /// Algebraically independent high output word.
+    public let hi: UInt64
+
+    public init(lo: UInt64, hi: UInt64) {
+        self.lo = lo
+        self.hi = hi
+    }
+}
+
+/// hayahash64 and hayahash128, small, fast, portable hash functions.
 ///
 /// This is a bit-exact Swift port of the reference C implementation
 /// (`hayahash.h` at the repository root); see that header for the full
@@ -27,6 +40,8 @@ public enum Hayahash {
     // second multiplier of the short path.
     private static let m1: UInt64 = 0x3C79AC492BA7B653
     private static let m2: UInt64 = 0x1C69B3F74AC4AE35
+    private static let n1: UInt64 = 0xFF51AFD7ED558CCD
+    private static let n2: UInt64 = 0xC4CEB9FE1A85EC53
 
     // Input length (in bytes) at or above which the 8-lane bulk loop
     // kicks in.
@@ -62,6 +77,33 @@ public enum Hayahash {
         }
     }
 
+    /// Hashes `data` once and returns both output words.
+    public static func hash128(
+        _ data: some ContiguousBytes,
+        seed: UInt64 = 0
+    ) -> Hash128 {
+        data.withUnsafeBytes { hash128Impl($0, seed: seed) }
+    }
+
+    /// Hashes a byte-array range once and returns both output words.
+    public static func hash128(
+        _ data: [UInt8],
+        offset: Int,
+        length: Int,
+        seed: UInt64 = 0
+    ) -> Hash128 {
+        precondition(
+            offset >= 0 && length >= 0 && offset <= data.count
+                && length <= data.count - offset
+        )
+        return data.withUnsafeBytes { buf in
+            hash128Impl(
+                UnsafeRawBufferPointer(rebasing: buf[offset..<(offset + length)]),
+                seed: seed
+            )
+        }
+    }
+
     private static func hashImpl(_ key: UnsafeRawBufferPointer, seed: UInt64) -> UInt64 {
         // The seed premixes into s; the length is absorbed in the
         // finalizer instead (through a multiply against state), so the
@@ -76,6 +118,136 @@ public enum Hayahash {
             return hashShort(key, s)
         }
         return hashLong(key, s)
+    }
+
+    private static func hash128Impl(
+        _ key: UnsafeRawBufferPointer,
+        seed: UInt64
+    ) -> Hash128 {
+        let s = seed ^ k
+        if key.count <= 16 {
+            return hash128Short(key, s)
+        }
+        return hash128Long(key, s)
+    }
+
+    private static func hash128Short(
+        _ key: UnsafeRawBufferPointer,
+        _ s: UInt64
+    ) -> Hash128 {
+        let len = key.count
+        let a: UInt64
+        let b: UInt64
+        if len >= 8 {
+            a = load64(key, 0)
+            b = load64(key, len - 8)
+        } else if len >= 4 {
+            a = load32(key, 0)
+            b = load32(key, len - 4)
+        } else if len > 0 {
+            a = UInt64(key[0])
+            b = (UInt64(key[len >> 1]) << 8) | (UInt64(key[len - 1]) << 16)
+        } else {
+            a = 0
+            b = 0
+        }
+        let x = (inj(a) ^ s ^ k) &* k
+        let y = (inj2(b) ^ rotl(s, 23) ^ (k >> 19)) &* m1
+        let u = rotl(x, 27) ^ y ^ (UInt64(len) &* k)
+        return Hash128(lo: fmix(u), hi: fmix128(x &+ rotl(u, 32)))
+    }
+
+    private static func hash128Long(
+        _ key: UnsafeRawBufferPointer,
+        _ s: UInt64
+    ) -> Hash128 {
+        var h0 = s ^ k
+        var h1 = rotl(s, 17) &+ (k << 21)
+        var h2 = rotl(s, 34) ^ (k >> 13)
+        var h3 = rotl(s, 51) &+ (k << 42)
+        var w: UInt64
+        var wp: UInt64 = 0
+        var p = 0
+        var l = key.count
+
+        if l >= bulkMin {
+            var h4 = s &+ (k >> 27)
+            var h5 = rotl(s, 13) ^ (k << 9)
+            var h6 = rotl(s, 26) &+ (k >> 40)
+            var h7 = rotl(s, 39) ^ (k << 30)
+            repeat {
+                w = load64(key, p)
+                h0 = (h0 ^ (w &+ rotl(wp, 27))) &* k
+                wp = w
+                w = load64(key, p + 8)
+                h1 = (h1 ^ (w &+ rotl(wp, 27))) &* k
+                wp = w
+                w = load64(key, p + 16)
+                h2 = (h2 ^ (w &+ rotl(wp, 27))) &* k
+                wp = w
+                w = load64(key, p + 24)
+                h3 = (h3 ^ (w &+ rotl(wp, 27))) &* k
+                wp = w
+                w = load64(key, p + 32)
+                h4 = (h4 ^ (w &+ rotl(wp, 27))) &* k
+                wp = w
+                w = load64(key, p + 40)
+                h5 = (h5 ^ (w &+ rotl(wp, 27))) &* k
+                wp = w
+                w = load64(key, p + 48)
+                h6 = (h6 ^ (w &+ rotl(wp, 27))) &* k
+                wp = w
+                w = load64(key, p + 56)
+                h7 = (h7 ^ (w &+ rotl(wp, 27))) &* k
+                wp = w
+                h0 &+= wp
+                p += 64
+                l -= 64
+            } while l >= 64
+            h0 = (h0 ^ rotl(h4, 11)) &* k
+            h1 = (h1 ^ rotl(h5, 19)) &* k
+            h2 = (h2 ^ rotl(h6, 31)) &* k
+            h3 = (h3 ^ rotl(h7, 47)) &* k
+        }
+
+        while l >= 32 {
+            w = load64(key, p)
+            h0 = (h0 ^ (w &+ rotl(wp, 27))) &* k
+            wp = w
+            w = load64(key, p + 8)
+            h1 = (h1 ^ (w &+ rotl(wp, 27))) &* k
+            wp = w
+            w = load64(key, p + 16)
+            h2 = (h2 ^ (w &+ rotl(wp, 27))) &* k
+            wp = w
+            w = load64(key, p + 24)
+            h3 = (h3 ^ (w &+ rotl(wp, 27))) &* k
+            wp = w
+            l -= 32
+            p += 32
+        }
+
+        h0 &+= rotl(wp, 27)
+        if l > 16 {
+            h0 = (h0 &+ injAt(key, p)) &* k
+            h1 = (h1 &+ injAt(key, p + 8)) &* k
+            p += 16
+            l -= 16
+        }
+        if l > 0 {
+            h2 = (h2 &+ injAt(key, p + l - 16)) &* k
+            h3 = (h3 &+ injAt(key, p + l - 8)) &* k
+        }
+
+        let t0 = (h0 ^ rotl(h1, 13) ^ (UInt64(key.count) &* k)) &* k
+        let t1 = (h2 ^ rotl(h3, 33)) &* k
+        var x = s ^ t0 ^ rotl(t1, 29)
+        x ^= x >> 37
+        x &*= k
+        return Hash128(
+            lo: x ^ (x >> 32),
+            hi: fmix128(rotl(s, 32) ^ (t1 &+ rotl(t0, 47)))
+        )
     }
 
     // Inputs of at most 16 bytes: two independent multiplies (one per
@@ -224,6 +396,16 @@ public enum Hayahash {
         x ^= x >> 33
         x &*= m2
         return x ^ (x >> 27)
+    }
+
+    @inline(__always)
+    private static func fmix128(_ x: UInt64) -> UInt64 {
+        var x = x
+        x ^= x >> 30
+        x &*= n1
+        x ^= x >> 31
+        x &*= n2
+        return x ^ (x >> 33)
     }
 
     // inj and inj2 are bijective stripe injections (any odd number of
