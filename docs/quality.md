@@ -26,6 +26,16 @@ claim-by-claim evidence register for the working paper is
   [`smhasher3.md`](smhasher3.md) covers running, reproducing, and
   re-deriving the verification values after a digest change.
 
+## Published test vectors
+
+[`test_vectors/`](../test_vectors/) holds versioned known-answer digests
+for the current digest series (`v0.5.0.txt` for the v0.5 streaming
+digest). `make -C test_vectors check` recomputes every row from
+`hayahash.h` and requires an exact match. Prefer these files over
+in-tree language-port tables when implementing hayahash outside this
+repository. Digest-breaking releases add a new vector file and record a
+`DIGEST` entry in [`CHANGELOG.md`](../CHANGELOG.md).
+
 ## Local harness
 
 `make -C tests run-quality` runs a strict avalanche criterion over

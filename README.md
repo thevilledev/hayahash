@@ -111,6 +111,8 @@ are documented in [`docs/quality.md`](docs/quality.md).
 
 ## Documentation
 
+- [Changelog](CHANGELOG.md) - release history; `DIGEST` marks digest-breaking changes
+- [Test vectors](test_vectors/) - versioned known-answer digests for external implementers
 - [Benchmarks](docs/benchmarks.md) - comparative results and methodology
 - [Design](docs/design.md) - the algorithm and structural decisions
 - [Quality](docs/quality.md) - test coverage and conformance evidence
