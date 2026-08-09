@@ -87,4 +87,6 @@ The absorb sequence is injective by construction (first-difference
 induction), and all tail injections are bijective. These are
 structural arguments about the absorb, not collision-resistance proofs
 for the complete hash; [`design.md`](design.md) and the header notes
-state their scope.
+state their scope. hayahash is not a cryptographic hash or MAC; see
+[`SECURITY.md`](../SECURITY.md). Digest freeze criteria for 1.0 are in
+[`stability.md`](stability.md).

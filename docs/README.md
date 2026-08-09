@@ -7,6 +7,10 @@ start. Detailed evidence, measurements, and implementation notes live here:
   changes are marked `DIGEST`
 - [`../test_vectors/`](../test_vectors/) - versioned, language-agnostic
   known-answer digests for the current and historical digest series
+- [`stability.md`](stability.md) - experimental status and 1.0 digest-freeze
+  criteria
+- [`../SECURITY.md`](../SECURITY.md) - threat model and vulnerability
+  reporting
 - [`benchmarks.md`](benchmarks.md) - native and wasm measurements,
   ChibiHash comparisons, and the 64- and 128-bit SMHasher3 shootouts
 - [`design.md`](design.md) - the four design ideas, and the structural
