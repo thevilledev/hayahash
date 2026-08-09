@@ -108,9 +108,49 @@ Zen 5 4.93 -> 4.88 ns chained / 2.77 -> 2.61 ns independent.
   expected price of the second fmix chain on these harnesses). GCC
   tiers for hayahash128 (hayahash64's tiers bought 3..13% there) would
   attack the base cost, not the finalizer, for ~330 duplicated lines;
-  unmeasured and deferred.
+  unmeasured and deferred. *(Resolved the same day; see the follow-up
+  below.)*
 - The EPYC 9655 KVM row of the cost table predates this pass and needs
   a re-run; its GCC 13 targets znver4, which satisfies the VECGCC
   gate, so its within-host ratio is expected to move the same way.
+  *(Resolved the same day; see the follow-up below.)*
 - The Zen 5 stock-clang 8-byte chained regression under the outlined
   shape was routed around, not explained.
+
+## Same-day follow-up: EPYC re-run and the 17..319-byte tiers
+
+A freshly provisioned EPYC 9655 KVM guest (Ubuntu 24.04, GCC 13.3,
+same kernel as the pre-pass record) confirmed the dispatch prediction:
+the in-process A/B measured 1 MiB at 29.46 -> 53.72 GB/s (+82%,
+99.9% of the same run's hayahash64) with the 320..1024-byte band up
+33..65% and every sub-320 row flat to slightly better. GCC 13's
+-march=native targets znver4 on this part, so the VECGCC gate fires
+exactly as on bare-metal Zen 5.
+
+The deferred tiers were then implemented: hayahash128 compiles the
+same straight-line 17..319-byte tiers as hayahash64, on the same
+`(aarch64 || x86-64) && !clang` gate, extracted mechanically from the
+64-bit tier text so the absorb sequences are identical and only the
+final extraction differs. Under clang the compiled hayahash128 is
+bit-identical to the pre-tier build (verified by disassembly diff),
+so the M1 numbers are untouched. Measured against the pass-6 shape:
+
+- Zen 5 / GCC 16: fixed-size 32..319-byte throughput +1..6%
+  (monotonically growing with size), independent time down to
+  -0.72 ns at 319 bytes, chained flat (+0.03..0.13 ns), and the
+  pass-5 mixed-size bands +0.02..0.05 ns - a real but ~0.3-0.5% cost
+  an order of magnitude below the fixed-size gains.
+- EPYC 9655 / GCC 13: fixed-size 32..319 +3..7%, independent down to
+  -0.96 ns at 319 bytes, chained flat to -0.48 ns, and every mixed
+  band improves (-0.03..-0.19 ns). The one give-back: 17..24-byte
+  independent throughput +0.22 ns (~5%) under GCC 13 only.
+
+Where hayahash64's tiers had lost mixed-size ground on clang (the
+pass-5 story), hayahash128's tiers never see clang at all, and on GCC
+the mixed-band cost stays within +-1% on both machines - so the tiers
+landed. The SMHasher3 translation mirrors them; verification values
+are unchanged.
+
+The dual-width records for all three hosts and both SMHasher3 refresh
+records were re-taken with the tiers in place; the cost table now
+reads 54.15 / 53.99 GB/s on the EPYC guest (was 54.76 / 29.85).

@@ -23,8 +23,8 @@ column allows overlap:
 | host / compiler | 8 B chained, 64 / 128 (ns) | 8 B independent, 64 / 128 (ns) | 1 MiB, 64 / 128 (GB/s) |
 |---|---:|---:|---:|
 | Apple M1 Pro / Apple clang 21 | 7.88 / 9.25 | 2.70 / 3.81 | 30.73 / 30.76 |
-| Ryzen AI 9 HX PRO 370 / GCC 16 | 4.29 / 4.88 | 1.97 / 2.61 | 61.48 / 61.29 |
-| EPYC 9655 KVM guest / GCC 13 | 4.90 / 5.59 | 2.14 / 3.15 | 54.76 / 29.85 |
+| Ryzen AI 9 HX PRO 370 / GCC 16 | 4.29 / 4.90 | 1.97 / 2.67 | 61.47 / 61.31 |
+| EPYC 9655 KVM guest / GCC 13 | 4.92 / 5.66 | 2.14 / 3.27 | 54.15 / 53.99 |
 
 <!-- markdownlint-enable MD013 -->
 
@@ -33,13 +33,12 @@ frequency control, so use its within-host ratio rather than comparing its
 absolute rate with the other machines. `hayahash128.lo` is identical to
 hayahash64 in every row; the extra work produces only the high word.
 
-The M1 and Ryzen rows reflect the
-[sixth optimization pass](optimization/pass-6-128-dispatch.md)'s 128-bit
-dispatch change (2026-08-09), which brought hayahash128's sustained bulk
-rate to parity with hayahash64 on both machines. The EPYC row predates
-that pass and still shows the old dispatch; its GCC 13 targets znver4 and
-satisfies the vectorization gate, so its ratio is expected to close the
-same way once re-measured.
+All three rows reflect the
+[sixth optimization pass](optimization/pass-6-128-dispatch.md)
+(2026-08-09), which brought hayahash128's sustained bulk rate to parity
+with hayahash64 on every host - the EPYC guest went from 29.85 to
+53.99 GB/s against a 54 GB/s hayahash64 in the same runs. The GCC rows
+also carry the pass's follow-up 17..319-byte tiers.
 
 ## Baseline wasm32
 
@@ -126,8 +125,9 @@ GB/s), and sustained bulk reached 61.6 vs 31.3 GB/s at 1 MiB after the fifth
 pass enabled GCC auto-vectorization for AVX-512. Builds without AVX-512DQ
 retain the previous 35 GB/s scalar rate. After the
 [sixth pass](optimization/pass-6-128-dispatch.md) moved the 128-bit bulk
-dispatch out of line for GCC, hayahash128 reaches 6.30 ns at 128 bytes and
-61.3 GB/s at 1 MiB there - 99.7% of hayahash64's sustained rate.
+dispatch out of line for GCC and gave hayahash128 the same length tiers,
+hayahash128 reaches 6.06 ns at 128 bytes and 61.3 GB/s at 1 MiB there -
+99.7% of hayahash64's sustained rate.
 
 Dispatch shapes are selected per architecture and compiler. The
 [optimization log](optimization/) documents those measurements and their
@@ -146,7 +146,7 @@ the EPYC 9655 with 128-bit-wide expectations.
 
 | 128-bit hash | M1 small | M1 bulk | Zen 5 small | Zen 5 bulk | full suite | peak-performance requirement |
 |---|---:|---:|---:|---:|---|---|
-| **hayahash128** | 38.45 | 9.74 | 13.33 | 31.10 | pass | ordinary scalar source; auto-vectorized Zen 5 bulk |
+| **hayahash128** | 38.53 | 9.77 | 13.71 | 31.02 | pass | ordinary scalar source; auto-vectorized Zen 5 bulk |
 | MuseAir-128 | 24.26 | 8.65 | 7.44 | 22.80 | pass | 64x64-to-128-bit multiply |
 | a5hash-128 | **22.29** | 10.92 | **6.00** | 22.99 | pass | 64x64-to-128-bit multiply |
 | MeowHash | - | - | 28.64 | 32.22 | pass | x86 AES instructions |
@@ -166,20 +166,20 @@ M1 row because the tested implementation requires x86 AES instructions.
 
 The hayahash128 cells were re-measured on 2026-08-09 after the
 [sixth optimization pass](optimization/pass-6-128-dispatch.md)'s
-digest-identical dispatch change: three fresh process replicates per host at
-the same pinned commit, corrected to each host record's overhead baseline
-(the refresh records sit beside the sweep records in `paper/results/`). The
-competitor rows are from the original sweep. The small-key movement is within
-noise on the M1 and about 3% on Zen 5; the Zen 5 bulk change is the dispatch
-fix.
+digest-identical dispatch change and its tier follow-up: three fresh process
+replicates per host at the same pinned commit, corrected to each host
+record's overhead baseline (the refresh records sit beside the sweep records
+in `paper/results/`). The competitor rows are from the original sweep. The
+small-key cells are unchanged within replicate spread; the Zen 5 bulk change
+is the dispatch fix.
 
 XXH3-128 is the bulk leader on both hosts but fails 26 of the 188 test
 groups. Among the passers, small-key latency still favors the wide-multiply
 pair (a5hash, MuseAir), but the sixth pass reordered Zen 5 bulk: hayahash128
-reaches 31.10 B/cy there without a wide-result multiply or AES - past every
+reaches 31.02 B/cy there without a wide-result multiply or AES - past every
 wide-multiply passer and within 4% of AES-based MeowHash - because the
 outlined dispatch lets GCC auto-vectorize the 128-bit bulk walk. On M1 it
-reaches 9.74 B/cy, still behind a5hash's 10.92 bulk on that host.
+reaches 9.77 B/cy, still behind a5hash's 10.92 bulk on that host.
 
 The passing ordinary-scalar rows are hayahash128, prvhash-128, and FarmHash
 CC. hayahash128 leads FarmHash in bulk by 1.73x on M1 and 1.89x on Zen 5, and

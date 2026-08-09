@@ -47,17 +47,17 @@ Representative measurements of the public 64- and 128-bit APIs:
 | host / compiler | 8 B chained, 64 / 128 (ns) | 1 MiB, 64 / 128 (GB/s) |
 |---|---:|---:|
 | Apple M1 Pro / Apple clang 21 | 7.88 / 9.25 | 30.73 / 30.76 |
-| Ryzen AI 9 HX PRO 370 / GCC 16 | 4.29 / 4.88 | 61.48 / 61.29 |
-| EPYC 9655 KVM guest / GCC 13 | 4.90 / 5.59 | 54.76 / 29.85 |
+| Ryzen AI 9 HX PRO 370 / GCC 16 | 4.29 / 4.90 | 61.47 / 61.31 |
+| EPYC 9655 KVM guest / GCC 13 | 4.92 / 5.66 | 54.15 / 53.99 |
 | wasm32 on M1 Pro / Zig 0.16 | 7.7 / 10.6 | 23.55 / 23.34 |
 
 The M1 and Ryzen native runs are bare metal. The EPYC guest has no frequency
-control, so its within-host ratio is more meaningful than its absolute rate;
-its row also predates the 128-bit dispatch change recorded in the
-[optimization log](docs/optimization/), which brought 128-bit bulk to parity
-with the 64-bit rate on the two bare-metal hosts. The wasm build uses no SIMD
-or wide multiply. These are point measurements, not a claim that one hash is
-fastest on every workload or machine.
+control, so its within-host ratio is more meaningful than its absolute rate.
+The 128-bit dispatch change recorded in the
+[optimization log](docs/optimization/) brought 128-bit bulk to parity with
+the 64-bit rate on all three machines. The wasm build uses no SIMD or wide
+multiply. These are point measurements, not a claim that one hash is fastest
+on every workload or machine.
 
 Detailed size sweeps, ChibiHash comparisons, SMHasher3 shootouts, caveats, and
 reproduction notes are in [`docs/benchmarks.md`](docs/benchmarks.md).

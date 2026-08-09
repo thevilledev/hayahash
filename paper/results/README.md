@@ -12,19 +12,20 @@ These files hold the records used by the working paper.
   `ryzen-ai9-smhasher3-128-refresh.txt` supersede only the hayahash128 row
   of those sweeps: three fresh process replicates per host at the same
   pinned commit after the sixth optimization pass's digest-identical
-  dispatch change, corrected to each sweep record's overhead baseline.
-  Competitor rows still come from the sweep records.
+  dispatch change and its 17..319-byte tier follow-up, corrected to each
+  sweep record's overhead baseline. Competitor rows still come from the
+  sweep records.
 - `epyc9655-smhasher3-128-conformance.txt` records the corresponding full-suite
   summaries, exact raw-output checksums, and the source-backed instruction
   class audit for all nine 128-bit hashes.
 - `apple-m1-pro-hayahash128.txt`, `ryzen-ai9-hayahash128.txt`, and
   `epyc9655-hayahash128.txt` are the 2026-08-09 dual-width harness runs
   behind the current README and website tables. They record the full
-  hayahash64/hayahash128 and ChibiHash output plus source checksums. The
-  M1 and Ryzen records were re-run the same day after the sixth
-  optimization pass's digest-identical 128-bit dispatch change (the
-  pre-pass runs remain in git history); the EPYC record predates that
-  pass, and as a KVM guest only its within-host ratios are comparable.
+  hayahash64/hayahash128 and ChibiHash output plus source checksums. All
+  three were re-taken the same day after the sixth optimization pass's
+  digest-identical 128-bit dispatch change and its tier follow-up (the
+  pre-pass runs remain in git history); the EPYC host is a freshly
+  provisioned KVM guest, so only its within-host ratios are comparable.
 - `apple-m1-pro-wasm-hayahash128.txt` is the matching baseline-wasm32
   shootout. Its timing loops run inside wasm under Node/V8; the build has
   neither SIMD nor a wide multiply.

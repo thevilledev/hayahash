@@ -56,7 +56,10 @@ what is enabled today.
    bulk loop inline with a two-block unroll, which reaches the same
    bulk rate without destabilizing their 17..319-byte schedules.
    hayahash128 now holds ~100% of hayahash64's sustained bulk on both
-   reference machines.
+   reference machines. A same-day follow-up re-measured the EPYC 9655
+   guest (29.5 -> 53.7 GB/s, closing the last stale row) and gave
+   hayahash128 the GCC length tiers, worth 3..7% across 32..319 bytes
+   on both Zen 5 hosts.
 
 ## Where things stand
 
@@ -66,7 +69,8 @@ for how to cover every shape in a conformance run):
 
 - Straight-line length tiers (`HAYAHASH64_INTERNAL_TIERS`): AArch64 or
   x86-64, **and not clang**. Both measured clangs prefer the compact
-  dispatch on mixed-size workloads.
+  dispatch on mixed-size workloads. Since the sixth pass's follow-up,
+  hayahash128 compiles the same tiers on the same gate.
 - GCC bulk vectorization spelling (`HAYAHASH64_INTERNAL_VECGCC`):
   x86-64 GCC with AVX-512DQ only; token-identical to the plain
   spelling everywhere else.
@@ -91,9 +95,9 @@ Still open:
   and one-block bulk loop it compiles remain performance-untested.
 - Whether GCC on AArch64 servers (Graviton class) wants the vectorized
   bulk spelling via SVE, once such a machine is available.
-- GCC length tiers for hayahash128's 17..319-byte band, and the EPYC
-  9655 re-measurement of the dual-width cost table (both listed at the
-  end of the [sixth pass](pass-6-128-dispatch.md)).
+- The Zen 5 stock-clang 8-byte chained regression under the outlined
+  128-bit shape: routed around in the
+  [sixth pass](pass-6-128-dispatch.md), cause never identified.
 - Research items 9 and 10 below.
 
 ## Research context
