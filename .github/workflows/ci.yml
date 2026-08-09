@@ -64,6 +64,9 @@ jobs:
           CFLAGS="-O2 -std=c11 -Wall -Wextra -Werror"
           check
 
+      - name: Check header install and pkg-config
+        run: make check-install
+
       # Keeps kat_haya.txt honest: it is the reference the MSVC job
       # diffs against, so it has to be regenerated here rather than
       # trusted.

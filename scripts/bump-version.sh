@@ -1,8 +1,9 @@
 #!/bin/sh
-# Set the release version in every port manifest at once.
+# Set the release version in root VERSION and every port manifest at once.
 #
 # All ports share one version, so that a given version denotes the
-# same algorithm everywhere. The release workflow refuses to publish
+# same algorithm everywhere. Root VERSION feeds the C pkg-config package
+# (make install / hayahash.pc). The release workflow refuses to publish
 # when any manifest disagrees with the tag, and bumping them by hand
 # is easy to get half-right; use this instead.
 #
@@ -39,6 +40,9 @@ edit() {
 	mv "$tmp" "$file"
 }
 
+# Root VERSION feeds the C pkg-config package (make install / hayahash.pc).
+printf '%s\n' "$version" >VERSION
+
 # Updates package.json and package-lock.json together.
 (cd js && npm version "$version" --no-git-tag-version --allow-same-version >/dev/null)
 
@@ -73,6 +77,7 @@ edit python/src/hayahash/__init__.py \
 edit swift/Package.swift \
 	-e "s/^\/\/ hayahash-version: .*/\/\/ hayahash-version: ${version}/"
 
+printf 'c/pc:   %s\n' "$(tr -d ' \n' < VERSION)"
 printf 'js:     %s\n' "$(sed -n 's/.*"version": "\(.*\)".*/\1/p' js/package.json | head -n1)"
 printf 'rust:   %s\n' "$(sed -n 's/^version = "\(.*\)"$/\1/p' rust/Cargo.toml)"
 printf 'zig:    %s\n' "$(sed -n 's/^[[:space:]]*\.version = "\(.*\)",$/\1/p' zig/build.zig.zon)"

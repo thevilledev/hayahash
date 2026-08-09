@@ -4,6 +4,8 @@
 
 - `hayahash.h` - reference implementation (C99, single header, public
   domain)
+- `Makefile`, `hayahash.pc.in`, `VERSION` - optional system install of the
+  C header plus a `hayahash` pkg-config package (`make install`)
 - `test_vectors/` - versioned known-answer digests for external
   implementers (`make -C test_vectors check`)
 - `CHANGELOG.md` - release history; `DIGEST` marks digest-breaking changes
@@ -37,7 +39,7 @@
 - `paper/` - working paper, claim-by-claim evidence register
   ([`AUDIT.md`](../paper/AUDIT.md)), and archived evaluation records
 - `scripts/` - release tooling (`bump-version.sh` sets the shared
-  version in every port manifest)
+  version in root `VERSION` and every port manifest)
 
 Each port lives in its own top-level directory and is verified against
 the reference implementation via the SMHasher3 verification value and
@@ -51,7 +53,8 @@ same algorithm everywhere.
 
 ## Usage per language
 
-C - copy `hayahash.h` into your project:
+C - copy `hayahash.h` into your project, or install it for pkg-config
+consumers:
 
 ```c
 #include "hayahash.h"
@@ -59,6 +62,15 @@ C - copy `hayahash.h` into your project:
 uint64_t h = hayahash64(buf, len, seed);
 hayahash128_t h128 = hayahash128(buf, len, seed);
 ```
+
+```sh
+make install PREFIX=/usr/local
+cc $(pkg-config --cflags hayahash) main.c -o main
+```
+
+`make check-install` stages into a temporary DESTDIR and verifies the
+`.pc` file resolves. Embedding by copying the header remains fully
+supported; the install target is for distro and system packaging.
 
 Every language port exposes both widths. Each 128-bit result has `lo`
 and `hi` words in that order, and `lo` is exactly hayahash64 for the
