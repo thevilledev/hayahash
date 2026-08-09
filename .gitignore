@@ -1,3 +1,7 @@
+# C install / pkg-config build products
+hayahash.pc
+.install-check/
+
 # C harness binaries
 tests/bench
 tests/quality

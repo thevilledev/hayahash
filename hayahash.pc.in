@@ -1,0 +1,10 @@
+prefix=@prefix@
+exec_prefix=${prefix}
+includedir=${prefix}/include
+libdir=${exec_prefix}/lib
+
+Name: hayahash
+Description: Fast portable 64- and 128-bit non-cryptographic hash functions
+URL: https://github.com/thevilledev/hayahash
+Version: @VERSION@
+Cflags: -I${includedir}

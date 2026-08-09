@@ -64,7 +64,8 @@ reproduction notes are in [`docs/benchmarks.md`](docs/benchmarks.md).
 
 ## Usage
 
-C - copy [`hayahash.h`](hayahash.h) into your project:
+C - copy [`hayahash.h`](hayahash.h) into your project, or install the
+header and pkg-config file with `make install`:
 
 ```c
 #include "hayahash.h"
@@ -72,6 +73,11 @@ C - copy [`hayahash.h`](hayahash.h) into your project:
 uint64_t h = hayahash64(buf, len, seed);
 hayahash128_t h128 = hayahash128(buf, len, seed);
 // h128.lo == h
+```
+
+```sh
+make install PREFIX=/usr/local
+cc $(pkg-config --cflags hayahash) main.c -o main
 ```
 
 Streaming uses one shared state for both output widths. Calling a digest

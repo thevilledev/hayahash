@@ -40,6 +40,8 @@ jobs:
               fail=1
             fi
           }
+          check VERSION \
+            "$(tr -d ' \n' < VERSION)"
           check js/package.json \
             "$(jq -r .version js/package.json)"
           check rust/Cargo.toml \

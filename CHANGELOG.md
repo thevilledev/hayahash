@@ -16,6 +16,13 @@ Known-answer vectors for the current digest live under
 
 ## [Unreleased]
 
+### Added
+
+- Root `Makefile` install path for the C header plus a `hayahash`
+  pkg-config package (`VERSION`, `hayahash.pc.in`); `scripts/bump-version.sh`
+  and the release version guard keep `VERSION` in lockstep with port
+  manifests.
+
 ## [0.5.0] - 2026-08-09
 
 ### Changed
