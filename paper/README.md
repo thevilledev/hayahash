@@ -4,10 +4,10 @@ This directory contains the working paper for the current development
 snapshot of Hayahash64.
 
 The draft is intentionally tied to a source revision. The audited commit,
-header digest, verification value, and date are defined once, in
+header digest, verification values, and date are defined once, in
 `snapshot.tex`; the LaTeX source and the Makefile checks both read from it.
-Sections marked TBD in the paper are placeholders with stated completion
-criteria; fill them in only together with their artifacts.
+The paper's open-work list states completion criteria for missing evidence;
+fill items in only together with their artifacts.
 
 ## Build
 
@@ -42,8 +42,8 @@ external tool and takes minutes per host. Reproduce it separately:
 make -C tests/smhasher3 run
 ```
 
-That clones SMHasher3 at the pinned upstream commit, applies the adapter and
-its portability patches, builds, and runs the default suite. See
+That clones SMHasher3 at the pinned upstream commit, installs the
+self-contained translation, builds, and runs the default suite. See
 `docs/smhasher3.md` for the full procedure, including how to re-derive the
 verification values after a digest change and the corrections the speed
 figures depend on, and `AUDIT.md` for the claim-by-claim evidence status.
@@ -57,9 +57,9 @@ value should invalidate an existing binary.
 When the algorithm or the header changes, update everything as one
 reviewable change:
 
-1. set the new commit, header SHA-256, verification value, and date in
+1. set the new commit, header SHA-256, verification values, and date in
    `snapshot.tex`;
-2. regenerate the known-answer vectors and the expected verification value
+2. regenerate the known-answer vectors and the expected verification values
    in `tools/reference_check.c`;
 3. rerun `make -C paper check`, refresh the records under `results/`, and
    rerun the benchmarks the paper transcribes;

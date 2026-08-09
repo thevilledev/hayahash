@@ -68,10 +68,15 @@ These files hold the records used by the working paper.
   record also measures hayahash across all three dispatch shapes, because its
   bulk rate there depends on whether the compiler vectorizes the bulk loop.
   The paper itself makes no competitor-speed claim from them.
-- `quality.txt` is the current Hayahash local quality run.
+- `quality.txt` is the current Hayahash local quality run at the `v0.5.0`
+  snapshot. The harness is fixed-seeded, so its numbers depend on the
+  digest, not the host that ran it.
 - `quality-chibihash-v2.txt` is the expected-failure control run for the
   constructed rotation-orbit set.
-- `conformance.txt` records language-port and native/WebAssembly checks.
+- `conformance.txt` records the checks rerun while preparing the current
+  draft: the C reference checks plus the Go, Rust, and Python suites. The
+  remaining ports rest on repository CI and are listed in the record's
+  limits.
 
 The benchmark harness retains a median per cell but not its nine individual
 sample values. A release-quality evaluation should record every sample,
