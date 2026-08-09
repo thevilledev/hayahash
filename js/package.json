@@ -1,6 +1,6 @@
 {
 	"name": "hayahash",
-	"version": "0.4.6",
+	"version": "0.5.0",
 	"description": "hayahash64 and hayahash128: small, fast, portable hashes backed by WebAssembly with a pure-JS fallback",
 	"keywords": [
 		"hash",
