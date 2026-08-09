@@ -193,6 +193,10 @@
 	dsll	$t3, $t3, 32
 	lui	$a4, 0xED55
 	ori	$a4, $a4, 0x8CCD
+	# lui sign-extends on MIPS64; clear those upper bits before the
+	# low half is combined with 0xFF51AFD7.
+	dsll	$a4, $a4, 32
+	dsrl	$a4, $a4, 32
 	or	$t3, $t3, $a4
 	MUL64	\rd, \rd, $t3
 	dsrl	$t1, \rd, 31
