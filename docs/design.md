@@ -87,7 +87,8 @@ lists the shapes and how to cover them all in a conformance run.
 
 hayahash remains experimental. Its algorithm, constants, and digest values
 may change, so it should not yet be used where persisted hashes must remain
-stable across versions.
+stable across versions. The checklist for freezing digests at 1.0 is in
+[`stability.md`](stability.md).
 
 The `v0.5` development digest exercised that freedom: the length term moved
 from the lane-IV premix to the finalizer, changing every digest. The previous

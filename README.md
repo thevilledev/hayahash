@@ -17,6 +17,8 @@ Java, C#, Python, Swift, JavaScript/TypeScript, and MIPS64 assembly. Every
 > **Experimental:** the algorithm, constants, and digest values may still
 > change. Do not use hayahash yet where hashes must remain stable across
 > versions. It is not a cryptographic hash or message authentication code.
+> See [`docs/stability.md`](docs/stability.md) for the 1.0 freeze criteria
+> and [`SECURITY.md`](SECURITY.md) for the threat model.
 
 *Haya* (速) is Japanese for "fast."
 
@@ -119,6 +121,8 @@ are documented in [`docs/quality.md`](docs/quality.md).
 
 - [Changelog](CHANGELOG.md) - release history; `DIGEST` marks digest-breaking changes
 - [Test vectors](test_vectors/) - versioned known-answer digests for external implementers
+- [Stability / 1.0 criteria](docs/stability.md) - when digests freeze
+- [Security policy](SECURITY.md) - threat model and private reporting
 - [Benchmarks](docs/benchmarks.md) - comparative results and methodology
 - [Design](docs/design.md) - the algorithm and structural decisions
 - [Quality](docs/quality.md) - test coverage and conformance evidence
