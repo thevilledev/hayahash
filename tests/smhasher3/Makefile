@@ -1,5 +1,5 @@
 # SPDX-License-Identifier: GPL-3.0-or-later
-# SMHasher3 conformance run for hayahash64.
+# SMHasher3 conformance runs for hayahash64 and hayahash128.
 #
 # SMHasher3 is fetched at test time and pinned to an exact upstream commit
 # for reproducibility. Its test framework is GPL-3.0-or-later and is not

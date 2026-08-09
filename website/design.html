@@ -5,19 +5,19 @@
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <meta
       name="description"
-      content="How hayahash64 works. An 8-lane bulk loop with a short dependency chain. A chained injective absorb. Derived lane constants. Overlapping tail reads. A step-by-step simulator shows every absorb on your own input."
+      content="How hayahash64 and hayahash128 work. They share one portable scalar state walk; a step-by-step simulator shows both final digests on your own input."
     >
     <meta name="theme-color" content="#ffffff">
     <meta property="og:type" content="article">
-    <meta property="og:title" content="hayahash64 design">
+    <meta property="og:title" content="hayahash design">
     <meta
       property="og:description"
-      content="Four ideas make the design. Five collision classes formed the details. A step-by-step simulator shows it run."
+      content="Four ideas make the shared state walk. Independent finalizers produce compatible 64- and 128-bit digests. A step-by-step simulator shows both."
     >
     <meta property="og:url" content="https://hayaha.sh/design.html">
     <link rel="canonical" href="https://hayaha.sh/design.html">
     <link rel="stylesheet" href="styles.css">
-    <title>hayahash64 design</title>
+    <title>hayahash64 and hayahash128 design</title>
   </head>
   <body>
     <a class="skip-link" href="#content">Skip to content</a>
@@ -34,7 +34,8 @@
       <h1>Design</h1>
 
       <p>
-        Four ideas make the design. The top of
+        Four ideas make the shared state walk used by hayahash64 and
+        hayahash128. The top of
         <a href="https://github.com/thevilledev/hayahash/blob/main/hayahash.h"><code>hayahash.h</code></a>
         explains each idea in detail. The header stays the authoritative
         commentary. This page is the overview.
@@ -49,8 +50,10 @@
         now, dark gray is the previous stripe whose rotated copy rides
         along, light gray is already absorbed, and an underline means
         the byte is read a second time, an overlapping tail read. Every
-        value is the true 64-bit value. The digest at the end matches
-        the <a href="playground.html">playground</a> and every port.
+        value is a true 64-bit state word. The end shows both digests:
+        hayahash128's low word is exactly hayahash64 for the same bytes
+        and seed. The values match the C reference and the
+        <a href="playground.html">playground</a>.
       </p>
 
       <p>
@@ -187,6 +190,30 @@
         difference cannot remove the two multiply terms at the same time.
         The two words then go through independent multiplies into a strong
         finalizer.
+      </p>
+
+      <h2 id="outputs">5. Two compatible output widths</h2>
+
+      <p>
+        Both functions perform the same loads and state walk. hayahash64
+        finalizes the existing 64-bit combine. hayahash128 returns that
+        exact word as <code>lo</code>, then extracts <code>hi</code> from
+        the same state through an algebraically independent combine and a
+        distinct bijective finalizer. Existing 64-bit digests therefore
+        migrate without changing: for every input and seed,
+        <code>hayahash128(...).lo == hayahash64(...)</code>.
+      </p>
+
+      <p>
+        On the short path, call the low finalizer input <code>u</code> and
+        keep the independently multiplied word <code>x</code>. The pair
+        <code>(u, x)</code> is a bijection of the two 64-bit pre-image
+        words. The high input is <code>x + rotl(u, 32)</code>, so the
+        complete 128-bit output remains bijective after both finalizers.
+        On longer inputs, the low word combines the fold words
+        <code>t0</code> and <code>t1</code> with xor; the high word uses
+        addition and different rotations. A single GF(2)-linear
+        cancellation cannot erase a difference from both paths.
       </p>
 
       <h2 id="collisions">Five collision classes</h2>

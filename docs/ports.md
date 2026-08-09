@@ -54,7 +54,12 @@ C - copy `hayahash.h` into your project:
 #include "hayahash.h"
 
 uint64_t h = hayahash64(buf, len, seed);
+hayahash128_t h128 = hayahash128(buf, len, seed);
 ```
+
+The language ports below currently expose hayahash64; hayahash128 is
+available from the C header. Its `hayahash128_state`, init, and update
+names are zero-cost aliases for the shared hayahash64 streaming state.
 
 Rust - the `hayahash` crate lives in [`rust/`](../rust/):
 

@@ -1,0 +1,37 @@
+snapshot: v0.5 candidate, 2026-08-09 worktree
+smhasher3 commit: 51d3cd1ac0aa4934f6aacb44d9d234f50300b6e3
+host: AMD Ryzen AI 9 HX PRO 370, 12 cores / 24 threads, bare metal
+os: Linux 6.18.38-1-MANJARO x86_64
+compiler: GCC 16.1.1, Release, -O3 -march=native
+affinity: taskset -c 0 (performance core)
+hayahash dispatch: tiers+vecgcc
+command: taskset -c 0 ./SMHasher3 --test=Speed --verbose <hash>
+method: 3 independent process replicates, round-robin by hash
+date: 2026-08-09
+
+SMALL-KEY CORRECTION
+
+SMHasher3 measures call overhead once per process and subtracts it from its
+1..31-byte average. The calibration varied between 1.55 and 2.35 cycles here.
+As documented in docs/smhasher3.md, each reported average was put onto the
+minimum-overhead baseline before taking the median:
+
+  corrected = reported average + run overhead - 1.55
+
+Bulk is the first, fixed-262144-byte Average. Values below are raw process
+replicates followed by the median used in README.md and the website.
+
+hash                      overhead       corrected small (cy/hash)       bulk (B/cy)          medians small / bulk
+hayahash128               1.55/2.33/2.33 13.71/13.72/13.72             16.88/16.83/16.81      13.72 / 16.83
+MuseAir-128                2.32/2.33/2.33  7.42/7.44/7.45              22.87/22.80/22.79       7.44 / 22.80
+a5hash-128                 2.33/2.33/2.33  5.99/6.00/6.00              23.04/22.99/22.97       6.00 / 22.99
+MeowHash                   2.33/2.33/2.33 28.64/28.64/28.64            32.42/32.22/32.20      28.64 / 32.22
+XXH3-128                   2.33/2.33/2.33 11.92/11.92/11.96            49.08/48.91/48.90      11.92 / 48.91
+t1ha2-128                  2.34/2.35/2.34 20.98/21.03/21.03            16.26/16.24/16.24      21.03 / 16.24
+SpookyHash2-128            2.33/2.33/2.33 24.39/24.39/24.39            15.36/15.35/15.34      24.39 / 15.35
+prvhash-128                2.33/2.33/2.33 25.49/25.48/25.49             2.58/2.58/2.58        25.49 / 2.58
+FarmHash-128.CC.seed1      2.33/2.33/2.33 21.09/21.08/21.09            16.45/16.45/16.44      21.09 / 16.45
+
+Full-suite results were measured separately on the EPYC 9655 and are recorded
+in epyc9655-smhasher3-128-conformance.txt. Peak-rate instruction classes were
+checked against the same pinned SMHasher3 source tree.

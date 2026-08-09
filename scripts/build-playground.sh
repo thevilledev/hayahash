@@ -43,7 +43,7 @@ cp tests/wasm/bench.wasm website/bench.wasm
 #    must match the committed, natively verified kat_haya.txt. This
 #    fails the deploy if hayahash.h drifts from the pinned truth.
 node tests/wasm/driver.mjs tests/wasm/bench.wasm --kat > website/vendor/kat.txt
-grep '^haya ' website/vendor/kat.txt | diff - tests/wasm/kat_haya.txt
+grep '^haya' website/vendor/kat.txt | diff - tests/wasm/kat_haya.txt
 
 printf 'playground artifacts ready: website/bench.wasm (%s bytes), website/vendor/\n' \
 	"$(wc -c < website/bench.wasm | tr -d ' ')"

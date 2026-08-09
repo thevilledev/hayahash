@@ -35,14 +35,24 @@ for (let i = 0; i < cap; i++) {
   mem[i] = x & 0xff;
 }
 
-const hashes = ["haya", "chibi2", "rapid", "xxh3", "xxh64"]
+const hashes = ["haya", "haya128", "chibi2", "rapid", "xxh3", "xxh64"]
   .filter((h) => ("one_" + h) in ex);
 
 if (process.argv.includes("--kat")) {
   for (const h of hashes) {
-    for (const len of [0, 1, 3, 7, 8, 16, 17, 31, 32, 63, 64, 319, 320, 1000]) {
-      const v = BigInt.asUintN(64, ex["one_" + h](len, 0x1234n));
-      console.log(`${h} ${len} ${v.toString(16).padStart(16, "0")}`);
+    const lens = [0, 1, 3, 7, 8, 16, 17, 31, 32, 63, 64, 319, 320, 1000];
+    if (h === "haya128") {
+      for (const word of ["lo", "hi"]) {
+        for (const len of lens) {
+          const v = BigInt.asUintN(64, ex[`one_haya128_${word}`](len, 0x1234n));
+          console.log(`haya128_${word} ${len} ${v.toString(16).padStart(16, "0")}`);
+        }
+      }
+    } else {
+      for (const len of lens) {
+        const v = BigInt.asUintN(64, ex["one_" + h](len, 0x1234n));
+        console.log(`${h} ${len} ${v.toString(16).padStart(16, "0")}`);
+      }
     }
   }
   process.exit(0);

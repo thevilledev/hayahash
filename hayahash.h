@@ -1,4 +1,4 @@
-// hayahash64 - small, fast, portable 64-bit hash function.
+// hayahash - small, fast, portable 64- and 128-bit hash functions.
 //
 // An experiment in how fast a strictly portable 64-bit hash can be,
 // built around four ideas:
@@ -65,6 +65,9 @@
 //     independent multiplies (one per loaded word, so neither word
 //     ever sits unmultiplied next to a linear seed term) merged into
 //     a strong bijective finalizer.
+//
+// hayahash128 exposes a second word from the same state walk; its low
+// word is exactly hayahash64 for every input and seed.
 //
 // Portability rules: no SIMD, no 128-bit multiply, no
 // hardware-specific instructions, no UB, endianness-independent.
@@ -207,12 +210,26 @@ static inline uint64_t hayahash64_internal_rotl_product(uint64_t x, int n)
 #define HAYAHASH64_INTERNAL_M1 UINT64_C(0x3C79AC492BA7B653)
 #define HAYAHASH64_INTERNAL_M2 UINT64_C(0x1C69B3F74AC4AE35)
 
+// The second 128-bit output word uses a different bijective finalizer
+// so it does not repeat the low word's multiplication/xor-shift path.
+// These are the MurmurHash3 finalizer constants.
+#define HAYAHASH128_INTERNAL_N1 UINT64_C(0xFF51AFD7ED558CCD)
+#define HAYAHASH128_INTERNAL_N2 UINT64_C(0xC4CEB9FE1A85EC53)
+
 // moremur finalizer (Pelle Evensen), also used by ChibiHash v1.
 static inline uint64_t hayahash64_internal_fmix(uint64_t x)
 {
 	x ^= x >> 27; x *= HAYAHASH64_INTERNAL_M1;
 	x ^= x >> 33; x *= HAYAHASH64_INTERNAL_M2;
 	x ^= x >> 27;
+	return x;
+}
+
+static inline uint64_t hayahash128_internal_fmix(uint64_t x)
+{
+	x ^= x >> 30; x *= HAYAHASH128_INTERNAL_N1;
+	x ^= x >> 31; x *= HAYAHASH128_INTERNAL_N2;
+	x ^= x >> 33;
 	return x;
 }
 
@@ -977,16 +994,171 @@ hayahash64(const void *keyIn, ptrdiff_t len, uint64_t seed)
 }
 
 // ------------------------------------------------------------------
-// Streaming API. Produces digests identical to hayahash64() for the
-// same (seed, bytes) regardless of how the input is split across
-// update calls; a differential test in tests/ replays random split
-// patterns against the one-shot function.
+// 128-bit API. The low word is exactly hayahash64() for every input
+// and seed. The high word is extracted from the same lane state, so
+// producing both words does not require a second pass over the input.
+//
+// On the <= 16-byte path, let
+//   u = rotl(x, 27) ^ y ^ lenmix.
+// The pair (u, x) is a bijection of the two 64-bit pre-image words
+// (x, y) for a fixed length. The output pair remains bijective after
+// applying bijective finalizers to u and x + rotl(u, 32).
+//
+// Longer inputs use the same t0/t1 folds as hayahash64. The high word
+// combines them with addition where the low word uses xor, preventing
+// one GF(2)-linear cancellation from erasing a difference in both
+// output paths.
+
+typedef struct {
+	uint64_t lo;
+	uint64_t hi;
+} hayahash128_t;
+
+static inline hayahash128_t
+hayahash128_internal_short(uint64_t x, uint64_t y, uint64_t lenmix)
+{
+	hayahash128_t r;
+	uint64_t u = hayahash64_internal_rotl_product(x, 27) ^ y ^ lenmix;
+	r.lo = hayahash64_internal_fmix(u);
+	r.hi = hayahash128_internal_fmix(
+		x + hayahash64_internal_rotl(u, 32));
+	return r;
+}
+
+static inline hayahash128_t
+hayahash128_internal_long(uint64_t s, uint64_t t0, uint64_t t1, uint64_t K)
+{
+	hayahash128_t r;
+	r.lo = hayahash64_internal_long_fmix(
+		s ^ t0 ^ hayahash64_internal_rotl_product(t1, 29), K);
+	r.hi = hayahash128_internal_fmix(
+		hayahash64_internal_rotl(s, 32) ^
+		(t1 + hayahash64_internal_rotl(t0, 47)));
+	return r;
+}
+
+// `len` must be non-negative, and `keyIn` must point to at least `len`
+// readable bytes (it may be null when len is zero).
+static inline hayahash128_t
+hayahash128(const void *keyIn, ptrdiff_t len, uint64_t seed)
+{
+	const uint8_t *p = (const uint8_t *)keyIn;
+	ptrdiff_t l = len;
+	uint64_t K = HAYAHASH64_INTERNAL_K;
+	const uint64_t lenmix = (uint64_t)len * K;
+	uint64_t s = seed ^ K;
+
+	if (l <= 16) {
+		uint64_t a, b;
+		if (l >= 8) {
+			a = hayahash64_internal_load64le(p);
+			b = hayahash64_internal_load64le(p + l - 8);
+		} else if (l >= 4) {
+			a = hayahash64_internal_load32le(p);
+			b = hayahash64_internal_load32le(p + l - 4);
+		} else if (l > 0) {
+			a = p[0];
+			b = ((uint64_t)p[l >> 1] << 8) |
+			    ((uint64_t)p[l - 1] << 16);
+		} else {
+			a = 0; b = 0;
+		}
+		uint64_t x = (hayahash64_internal_inj(a) ^ s ^ K) * K;
+		uint64_t y = (hayahash64_internal_inj2(b) ^
+		              hayahash64_internal_rotl(s, 23) ^ (K >> 19)) *
+		             HAYAHASH64_INTERNAL_M1;
+		return hayahash128_internal_short(x, y, lenmix);
+	}
+
+#if defined(__aarch64__) && (defined(__GNUC__) || defined(__clang__))
+	HAYAHASH64_INTERNAL_COMPILER_GUARD(K);
+#endif
+	uint64_t h0 = s ^ K;
+	uint64_t h1 = hayahash64_internal_rotl(s, 17) + (K << 21);
+	uint64_t h2 = hayahash64_internal_rotl(s, 34) ^ (K >> 13);
+	uint64_t h3 = hayahash64_internal_rotl(s, 51) + (K << 42);
+	uint64_t w, wp = 0;
+
+	if (l >= hayahash64_internal_bulk_min) {
+		uint64_t h4 = s + (K >> 27);
+		uint64_t h5 = hayahash64_internal_rotl(s, 13) ^ (K << 9);
+		uint64_t h6 = hayahash64_internal_rotl(s, 26) + (K >> 40);
+		uint64_t h7 = hayahash64_internal_rotl(s, 39) ^ (K << 30);
+#if HAYAHASH64_INTERNAL_VECGCC
+		uint64_t hv[4] = { h2, h3, h4, h5 };
+#endif
+		do {
+			HAYAHASH64_INTERNAL_BULK_BLOCK(p);
+			p += 64; l -= 64;
+		} while (l >= 64);
+#if HAYAHASH64_INTERNAL_VECGCC
+		h2 = hv[0]; h3 = hv[1]; h4 = hv[2]; h5 = hv[3];
+#endif
+		h0 = (h0 ^ hayahash64_internal_rotl_product(h4, 11)) * K;
+		h1 = (h1 ^ hayahash64_internal_rotl_product(h5, 19)) * K;
+		h2 = (h2 ^ hayahash64_internal_rotl_product(h6, 31)) * K;
+		h3 = (h3 ^ hayahash64_internal_rotl_product(h7, 47)) * K;
+		if (l >= 32) {
+			w = hayahash64_internal_load64le(p +  0);
+			h0 = (h0 ^ (w + hayahash64_internal_rotl(wp, 27))) * K;
+			wp = w;
+			w = hayahash64_internal_load64le(p +  8);
+			h1 = (h1 ^ (w + hayahash64_internal_rotl(wp, 27))) * K;
+			wp = w;
+			w = hayahash64_internal_load64le(p + 16);
+			h2 = (h2 ^ (w + hayahash64_internal_rotl(wp, 27))) * K;
+			wp = w;
+			w = hayahash64_internal_load64le(p + 24);
+			h3 = (h3 ^ (w + hayahash64_internal_rotl(wp, 27))) * K;
+			wp = w;
+			p += 32; l -= 32;
+		}
+	} else {
+		while (l >= 32) {
+			w = hayahash64_internal_load64le(p +  0);
+			h0 = (h0 ^ (w + hayahash64_internal_rotl(wp, 27))) * K;
+			wp = w;
+			w = hayahash64_internal_load64le(p +  8);
+			h1 = (h1 ^ (w + hayahash64_internal_rotl(wp, 27))) * K;
+			wp = w;
+			w = hayahash64_internal_load64le(p + 16);
+			h2 = (h2 ^ (w + hayahash64_internal_rotl(wp, 27))) * K;
+			wp = w;
+			w = hayahash64_internal_load64le(p + 24);
+			h3 = (h3 ^ (w + hayahash64_internal_rotl(wp, 27))) * K;
+			wp = w;
+			p += 32; l -= 32;
+		}
+	}
+
+	h0 += hayahash64_internal_rotl(wp, 27);
+	if (l > 16) {
+		h0 = (h0 + hayahash64_internal_injp(p + 0)) * K;
+		h1 = (h1 + hayahash64_internal_injp(p + 8)) * K;
+	}
+	if (l > 0) {
+		h2 = (h2 + hayahash64_internal_injp(p + l - 16)) * K;
+		h3 = (h3 + hayahash64_internal_injp(p + l -  8)) * K;
+	}
+	uint64_t t0 =
+		(h0 ^ hayahash64_internal_rotl_product(h1, 13) ^ lenmix) * K;
+	uint64_t t1 =
+		(h2 ^ hayahash64_internal_rotl_product(h3, 33)) * K;
+	return hayahash128_internal_long(s, t0, t1, K);
+}
+
+// ------------------------------------------------------------------
+// Streaming API. Produces digests identical to hayahash64() and
+// hayahash128() for the same (seed, bytes) regardless of how the input
+// is split across update calls; a differential test in tests/ replays
+// random split patterns against both one-shot functions.
 //
 //   hayahash64_state st;
 //   hayahash64_init(&st, seed);
 //   hayahash64_update(&st, part1, n1);
 //   hayahash64_update(&st, part2, n2);
 //   uint64_t h = hayahash64_digest(&st);
+//   hayahash128_t h128 = hayahash128_digest(&st);
 //
 // hayahash64_digest does not modify the state: more updates may
 // follow it, and it may be called repeatedly. For short messages the
@@ -1015,6 +1187,10 @@ typedef struct {
 	uint8_t buf[hayahash64_internal_bufcap];
 } hayahash64_state;
 
+// Both digest widths use the same absorb state. The 128-bit spelling
+// is an API alias, not a larger or separately maintained state.
+typedef hayahash64_state hayahash128_state;
+
 static inline void hayahash64_init(hayahash64_state *st, uint64_t seed)
 {
 	uint64_t K = HAYAHASH64_INTERNAL_K;
@@ -1032,6 +1208,11 @@ static inline void hayahash64_init(hayahash64_state *st, uint64_t seed)
 	st->total = 0;
 	st->nbuf = 0;
 	st->bulk = 0;
+}
+
+static inline void hayahash128_init(hayahash128_state *st, uint64_t seed)
+{
+	hayahash64_init(st, seed);
 }
 
 // Consume n bytes (a multiple of 64) through the bulk block. Under
@@ -1119,6 +1300,12 @@ hayahash64_update(hayahash64_state *st, const void *data, size_t n)
 	}
 }
 
+static inline void
+hayahash128_update(hayahash128_state *st, const void *data, size_t n)
+{
+	hayahash64_update(st, data, n);
+}
+
 static inline uint64_t hayahash64_digest(const hayahash64_state *st)
 {
 	uint64_t K = HAYAHASH64_INTERNAL_K;
@@ -1198,6 +1385,88 @@ static inline uint64_t hayahash64_digest(const hayahash64_state *st)
 	uint64_t t1 = (h2 ^ hayahash64_internal_rotl(h3, 33)) * K;
 	uint64_t x = s ^ t0 ^ hayahash64_internal_rotl_product(t1, 29);
 	return hayahash64_internal_long_fmix(x, K);
+}
+
+// Return both output words from the same streaming state. Like
+// hayahash64_digest(), this does not modify the state, and its low word
+// is exactly hayahash64_digest(st).
+static inline hayahash128_t hayahash128_digest(const hayahash128_state *st)
+{
+	uint64_t K = HAYAHASH64_INTERNAL_K;
+
+	if (!st->bulk)
+		return hayahash128(st->buf, (ptrdiff_t)st->total, st->seed);
+
+	const uint64_t lenmix = st->total * K;
+	uint64_t s = st->seed ^ K;
+	uint64_t h0 = st->h[0], h1 = st->h[1], h2 = st->h[2], h3 = st->h[3];
+	uint64_t h4 = st->h[4], h5 = st->h[5], h6 = st->h[6], h7 = st->h[7];
+	uint64_t w, wp = st->wp;
+	const uint8_t *p = st->buf;
+	size_t l = st->nbuf;
+
+	while (l >= 64) {
+		w = hayahash64_internal_load64le(p +  0);
+		h0 = (h0 ^ (w + hayahash64_internal_rotl(wp, 27))) * K;
+		wp = w;
+		w = hayahash64_internal_load64le(p +  8);
+		h1 = (h1 ^ (w + hayahash64_internal_rotl(wp, 27))) * K;
+		wp = w;
+		w = hayahash64_internal_load64le(p + 16);
+		h2 = (h2 ^ (w + hayahash64_internal_rotl(wp, 27))) * K;
+		wp = w;
+		w = hayahash64_internal_load64le(p + 24);
+		h3 = (h3 ^ (w + hayahash64_internal_rotl(wp, 27))) * K;
+		wp = w;
+		w = hayahash64_internal_load64le(p + 32);
+		h4 = (h4 ^ (w + hayahash64_internal_rotl(wp, 27))) * K;
+		wp = w;
+		w = hayahash64_internal_load64le(p + 40);
+		h5 = (h5 ^ (w + hayahash64_internal_rotl(wp, 27))) * K;
+		wp = w;
+		w = hayahash64_internal_load64le(p + 48);
+		h6 = (h6 ^ (w + hayahash64_internal_rotl(wp, 27))) * K;
+		wp = w;
+		w = hayahash64_internal_load64le(p + 56);
+		h7 = (h7 ^ (w + hayahash64_internal_rotl(wp, 27))) * K;
+		wp = w;
+		h0 += wp;
+		p += 64; l -= 64;
+	}
+	h0 = (h0 ^ hayahash64_internal_rotl_product(h4, 11)) * K;
+	h1 = (h1 ^ hayahash64_internal_rotl_product(h5, 19)) * K;
+	h2 = (h2 ^ hayahash64_internal_rotl_product(h6, 31)) * K;
+	h3 = (h3 ^ hayahash64_internal_rotl_product(h7, 47)) * K;
+
+	if (l >= 32) {
+		w = hayahash64_internal_load64le(p +  0);
+		h0 = (h0 ^ (w + hayahash64_internal_rotl(wp, 27))) * K;
+		wp = w;
+		w = hayahash64_internal_load64le(p +  8);
+		h1 = (h1 ^ (w + hayahash64_internal_rotl(wp, 27))) * K;
+		wp = w;
+		w = hayahash64_internal_load64le(p + 16);
+		h2 = (h2 ^ (w + hayahash64_internal_rotl(wp, 27))) * K;
+		wp = w;
+		w = hayahash64_internal_load64le(p + 24);
+		h3 = (h3 ^ (w + hayahash64_internal_rotl(wp, 27))) * K;
+		wp = w;
+		p += 32; l -= 32;
+	}
+	h0 += hayahash64_internal_rotl(wp, 27);
+	if (l > 16) {
+		h0 = (h0 + hayahash64_internal_injp(p + 0)) * K;
+		h1 = (h1 + hayahash64_internal_injp(p + 8)) * K;
+	}
+	if (l > 0) {
+		h2 = (h2 + hayahash64_internal_injp(p + l - 16)) * K;
+		h3 = (h3 + hayahash64_internal_injp(p + l -  8)) * K;
+	}
+	uint64_t t0 =
+		(h0 ^ hayahash64_internal_rotl_product(h1, 13) ^ lenmix) * K;
+	uint64_t t1 =
+		(h2 ^ hayahash64_internal_rotl_product(h3, 33)) * K;
+	return hayahash128_internal_long(s, t0, t1, K);
 }
 
 #endif // HAYAHASH_H

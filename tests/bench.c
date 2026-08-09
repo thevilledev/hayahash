@@ -1,4 +1,4 @@
-// Benchmark: hayahash64 vs chibihash v1 / v2 (C implementations).
+// Benchmark: hayahash64 / hayahash128 vs chibihash v1 / v2.
 //
 // Three views:
 //   1. Large-input throughput (GB/s), sizes 32B..1MB.
@@ -43,12 +43,18 @@ NOINLINE static uint64_t run_v2(const void *p, ptrdiff_t l, uint64_t s)
 { return chibihash64_v2(p, l, s); }
 NOINLINE static uint64_t run_haya(const void *p, ptrdiff_t l, uint64_t s)
 { return hayahash64(p, l, s); }
+NOINLINE static uint64_t run_haya128(const void *p, ptrdiff_t l, uint64_t s)
+{
+	hayahash128_t h = hayahash128(p, l, s);
+	return h.lo ^ h.hi;
+}
 
 typedef uint64_t (*hashfn)(const void *, ptrdiff_t, uint64_t);
 static const struct { const char *name; hashfn fn; } HASHES[] = {
 	{ "chibihash v1", run_v1 },
 	{ "chibihash v2", run_v2 },
-	{ "hayahash", run_haya },
+	{ "hayahash64", run_haya },
+	{ "hayahash128", run_haya128 },
 };
 enum { NHASH = sizeof(HASHES) / sizeof(HASHES[0]) };
 

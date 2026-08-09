@@ -2,6 +2,23 @@
 
 These files hold the records used by the working paper.
 
+- `apple-m1-pro-smhasher3-128-shootout.txt` and
+  `ryzen-ai9-smhasher3-128-shootout.txt` are the current `v0.5` 128-bit
+  competitive sweep at pinned SMHasher3 commit `51d3cd1a`. Each preserves
+  three round-robin process values, the host-wide overhead correction, and
+  the median used in the README and website. The EPYC conformance record
+  supplies the full-suite column without treating VM timings as comparable.
+- `epyc9655-smhasher3-128-conformance.txt` records the corresponding full-suite
+  summaries, exact raw-output checksums, and the source-backed instruction
+  class audit for all nine 128-bit hashes.
+- `apple-m1-pro-hayahash128.txt`, `ryzen-ai9-hayahash128.txt`, and
+  `epyc9655-hayahash128.txt` are the 2026-08-09 dual-width harness runs
+  behind the current README and website tables. They record the full
+  hayahash64/hayahash128 and ChibiHash output plus source checksums. The
+  EPYC is a KVM guest, so only its within-host ratios are comparable.
+- `apple-m1-pro-wasm-hayahash128.txt` is the matching baseline-wasm32
+  shootout. Its timing loops run inside wasm under Node/V8; the build has
+  neither SIMD nor a wide multiply.
 - `apple-m1-chibihash.txt` contains three idle process replicates and the
   process-level medians transcribed into the paper.
 - `apple-m1-provisional-background-load.txt` is an excluded run retained to
@@ -50,4 +67,3 @@ The benchmark harness retains a median per cell but not its nine individual
 sample values. A release-quality evaluation should record every sample,
 operating-system and power-state details, exact competitor upstream revision,
 and at least three process replicates on every host.
-

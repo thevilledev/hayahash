@@ -1,4 +1,4 @@
-# hayahash64
+# hayahash
 
 [![CI](https://img.shields.io/github/actions/workflow/status/thevilledev/hayahash/ci.yml?branch=main&logo=githubactions&logoColor=white&label=CI)](https://github.com/thevilledev/hayahash/actions/workflows/ci.yml)
 [![license](https://img.shields.io/github/license/thevilledev/hayahash?logo=unlicense&logoColor=white&label=license)](LICENSE)
@@ -12,14 +12,14 @@
 [![PyPI](https://img.shields.io/pypi/v/hayahash?logo=pypi&logoColor=white&label=pypi)](https://pypi.org/project/hayahash/)
 [![npm](https://img.shields.io/npm/v/hayahash?logo=npm&logoColor=white&label=npm)](https://www.npmjs.com/package/hayahash)
 
-A small 64-bit hash function that passes the full
+A small family of 64- and 128-bit hash functions that passes the full
 [SMHasher3](https://gitlab.com/fwojcik/smhasher3) suite while staying
 strictly portable: no SIMD, no 64x64-to-128-bit multiply, no
 per-architecture code, no UB, and endianness-independent output.
 
 That suits wasm, JVM, .NET, and portable C targets where only ordinary
-64-bit multiplication is available. On native x86-64 or ARM64, where a
-wide multiply is available, `rapidhash v3` is still the better default
+64-bit multiplication is available. For 64-bit hashing on native x86-64
+or ARM64, where a wide multiply is available, `rapidhash v3` is still the better default
 unless that portability matters to you: it leads on small keys
 everywhere and on both axes on the M1, although its sustained-bulk
 lead on Zen 5 did not survive hayahash's auto-vectorized bulk loop
@@ -52,7 +52,8 @@ trick, the header says so.
 The reference implementation is the single C header
 [`hayahash.h`](hayahash.h) at the repository root. Bit-exact ports to
 Rust, Go, Zig, Java, C#, Python, Swift, JavaScript/TypeScript, and
-MIPS64 assembly live in this repository; see [Usage](#usage).
+MIPS64 assembly cover hayahash64; hayahash128 is currently exposed by
+the C header. See [Usage](#usage).
 
 Documentation: [design](docs/design.md) ·
 [quality](docs/quality.md) · [ports & layout](docs/ports.md) ·
@@ -69,39 +70,73 @@ v1/v2 vendored in `tests/` (`make -C tests run-bench`):
 
 Large-input throughput (GB/s, higher is better):
 
-| size    | chibihash v1 | chibihash v2 | hayahash  |
-|--------:|-------------:|-------------:|----------:|
-| 64      | 7.7          | 9.9          | **13.0**  |
-| 256     | 15.7         | 17.8         | **20.3**  |
-| 1024    | 15.5         | 19.5         | **27.2**  |
-| 16384   | 14.6         | 18.8         | **30.1**  |
-| 1048576 | 14.6         | 18.8         | **30.2**  |
+| size    | chibihash v1 | chibihash v2 | hayahash64 | hayahash128 |
+|--------:|-------------:|-------------:|-----------:|------------:|
+| 64      | 7.36         | 9.74         | **12.59**  | 10.07       |
+| 256     | 15.38        | 17.44        | **20.03**  | 18.24       |
+| 1024    | 15.11        | 19.15        | **26.59**  | 23.97       |
+| 16384   | 14.32        | 18.41        | **29.44**  | 26.98       |
+| 1048576 | 14.21        | 18.35        | **29.78**  | 27.31       |
 
 Small-input latency (ns/hash, seed-chained, lower is better):
 
-| len | chibihash v1 | chibihash v2 | hayahash |
-|----:|-------------:|-------------:|---------:|
-| 4   | 9.7          | 10.1         | **7.3**  |
-| 8   | 6.4          | 9.6          | 7.3      |
-| 16  | 6.8          | 9.9          | 7.3      |
-| 32  | 12.0         | 11.4         | **8.0**  |
-| 64  | 14.2         | 13.1         | **9.4**  |
-| 128 | 19.7         | 16.9         | **13.0** |
+| len | chibihash v1 | chibihash v2 | hayahash64 | hayahash128 |
+|----:|-------------:|-------------:|-----------:|------------:|
+| 4   | 9.89         | 10.15        | **8.01**   | 9.40        |
+| 8   | **6.50**     | 9.69         | 7.99       | 9.43        |
+| 16  | **6.85**     | 9.94         | 7.96       | 9.39        |
+| 32  | 12.20        | 11.56        | **8.47**   | 10.81       |
+| 64  | 14.32        | 13.22        | **9.86**   | 12.18       |
+| 128 | 18.57        | 16.74        | **12.53**  | 15.02       |
 
 Small-input throughput (ns/hash, independent hashes, lower is better):
 
-| len | chibihash v1 | chibihash v2 | hayahash |
-|----:|-------------:|-------------:|---------:|
-| 4   | 7.3          | 4.3          | **2.8**  |
-| 8   | 4.5          | 4.5          | **2.8**  |
-| 16  | 5.2          | 5.0          | **2.8**  |
-| 32  | 7.4          | 5.3          | **3.8**  |
-| 64  | 8.5          | 6.6          | **5.0**  |
-| 128 | 11.8         | 9.0          | **7.5**  |
+| len | chibihash v1 | chibihash v2 | hayahash64 | hayahash128 |
+|----:|-------------:|-------------:|-----------:|------------:|
+| 4   | 7.35         | 4.32         | **2.83**   | 3.93        |
+| 8   | 4.63         | 4.64         | **2.84**   | 3.96        |
+| 16  | 5.16         | 4.96         | **2.76**   | 3.87        |
+| 32  | 7.04         | 5.45         | **3.88**   | 5.21        |
+| 64  | 8.61         | 6.51         | **5.05**   | 6.34        |
+| 128 | 12.05        | 9.10         | **7.55**   | 8.81        |
+
+The direct cost of selecting the 128-bit result was also measured on three
+hosts. Each cell is the median of nine calibrated ~40 ms
+samples on one pinned core; small-key latency chains each result into the
+next seed, while the independent column allows overlap:
+
+| host / compiler | 8 B chained, 64 / 128 (ns) | 8 B independent, 64 / 128 (ns) | 1 MiB, 64 / 128 (GB/s) |
+|---|---:|---:|---:|
+| Apple M1 Pro / Apple clang 21 | 7.99 / 9.43 | 2.84 / 3.96 | 29.78 / 27.31 |
+| Ryzen AI 9 HX PRO 370 / GCC 16 | 4.29 / 4.93 | 1.88 / 2.77 | 61.60 / 33.88 |
+| EPYC 9655 KVM guest / GCC 13 | 4.90 / 5.59 | 2.14 / 3.15 | 54.76 / 29.85 |
+
+The M1 and Ryzen runs are bare metal. The EPYC is a KVM guest without
+frequency control, so use its within-host ratio rather than comparing its
+absolute rate with the other machines. `hayahash128.lo` is identical to
+hayahash64 in every row; the extra work produces only the high word.
+
+Baseline wasm32 is the target where the shared state walk pays off most.
+This M1 Pro run used Zig 0.16 to compile one module with `-O3`, no SIMD,
+and no wide multiply; all timing loops ran inside wasm under Node 26 / V8:
+
+| hash | 8 B chained (ns/hash) | 1 MiB (GB/s) |
+|---|---:|---:|
+| **hayahash128** | 10.6 | 23.34 |
+| hayahash64 | 7.7 | **23.55** |
+| ChibiHash v2 | 10.4 | 18.57 |
+| XXH3-64 | 8.2 | 17.41 |
+| XXH64 | **5.9** | 14.71 |
+| rapidhash v3 | 22.6 | 6.43 |
+
+hayahash128 retains 99% of hayahash64's bulk rate in this build. The other
+rows return 64 bits; ChibiHash v2 is the passing portable-scalar comparator
+in this table, and hayahash128 is 26% faster in bulk here while returning
+twice the output width.
 
 v1's 8/16-byte latency wins come from special-cased paths that are also
-part of why it fails SMHasher3; among the two functions that pass,
-hayahash is fastest at every size, and the bulk rate is ~1.6x
+part of why it fails SMHasher3; among the 64-bit functions that pass,
+hayahash64 is fastest at every size, and its bulk rate is ~1.6x
 ChibiHash v2. The 32..128-byte rows reflect the fifth optimization
 pass's dispatch choice: clang targets take the compact dispatch, giving
 up 5..9% at these fixed sizes to run 2..10% faster on mixed-size
@@ -109,18 +144,64 @@ workloads, which single-size tables cannot show (see the
 [optimization log](docs/optimization/)).
 
 The same comparison on native x86-64 (AMD Zen 5, GCC 16,
-`-march=native`) now shows hayahash ahead of both ChibiHash versions
+`-march=native`) now shows hayahash64 ahead of both ChibiHash versions
 at every measured size: 128-byte keys 5.2 vs 6.6 ns independent and
-24.7 vs 19.5 GB/s streamed, the 320..512-byte band that v2 led after
-the fourth pass flipped to a 27..47% hayahash lead (512 bytes: 42.2
-vs 28.6 GB/s), and sustained bulk essentially doubled to 61.3 vs
-31.2 GB/s at 1 MiB after the fifth pass taught GCC to auto-vectorize
+24.3 vs 19.8 GB/s streamed, the 320..512-byte band that v2 led after
+the fourth pass flipped to a 27..47% hayahash lead (512 bytes: 42.1
+vs 29.3 GB/s), and sustained bulk essentially doubled to 61.6 vs
+31.3 GB/s at 1 MiB after the fifth pass taught GCC to auto-vectorize
 the bulk loop for AVX-512 (builds without AVX-512DQ keep the previous
-35 GB/s scalar rate). Dispatch shapes are tuned per architecture and
-compiler; the [optimization log](docs/optimization/) documents the
+35 GB/s scalar rate). hayahash128 reaches 6.37 ns at 128 bytes and
+33.88 GB/s at 1 MiB on that same run. Dispatch shapes are tuned per
+architecture and compiler; the [optimization log](docs/optimization/) documents the
 measurements.
 
-### SMHasher3 shootout
+### SMHasher3 128-bit shootout
+
+This is the current `v0.5` candidate against SMHasher3 commit
+`51d3cd1ac0aa4934f6aacb44d9d234f50300b6e3`. Speed cells are medians of
+three independent, round-robin processes on two bare-metal hosts. Small-key
+latency is the 1-31-byte average corrected to one call-overhead baseline per
+host; bulk is the fixed 256 KiB average. The full suite was run separately on
+the EPYC 9655 with 128-bit-wide expectations.
+
+| 128-bit hash | M1 small | M1 bulk | Zen 5 small | Zen 5 bulk | full suite | peak-performance requirement |
+|---|---:|---:|---:|---:|---|---|
+| **hayahash128** | 38.51 | 9.18 | 13.72 | 16.83 | pass | ordinary scalar source; auto-vectorized Zen 5 bulk |
+| MuseAir-128 | 24.26 | 8.65 | 7.44 | 22.80 | pass | 64x64-to-128-bit multiply |
+| a5hash-128 | **22.29** | 10.92 | **6.00** | 22.99 | pass | 64x64-to-128-bit multiply |
+| MeowHash | - | - | 28.64 | 32.22 | pass | x86 AES instructions |
+| XXH3-128 | 30.73 | **12.64** | 11.92 | **48.91** | fail (26) | wide multiply; SIMD for peak bulk |
+| t1ha2-128 | 64.58 | 5.86 | 21.03 | 16.24 | pass | 64x64-to-128-bit multiply |
+| SpookyHash2-128 | 53.37 | 4.20 | 24.39 | 15.35 | fail (10) | ordinary 64-bit operations |
+| prvhash-128 | 67.45 | 1.00 | 25.49 | 2.58 | pass (187/187) | ordinary 64-bit operations |
+| FarmHash-128.CC.seed1 | 60.09 | 5.64 | 21.09 | 16.45 | pass | ordinary 64-bit operations |
+
+Small-key values are dependent latency, not independent throughput. The raw
+SMHasher3 process averages also need correction because its once-per-process
+call-overhead calibration shifts the whole 1-31-byte average. The archived
+records contain every process value and the exact calculation. MeowHash has no
+M1 row because the tested implementation requires x86 AES instructions.
+
+The accelerated passers are faster on Zen 5: a5hash and MuseAir use a native
+wide multiply result, while MeowHash uses AES. XXH3-128 is the bulk leader but
+fails 26 of the 188 test groups. On M1, hayahash128 reaches 9.18 B/cy and on
+Zen 5 it reaches 16.83 B/cy without a wide-result multiply or AES; the Zen 5
+bulk loop is compiler-auto-vectorized.
+
+The passing ordinary-scalar rows are hayahash128, prvhash-128, and FarmHash
+CC. hayahash128 leads FarmHash in bulk by 1.63x on M1 and 1.02x on Zen 5, and
+has lower small-key latency on both. The narrow Zen 5 result matters: this
+supports "fastest passing portable-scalar 128-bit hash measured here," not a
+claim that no fast portable-scalar 128-bit predecessor exists. prvhash exposes
+187 applicable test groups in this SMHasher3 registration and passes all 187.
+
+Reproduce the adapter with `make -C tests/smhasher3 run`; the competitive
+sweep procedure and calibration correction are in
+[`docs/smhasher3.md`](docs/smhasher3.md). Raw records are archived under
+[`paper/results/`](paper/results/).
+
+### SMHasher3 64-bit shootout (`v0.4.0` archive)
 
 Run with `make -C tests/smhasher3 run`, which pins SMHasher3 to an exact
 upstream commit; [`docs/smhasher3.md`](docs/smhasher3.md) covers how to
@@ -226,17 +307,23 @@ claim rather than a universal record: two hosts, bounded by the roughly
   locally; the nine-build sweep across four hosts and five compilers
   that `v0.4.0` went through has not been repeated yet.
   (ChibiHash v2 also passes 188/188; v1 fails.)
+- hayahash128: **188/188 tests passed** with 128-bit-wide expectations;
+  verification values `0x3F0411F4` (canonical little-endian) and
+  `0x46140A64` (byte-swapped). Its low word is exactly hayahash64.
 - Local harness (`make -C tests run-quality`): strict avalanche
   criterion over input and seed bits, plus exact-collision tests over
   24 structured key sets, including reproductions of the SMHasher3
-  keysets that broke earlier iterations. All clean.
-- All nine ports are bit-exact against the C reference: shared
+  keysets that broke earlier iterations. The same target checks
+  hayahash128 known answers, streaming equivalence, and low-word
+  compatibility across exhaustive boundary lengths and random splits.
+  All clean.
+- All nine hayahash64 ports are bit-exact against the C reference: shared
   known-answer vectors and the SMHasher3 verification value in every
   port's test suite, plus nightly differential fuzzing that replays a
   fresh randomized C-reference corpus through every language port
   (both JavaScript engines included; the MIPS64 assembly port relies
   on the shared vectors instead).
-- Endianness and ABI are tested in CI: big-endian s390x, ILP32 wasm32,
+- hayahash64 endianness and ABI are tested in CI: big-endian s390x, ILP32 wasm32,
   MSVC x64, and MIPS64 under qemu must all reproduce the shared KAT.
 
 [`docs/quality.md`](docs/quality.md) details each of these;
@@ -250,10 +337,13 @@ C - copy [`hayahash.h`](hayahash.h) into your project:
 #include "hayahash.h"
 
 uint64_t h = hayahash64(buf, len, seed);
+hayahash128_t h128 = hayahash128(buf, len, seed);
+// h128.lo == h
 ```
 
-Streaming (identical digests, any update split; digest() does not
-modify the state, so it can be called mid-stream):
+Streaming (identical digests, any update split; both widths share the
+same state, and digest() does not modify it, so it can be called
+mid-stream):
 
 ```c
 hayahash64_state st;
@@ -261,6 +351,7 @@ hayahash64_init(&st, seed);
 hayahash64_update(&st, part1, n1);
 hayahash64_update(&st, part2, n2);
 uint64_t h = hayahash64_digest(&st);
+hayahash128_t h128 = hayahash128_digest(&st);
 ```
 
 | language | package | call |

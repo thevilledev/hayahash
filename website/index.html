@@ -5,19 +5,19 @@
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <meta
       name="description"
-      content="hayahash64 is an experimental portable 64-bit hash function. It is not cryptographic. It passes all 188 default tests of a pinned SMHasher3 revision. It has a C reference and nine bit-exact ports."
+      content="hayahash is an experimental family of portable 64- and 128-bit hash functions. Both pass all 188 default tests of a pinned SMHasher3 revision."
     >
     <meta name="theme-color" content="#ffffff">
     <meta property="og:type" content="website">
-    <meta property="og:title" content="hayahash64">
+    <meta property="og:title" content="hayahash64 and hayahash128">
     <meta
       property="og:description"
-      content="An experimental portable 64-bit hash function. It passes all 188 default tests of a pinned SMHasher3 revision. Ten implementations make the same hash values."
+      content="Experimental portable 64- and 128-bit hash functions with no SIMD or wide multiply. Both pass the pinned SMHasher3 suite."
     >
     <meta property="og:url" content="https://hayaha.sh/">
     <link rel="canonical" href="https://hayaha.sh/">
     <link rel="stylesheet" href="styles.css">
-    <title>hayahash64: a portable 64-bit hash function</title>
+    <title>hayahash64 and hayahash128: portable scalar hashes</title>
   </head>
   <body>
     <a class="skip-link" href="#content">Skip to content</a>
@@ -38,23 +38,23 @@
 | | | || (_| || |_| || (_| || | | || (_| |\__ \ | | | |
 |_| |_| \__,_| \__, | \__,_||_| |_| \__,_||___/ |_| |_|
                |___/</pre>
-      <h1>hayahash64</h1>
+      <h1>hayahash</h1>
 
       <p>
-        hayahash64 is a 64-bit hash function. It is not cryptographic. It
-        passes all 188 default tests of the
+        hayahash64 and hayahash128 are portable scalar hash functions.
+        They are not cryptographic. Both pass all 188 default tests of the
         <a href="https://gitlab.com/fwojcik/smhasher3">SMHasher3</a> suite
-        at the project's pinned revision. It stays portable:
+        at the project's pinned revision. They stay portable:
       </p>
 
       <ul>
-        <li>It does not use SIMD.</li>
-        <li>It does not use a wide multiply (64&times;64&rarr;128 bits).</li>
-        <li>It has no intrinsics and no CPU-specific instructions. The
+        <li>They do not use SIMD.</li>
+        <li>They do not use a wide multiply (64&times;64&rarr;128 bits).</li>
+        <li>They have no intrinsics and no CPU-specific instructions. The
           header selects between portable C shapes for each compiler and
           CPU. The choice changes only the speed. Each shape makes the
           same hash values.</li>
-        <li>It has no undefined behavior. The C standard defines each
+        <li>They have no undefined behavior. The C standard defines each
           operation in the header.</li>
         <li>Byte order does not change the hash value (little-endian or
           big-endian).</li>
@@ -63,24 +63,26 @@
       <p>
         The reference implementation is one C99 header,
         <a href="https://github.com/thevilledev/hayahash/blob/main/hayahash.h"><code>hayahash.h</code></a>.
-        The repository has bit-exact ports to nine other languages.
+        hayahash64 has bit-exact ports to nine other languages.
         <em>Haya</em> is the stem of Japanese <em>hayai</em> (速い),
         "fast".
       </p>
 
       <p>
-        On the names: hayahash is the project. hayahash64 is its one
-        hash function. The 64 is the width of the hash value in bits.
-        No other widths exist yet.
+        On the names: hayahash is the project. hayahash64 and hayahash128
+        are its two digest widths. They share one state walk, and the low
+        word of hayahash128 is exactly hayahash64 for the same bytes and
+        seed.
       </p>
 
       <p>
-        Use hayahash64 where the ordinary 64-bit multiply is the only
+        Use hayahash where the ordinary 64-bit multiply is the only
         fast path. Scalar WebAssembly and portable C are the clear cases.
         The JVM and .NET do expose the wide product, through
         <code>Math.multiplyHigh</code> and <code>Math.BigMul</code>, but
         how well a runtime lowers these calls varies by version.
-        Native x86-64 and ARM64 CPUs have a wide multiply. On those CPUs,
+        Native x86-64 and ARM64 CPUs have a wide multiply. For a 64-bit
+        digest on those CPUs,
         <a href="https://github.com/Nicoshev/rapidhash">rapidhash v3</a> is
         the better default. It is faster on small keys on each CPU we
         measured. On the M1, it is faster in bulk too. hayahash is ahead in
@@ -103,21 +105,24 @@
           <tr>
             <th scope="row">Release</th>
             <td><a href="https://github.com/thevilledev/hayahash/releases/tag/v0.4.5">v0.4.5</a>.
-              All ports share this version. The hash values did not change
-              since v0.4.0.</td>
+              That release contains hayahash64 in every port. The current
+              v0.5 candidate adds hayahash128 to the C reference.</td>
           </tr>
           <tr>
             <th scope="row">Hash value / seed</th>
-            <td>64 bits / 64 bits</td>
+            <td>64 or 128 bits / 64 bits. The 128-bit low word is the
+              64-bit digest.</td>
           </tr>
           <tr>
             <th scope="row">SMHasher3</th>
-            <td>188 of 188 tests pass. The verification value is
-              <code>0x65F2AC15</code>.</td>
+            <td>Both widths pass 188 of 188 tests. Verification values:
+              hayahash64 <code>0x65F2AC15</code>; hayahash128
+              <code>0x3F0411F4</code> on canonical little-endian output.</td>
           </tr>
           <tr>
             <th scope="row">Implementations</th>
-            <td>The C reference, with bit-exact ports to Rust, Go, Zig,
+            <td>Both widths in the C reference. hayahash64 also has
+              bit-exact ports to Rust, Go, Zig,
               Java, C#, Python, Swift, JavaScript/TypeScript, and MIPS64
               assembly.</td>
           </tr>
@@ -130,14 +135,81 @@
 
       <h2 id="benchmarks">Benchmarks</h2>
 
-      <p>We make two claims. Each claim has limits. You can reproduce each
+      <p>
+        Producing the second word is inexpensive on the M1 and has a larger
+        bulk cost on the two Zen&nbsp;5 systems measured. These are medians
+        of nine calibrated rounds on one pinned core; every cell shows
+        hayahash64 / hayahash128.
+      </p>
+
+      <div class="table-scroll">
+        <table>
+          <caption>Current v0.5 candidate: 64 / 128</caption>
+          <thead>
+            <tr>
+              <th scope="col">host</th>
+              <th scope="col" class="n">8 B chained (ns)</th>
+              <th scope="col" class="n">1 MiB (GB/s)</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr><td>Apple M1 Pro</td><td class="n">7.99 / 9.43</td><td class="n">29.78 / 27.31</td></tr>
+            <tr><td>Ryzen AI 9 HX PRO 370</td><td class="n">4.29 / 4.93</td><td class="n">61.60 / 33.88</td></tr>
+            <tr><td>EPYC 9655 (KVM)</td><td class="n">4.90 / 5.59</td><td class="n">54.76 / 29.85</td></tr>
+          </tbody>
+        </table>
+      </div>
+
+      <h3>Current 128-bit SMHasher3 shootout</h3>
+
+      <p>
+        Three round-robin process replicates on each bare-metal host;
+        small-key latency is corrected to one SMHasher3 overhead baseline.
+        Full-suite results come from the same pinned source on the EPYC 9655.
+      </p>
+
+      <div class="table-scroll">
+        <table>
+          <caption>128-bit output: small cycles/hash / bulk bytes/cycle</caption>
+          <thead>
+            <tr><th scope="col">hash</th><th scope="col" class="n">M1 small / bulk</th><th scope="col" class="n">Zen 5 small / bulk</th><th scope="col">full suite</th><th scope="col">class</th></tr>
+          </thead>
+          <tbody>
+            <tr class="self"><td>hayahash128</td><td class="n">38.51 / 9.18</td><td class="n">13.72 / 16.83</td><td>pass</td><td>scalar source*</td></tr>
+            <tr><td>MuseAir-128</td><td class="n">24.26 / 8.65</td><td class="n">7.44 / 22.80</td><td>pass</td><td>wide multiply</td></tr>
+            <tr><td>a5hash-128</td><td class="n">22.29 / 10.92</td><td class="n">6.00 / 22.99</td><td>pass</td><td>wide multiply</td></tr>
+            <tr><td>MeowHash</td><td class="n">-</td><td class="n">28.64 / 32.22</td><td>pass</td><td>x86 AES</td></tr>
+            <tr><td>XXH3-128</td><td class="n">30.73 / 12.64</td><td class="n">11.92 / 48.91</td><td>fail (26)</td><td>wide multiply + SIMD</td></tr>
+            <tr><td>t1ha2-128</td><td class="n">64.58 / 5.86</td><td class="n">21.03 / 16.24</td><td>pass</td><td>wide multiply</td></tr>
+            <tr><td>SpookyHash2-128</td><td class="n">53.37 / 4.20</td><td class="n">24.39 / 15.35</td><td>fail (10)</td><td>ordinary scalar</td></tr>
+            <tr><td>prvhash-128</td><td class="n">67.45 / 1.00</td><td class="n">25.49 / 2.58</td><td>pass (187/187)</td><td>ordinary scalar</td></tr>
+            <tr><td>FarmHash-128.CC.seed1</td><td class="n">60.09 / 5.64</td><td class="n">21.09 / 16.45</td><td>pass</td><td>ordinary scalar</td></tr>
+          </tbody>
+        </table>
+      </div>
+
+      <p>
+        Faster passing rows on Zen&nbsp;5 use either a native 128-bit multiply
+        result or AES instructions. Among ordinary-scalar passers, hayahash128
+        leads FarmHash bulk by 1.63&times; on M1 and 1.02&times; on Zen&nbsp;5.
+        XXH3-128 is fastest overall and fails 26 of 188 test groups. * The
+        Zen&nbsp;5 hayahash bulk loop is compiler-auto-vectorized. Full
+        methodology and instruction requirements are
+        on the <a href="benchmarks.html#shootout">benchmark page</a>.
+      </p>
+
+      <h3>Archived <code>v0.4.0</code> 64-bit shootout</h3>
+
+      <p>The competitive hayahash64 data supports two claims. Each claim
+        has limits. You can reproduce each
         claim:</p>
 
       <ol>
         <li>
           Compare the hashes that use only portable scalar 64-bit code and
-          that pass all SMHasher3 tests. In this group, hayahash has the
-          highest bulk speed on the two machines we measured.
+          that pass all SMHasher3 tests. In this group, hayahash64 has the
+          highest bulk speed on the two bare-metal machines in the
+          competitive shootout.
         </li>
         <li>
           On Zen 5, GCC can vectorize the hayahash bulk loop. Then hayahash
@@ -150,7 +222,7 @@
       <div class="table-scroll">
         <table>
           <caption>
-            SMHasher3 shootout. Small keys: cycles/hash on keys of 1 to 31
+            SMHasher3 64-bit archive. Small keys: cycles/hash on keys of 1 to 31
             bytes. Lower is better. Bulk: bytes/cycle on 256&nbsp;KiB keys.
             Higher is better.
           </caption>
@@ -247,10 +319,10 @@
       <p>
         <a href="https://github.com/N-R-K/ChibiHash">ChibiHash v2</a> is
         the nearest comparable hash. It has the same portability rules. It
-        passes the suite. At 1&nbsp;MiB on the M1, hayahash reaches
-        30.2&nbsp;GB/s and ChibiHash v2 reaches 18.8&nbsp;GB/s. That is a
+        passes the suite. At 1&nbsp;MiB on the M1, hayahash64 reaches
+        29.78&nbsp;GB/s and ChibiHash v2 reaches 18.35&nbsp;GB/s. That is a
         1.6&times; lead. At 1&nbsp;MiB on Zen&nbsp;5 with AVX-512, hayahash
-        reaches 61.3&nbsp;GB/s and ChibiHash v2 reaches 31.2&nbsp;GB/s.
+        reaches 61.60&nbsp;GB/s and ChibiHash v2 reaches 31.25&nbsp;GB/s.
         That is a 2.0&times; lead. Without AVX-512DQ, hayahash reaches
         approximately 35&nbsp;GB/s there. Small keys differ by CPU. On the
         M1, hayahash needs 11 percent less time. On Zen&nbsp;5, hayahash
@@ -259,15 +331,15 @@
 
       <p>
         You do not have to take these tables on faith. The
-        <a href="playground.html">playground</a> compiles five hashes to
+        <a href="playground.html">playground</a> compiles six hash variants to
         one WebAssembly module and measures them in your browser.
       </p>
 
       <h2 id="use">Use it</h2>
 
       <p>
-        You can install each port today. All ports share one version
-        number. One release is the same algorithm in each language.
+        The released ports below expose hayahash64 and share one version
+        number. hayahash128 is currently available from the C header.
       </p>
 
       <div class="table-scroll">
@@ -283,7 +355,8 @@
             <tr>
               <td>C (C99)</td>
               <td>copy <a href="https://github.com/thevilledev/hayahash/blob/main/hayahash.h"><code>hayahash.h</code></a></td>
-              <td><code>hayahash64(buf, len, seed)</code></td>
+              <td><code>hayahash64(buf, len, seed)</code><br>
+                <code>hayahash128(buf, len, seed)</code></td>
             </tr>
             <tr>
               <td>Rust</td>
@@ -349,6 +422,12 @@
           bit-identical locally; the v0.4.0 nine-build sweep across four
           hosts and five compilers has not been repeated for it yet.
           ChibiHash v2 passes the suite too. ChibiHash v1 fails it.
+        </li>
+        <li>
+          hayahash128 also passes 188 of 188 tests with 128-bit-wide
+          expectations. Its canonical verification value is
+          <code>0x3F0411F4</code>, and its low word equals hayahash64 in
+          the one-shot and streaming differential tests.
         </li>
         <li>
           The local harness applies a strict avalanche criterion to the

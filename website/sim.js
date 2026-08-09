@@ -1,6 +1,6 @@
 // Driver for the simulator on design.html.
 //
-// This file re-implements hayahash64 in BigInt arithmetic, but
+// This file re-implements hayahash64 and hayahash128 in BigInt arithmetic, but
 // instrumented: instead of only returning the digest, buildSteps()
 // records one step per load, absorb, fold, and finalizer stage, with
 // a full state snapshot after each step. The page then renders any
@@ -23,6 +23,8 @@ const MASK64 = (1n << 64n) - 1n;
 const K = 0x9e3779b97f4a7c15n;
 const M1 = 0x3c79ac492ba7b653n;
 const M2 = 0x1c69b3f74ac4ae35n;
+const N1 = 0xff51afd7ed558ccdn;
+const N2 = 0xc4ceb9fe1a85ec53n;
 
 const mul = (a, b) => (a * b) & MASK64;
 const add = (a, b) => (a + b) & MASK64;
@@ -53,6 +55,35 @@ function load32(b, off) {
 const inj = (w) => w ^ rotl(w, 21) ^ rotl(w, 41);
 const inj2 = (w) => w ^ rotl(w, 11) ^ rotl(w, 50);
 const hx = (v) => `0x${v.toString(16).padStart(16, "0")}`;
+const hx128 = (hi, lo) =>
+	`0x${hi.toString(16).padStart(16, "0")}${lo.toString(16).padStart(16, "0")}`;
+
+function finishHigh(st, input, push, sourceNote) {
+	st.hi = input;
+	push(
+		"128-bit high combine",
+		`hi input = ${hx(st.hi)}`,
+		sourceNote +
+			" It then takes a distinct bijective finalizer, so the high " +
+			"word does not repeat the low word's avalanche path.",
+	);
+	const fm = [
+		["hi ^= hi >> 30", (v) => v ^ shr(v, 30)],
+		["hi *= N1", (v) => mul(v, N1)],
+		["hi ^= hi >> 31", (v) => v ^ shr(v, 31)],
+		["hi *= N2", (v) => mul(v, N2)],
+		["hi ^= hi >> 33", (v) => v ^ shr(v, 33)],
+	];
+	fm.forEach(([label, f], i) => {
+		const before = st.hi;
+		st.hi = f(before);
+		push(
+			`finalize high ${i + 1}/5`,
+			`${label}\n   ${hx(before)}\n-> ${hx(st.hi)}`,
+			`The hayahash128 high-word finalizer, step ${i + 1} of 5.`,
+		);
+	});
+}
 
 // ---------------------------------------------------------------
 // Step builder
@@ -104,9 +135,10 @@ export function buildSteps(bytes, seedIn) {
 		});
 		return {
 			path: "short",
-			rows: ["s", "lenmix", "a", "b", "x", "y", "m"],
+			rows: ["s", "lenmix", "a", "b", "x", "y", "m", "hi"],
 			steps,
 			digest: st.m,
+			digest128: { lo: st.m, hi: st.hi },
 		};
 	}
 
@@ -363,19 +395,29 @@ export function buildSteps(bytes, seedIn) {
 		"A final xor-shift mixes the top half down.",
 	);
 
+	finishHigh(
+		st,
+		rotl(s, 32) ^ add(st.t1, rotl(st.t0, 47)),
+		push,
+		"The long path combines t0 and t1 with addition where the low " +
+			"word uses xor. One GF(2)-linear cancellation therefore cannot " +
+			"erase a difference from both output paths.",
+	);
 	push(
-		"digest",
-		`digest = ${hx(st.x)}`,
-		`Done. ${len} bytes, seed ${hx(seed)}: the playground, the C ` +
-			"header, and every port compute this same value.",
+		"digests",
+		`hayahash64  = ${hx(st.x)}\n` +
+			`hayahash128 = ${hx128(st.hi, st.x)}   (hi || lo)`,
+		`Done. The 128-bit low word is exactly hayahash64 for these ${len} ` +
+			`bytes and seed ${hx(seed)}.`,
 	);
 	return {
 		path: bulk ? "bulk" : "mid",
 		rows: bulk
-			? ["s", "lenmix", "h0", "h1", "h2", "h3", "h4", "h5", "h6", "h7", "t0", "t1", "x"]
-			: ["s", "lenmix", "h0", "h1", "h2", "h3", "t0", "t1", "x"],
+			? ["s", "lenmix", "h0", "h1", "h2", "h3", "h4", "h5", "h6", "h7", "t0", "t1", "x", "hi"]
+			: ["s", "lenmix", "h0", "h1", "h2", "h3", "t0", "t1", "x", "hi"],
 		steps,
 		digest: st.x,
+		digest128: { lo: st.x, hi: st.hi },
 	};
 }
 
@@ -504,7 +546,8 @@ function buildShort(bytes, len, s, lenmix, st, push, rng, setDone) {
 			"the seed from both products at once. SMHasher3 found " +
 			"exactly that in an earlier version.",
 	);
-	st.m = rotl(st.x, 27) ^ st.y ^ lenmix;
+	const u = rotl(st.x, 27) ^ st.y ^ lenmix;
+	st.m = u;
 	push(
 		"merge",
 		`m = rotl(x,27) ^ y ^ lenmix = ${hx(st.m)}`,
@@ -533,16 +576,25 @@ function buildShort(bytes, len, s, lenmix, st, push, rng, setDone) {
 		);
 	});
 
+	finishHigh(
+		st,
+		add(st.x, rotl(u, 32)),
+		push,
+		"On the short path, the pair (u, x) is a bijection of the two " +
+			"64-bit pre-image words. The high input x + rotl(u, 32) keeps " +
+			"that 128-bit mapping bijective.",
+	);
 	push(
-		"digest",
-		`digest = ${hx(st.m)}`,
-		`Done. ${len} byte${len === 1 ? "" : "s"}: the playground, the C ` +
-			"header, and every port compute this same value.",
+		"digests",
+		`hayahash64  = ${hx(st.m)}\n` +
+			`hayahash128 = ${hx128(st.hi, st.m)}   (hi || lo)`,
+		`Done. The 128-bit low word is exactly hayahash64 for these ${len} ` +
+			`byte${len === 1 ? "" : "s"}.`,
 	);
 }
 
 // ---------------------------------------------------------------
-// Self-check: pinned to a native build of hayahash.h (v0.4.5).
+// Self-check: pinned to a native build of hayahash.h (v0.5 candidate).
 // ---------------------------------------------------------------
 
 const QUICK = "The quick brown fox jumps over the lazy dog. ";
@@ -553,22 +605,22 @@ export const PRESETS = [
 ];
 
 const SELF_CHECK = [
-	["", 0n, "68ac507cf298ca3f"],
-	[PRESETS[0], 0n, "ebee8d60b86cac2b"],
-	[PRESETS[0], 0x1234n, "19603048f0857433"],
-	[PRESETS[1], 0n, "4caa71dbb38c75b7"],
-	[PRESETS[2], 0n, "4841e7a95427ae2c"],
-	[PRESETS[2], 0xffffffffffffffffn, "f347185472131787"],
+	["", 0n, "68ac507cf298ca3f", "ace2141f6ba30868"],
+	[PRESETS[0], 0n, "ebee8d60b86cac2b", "6347776b15d7af2e"],
+	[PRESETS[0], 0x1234n, "19603048f0857433", "8a95275ec1b6bd07"],
+	[PRESETS[1], 0n, "4caa71dbb38c75b7", "fc63ab43c1cf292b"],
+	[PRESETS[2], 0n, "4841e7a95427ae2c", "830e853e3a209a42"],
+	[PRESETS[2], 0xffffffffffffffffn, "f347185472131787", "faacd6de6e4dc4a3"],
 ];
 
 export function selfCheck() {
 	const enc = new TextEncoder();
-	for (const [text, seed, want] of SELF_CHECK) {
-		const got = buildSteps(enc.encode(text), seed)
-			.digest.toString(16)
-			.padStart(16, "0");
-		if (got !== want) {
-			return `${text.length} bytes, seed ${seed}: got ${got}, want ${want}`;
+	for (const [text, seed, wantLo, wantHi] of SELF_CHECK) {
+		const result = buildSteps(enc.encode(text), seed);
+		const gotLo = result.digest.toString(16).padStart(16, "0");
+		const gotHi = result.digest128.hi.toString(16).padStart(16, "0");
+		if (gotLo !== wantLo || gotHi !== wantHi) {
+			return `${text.length} bytes, seed ${seed}: got ${gotHi}:${gotLo}, want ${wantHi}:${wantLo}`;
 		}
 	}
 	return null;
@@ -719,8 +771,8 @@ function initPage() {
 		scrub.value = String(cur);
 		digestEl.textContent =
 			cur === n - 1
-				? `digest = ${hx(sim.digest)}`
-				: "digest = (not yet: play, step, or drag the slider)";
+				? `hayahash64 = ${hx(sim.digest)}; hayahash128 = ${hx128(sim.digest128.hi, sim.digest128.lo)}`
+				: "digests = (not yet: play, step, or drag the slider)";
 		backBtn.disabled = cur === 0;
 		stepBtn.disabled = cur === n - 1;
 	}

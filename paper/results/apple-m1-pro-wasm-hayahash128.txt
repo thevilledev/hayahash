@@ -1,0 +1,28 @@
+hayahash.h sha256: 1c2c107f382e46d6e05310988810f53cca545dcf51f080a7ac16ef9a4af07609
+bench_wasm.c sha256: 95bb5ed58f3074716f2a97b80c2702866425946d892008dc3417ccd72cca2a14
+driver.mjs sha256: 073f0f249c96fb72cb7c0e75bd1754f65340b70a2bbaeb43df7891aa24de5f2f
+host: Apple M1 Pro, Darwin arm64 T6000, bare metal
+compiler: zig cc 0.16.0 targeting baseline wasm32-wasi, -O3
+runtime: Node 26.7.0, V8 14.6.202.34-node.28
+method: timing loops run inside wasm; no SIMD or wide multiply
+date: 2026-08-09
+
+# node v26.7.0, v8 14.6.202.34-node.28
+# Apple M1 Pro (arm64)
+
+## bulk throughput (GB/s, higher is better)
+size	haya	haya128	chibi2	rapid	xxh3	xxh64
+1024	21.37	20.23	18.01	6.01	14.36	14.61
+16384	23.38	23.21	18.48	6.40	17.24	14.67
+262144	23.48	23.38	18.47	6.43	17.39	14.68
+1048576	23.55	23.34	18.57	6.43	17.41	14.71
+
+## small-key latency, seed-chained (ns/hash, lower is better)
+len	haya	haya128	chibi2	rapid	xxh3	xxh64
+4	7.6	10.6	10.7	22.6	8.2	6.0
+8	7.7	10.6	10.4	22.6	8.2	5.9
+16	7.7	10.6	10.6	22.6	9.7	7.7
+32	7.9	12.0	12.3	29.7	9.2	13.7
+64	9.5	13.4	13.8	44.5	11.8	15.9
+128	12.4	16.4	17.5	37.8	19.9	20.2
+256	18.1	22.4	24.8	63.8	31.7	28.9

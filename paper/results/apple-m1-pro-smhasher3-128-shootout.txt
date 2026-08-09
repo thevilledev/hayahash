@@ -1,0 +1,35 @@
+snapshot: v0.5 candidate, 2026-08-09 worktree
+smhasher3 commit: 51d3cd1ac0aa4934f6aacb44d9d234f50300b6e3
+host: Apple M1 Pro MacBook Pro, 8 cores (6 performance, 2 efficiency), 16 GB
+os: macOS 26.6 (25G72)
+compiler: Apple clang 21.0.0, Release, -O3 -march=native
+hayahash dispatch: compact
+command: ./SMHasher3 --test=Speed --verbose <hash>
+method: 3 independent process replicates, round-robin by hash
+date: 2026-08-09
+
+SMALL-KEY CORRECTION
+
+SMHasher3 measures call overhead once per process and subtracts it from its
+1..31-byte average. The calibration varied between 2.72 and 2.92 cycles here.
+As documented in docs/smhasher3.md, each reported average was put onto the
+minimum-overhead baseline before taking the median:
+
+  corrected = reported average + run overhead - 2.72
+
+Bulk is the first, fixed-262144-byte Average. Values below are raw process
+replicates followed by the median used in README.md and the website.
+
+hash                      overhead       corrected small (cy/hash)       bulk (B/cy)          medians small / bulk
+hayahash128               2.74/2.75/2.75 38.49/38.60/38.51              8.90/9.19/9.18        38.51 / 9.18
+MuseAir-128                2.92/2.76/2.78 24.21/24.26/24.36              8.83/8.65/8.61        24.26 / 8.65
+a5hash-128                 2.74/2.77/2.79 21.99/22.29/22.45             11.06/10.92/10.87      22.29 / 10.92
+XXH3-128                   2.78/2.77/2.74 30.88/30.73/30.44             12.59/12.64/12.75      30.73 / 12.64
+t1ha2-128                  2.78/2.77/2.75 64.74/64.58/64.17              5.84/5.86/5.90        64.58 / 5.86
+SpookyHash2-128            2.77/2.78/2.75 53.37/53.48/53.00              4.20/4.18/4.22        53.37 / 4.20
+prvhash-128                2.78/2.76/2.78 67.62/67.15/67.45              1.00/1.00/1.00        67.45 / 1.00
+FarmHash-128.CC.seed1      2.72/2.78/2.80 58.75/60.09/60.49              5.76/5.64/5.61        60.09 / 5.64
+
+MeowHash is unavailable in this ARM build: its SMHasher3 implementation uses
+x86 AES instructions. Full-suite results were measured separately on the EPYC
+9655 and are recorded in epyc9655-smhasher3-128-conformance.txt.

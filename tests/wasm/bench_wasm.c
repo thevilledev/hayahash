@@ -1,6 +1,6 @@
-// Baseline-wasm shootout: hayahash64 vs chibihash v2 (same portability
-// class), rapidhash v3 (wide-multiply tier), XXH3-64 and XXH64 (npm
-// incumbents). Compiled to wasm32 and driven from Node/V8 by
+// Baseline-wasm shootout: hayahash64 and hayahash128 vs chibihash v2
+// (same portability class), rapidhash v3 (wide-multiply tier), XXH3-64
+// and XXH64 (npm incumbents). Compiled to wasm32 and driven from Node/V8 by
 // driver.mjs; all timing loops run inside wasm so the JS boundary is
 // not part of the measurement.
 //
@@ -39,6 +39,11 @@ EXPORT("buf_cap") uint32_t buf_cap(void) { return (uint32_t)sizeof(buf); }
 // cross-call inlining (same trick as ../bench.c).
 NOINLINE static uint64_t run_haya(const uint8_t *p, uint32_t l, uint64_t s)
 { return hayahash64(p, (ptrdiff_t)l, s); }
+NOINLINE static uint64_t run_haya128(const uint8_t *p, uint32_t l, uint64_t s)
+{
+	hayahash128_t h = hayahash128(p, (ptrdiff_t)l, s);
+	return h.lo ^ h.hi;
+}
 NOINLINE static uint64_t run_chibi2(const uint8_t *p, uint32_t l, uint64_t s)
 { return chibihash64_v2(p, (ptrdiff_t)l, s); }
 NOINLINE static uint64_t run_rapid(const uint8_t *p, uint32_t l, uint64_t s)
@@ -74,9 +79,18 @@ uint64_t one_##fn(uint32_t size, uint64_t seed)                        \
 { return fn(buf, size, seed); }
 
 DEFINE_BENCH("haya", run_haya)
+DEFINE_BENCH("haya128", run_haya128)
 DEFINE_BENCH("chibi2", run_chibi2)
 DEFINE_BENCH("rapid", run_rapid)
 #ifdef HAVE_XXH
 DEFINE_BENCH("xxh3", run_xxh3)
 DEFINE_BENCH("xxh64", run_xxh64)
 #endif
+
+EXPORT("one_haya128_lo")
+uint64_t one_haya128_lo(uint32_t size, uint64_t seed)
+{ return hayahash128(buf, (ptrdiff_t)size, seed).lo; }
+
+EXPORT("one_haya128_hi")
+uint64_t one_haya128_hi(uint32_t size, uint64_t seed)
+{ return hayahash128(buf, (ptrdiff_t)size, seed).hi; }

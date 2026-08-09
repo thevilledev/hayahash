@@ -30,6 +30,10 @@ static uint8_t buf[1u << 20];
 typedef uint64_t (*hashfn)(const uint8_t *, uint32_t, uint64_t);
 static uint64_t run_haya(const uint8_t *p, uint32_t l, uint64_t s)
 { return hayahash64(p, (ptrdiff_t)l, s); }
+static uint64_t run_haya128_lo(const uint8_t *p, uint32_t l, uint64_t s)
+{ return hayahash128(p, (ptrdiff_t)l, s).lo; }
+static uint64_t run_haya128_hi(const uint8_t *p, uint32_t l, uint64_t s)
+{ return hayahash128(p, (ptrdiff_t)l, s).hi; }
 #ifndef KAT_HAYA_ONLY
 static uint64_t run_chibi2(const uint8_t *p, uint32_t l, uint64_t s)
 { return chibihash64_v2(p, (ptrdiff_t)l, s); }
@@ -51,6 +55,8 @@ int main(void)
 	}
 	static const struct { const char *name; hashfn fn; } H[] = {
 		{ "haya", run_haya },
+		{ "haya128_lo", run_haya128_lo },
+		{ "haya128_hi", run_haya128_hi },
 #ifndef KAT_HAYA_ONLY
 		{ "chibi2", run_chibi2 },
 		{ "rapid", run_rapid }, { "xxh3", run_xxh3 },
