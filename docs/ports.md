@@ -4,6 +4,7 @@
 
 - `hayahash.h` - reference implementation (C99, single header, public
   domain)
+- `cli/` - `hayasum` file/stdin hashing utility (`make -C cli`)
 - `Makefile`, `hayahash.pc.in`, `VERSION` - optional system install of the
   C header plus a `hayahash` pkg-config package (`make install`)
 - `test_vectors/` - versioned known-answer digests for external
