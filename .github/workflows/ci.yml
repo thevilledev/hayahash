@@ -275,12 +275,17 @@ jobs:
   rust:
     name: Rust
     runs-on: avrea-ubuntu-latest-2-vcpu
+    env:
+      HAYAHASH_CORPUS: ${{ runner.temp }}/hayahash-differential.bin
 
     steps:
       - name: Check out repository
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
+
+      - name: Generate the differential corpus
+        uses: ./.github/actions/differential-corpus
 
       - name: Install Rust
         run: |
@@ -306,12 +311,17 @@ jobs:
   go:
     name: Go
     runs-on: avrea-ubuntu-latest-2-vcpu
+    env:
+      HAYAHASH_CORPUS: ${{ runner.temp }}/hayahash-differential.bin
 
     steps:
       - name: Check out repository
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
+
+      - name: Generate the differential corpus
+        uses: ./.github/actions/differential-corpus
 
       - name: Install Go
         uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
@@ -342,12 +352,17 @@ jobs:
   zig:
     name: Zig
     runs-on: avrea-ubuntu-latest-2-vcpu
+    env:
+      HAYAHASH_CORPUS: ${{ runner.temp }}/hayahash-differential.bin
 
     steps:
       - name: Check out repository
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
+
+      - name: Generate the differential corpus
+        uses: ./.github/actions/differential-corpus
 
       - name: Install Zig
         uses: mlugg/setup-zig@d1434d08867e3ee9daa34448df10607b98908d29 # v2.2.1
@@ -364,12 +379,17 @@ jobs:
   java:
     name: Java
     runs-on: avrea-ubuntu-latest-2-vcpu
+    env:
+      HAYAHASH_CORPUS: ${{ runner.temp }}/hayahash-differential.bin
 
     steps:
       - name: Check out repository
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
+
+      - name: Generate the differential corpus
+        uses: ./.github/actions/differential-corpus
 
       - name: Install Java
         uses: actions/setup-java@03ad4de0992f5dab5e18fcb136590ce7c4a0ac95 # v5.6.0
@@ -389,12 +409,17 @@ jobs:
   csharp:
     name: C#
     runs-on: avrea-ubuntu-latest-2-vcpu
+    env:
+      HAYAHASH_CORPUS: ${{ runner.temp }}/hayahash-differential.bin
 
     steps:
       - name: Check out repository
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
+
+      - name: Generate the differential corpus
+        uses: ./.github/actions/differential-corpus
 
       - name: Install .NET
         uses: actions/setup-dotnet@a98b56852c35b8e3190ac28c8c2271da59106c68 # v6.0.0
@@ -412,12 +437,17 @@ jobs:
   python:
     name: Python
     runs-on: avrea-ubuntu-latest-2-vcpu
+    env:
+      HAYAHASH_CORPUS: ${{ runner.temp }}/hayahash-differential.bin
 
     steps:
       - name: Check out repository
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
+
+      - name: Generate the differential corpus
+        uses: ./.github/actions/differential-corpus
 
       - name: Install Python
         uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
@@ -492,12 +522,17 @@ jobs:
   swift:
     name: Swift
     runs-on: avrea-ubuntu-latest-2-vcpu
+    env:
+      HAYAHASH_CORPUS: ${{ runner.temp }}/hayahash-differential.bin
 
     steps:
       - name: Check out repository
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
+
+      - name: Generate the differential corpus
+        uses: ./.github/actions/differential-corpus
 
       - name: Install Swift
         uses: swift-actions/setup-swift@7ca6abe6b3b0e8b5421b88be48feee39cbf52c6a # v2.4.0
@@ -511,12 +546,17 @@ jobs:
   js:
     name: JavaScript
     runs-on: avrea-ubuntu-latest-2-vcpu
+    env:
+      HAYAHASH_CORPUS: ${{ runner.temp }}/hayahash-differential.bin
 
     steps:
       - name: Check out repository
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
+
+      - name: Generate the differential corpus
+        uses: ./.github/actions/differential-corpus
 
       - name: Install Zig
         uses: mlugg/setup-zig@d1434d08867e3ee9daa34448df10607b98908d29 # v2.2.1
