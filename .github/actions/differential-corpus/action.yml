@@ -1,8 +1,9 @@
 name: Differential conformance corpus
 description: >-
-  Build the C-reference differential corpus and export HAYAHASH_CORPUS for
-  the rest of the job, so a port's differential test actually runs instead
-  of skipping.
+  Build the C-reference differential corpus into HAYAHASH_CORPUS, so a
+  port's differential test actually runs instead of skipping. The calling
+  job sets HAYAHASH_CORPUS itself, at job level, so the variable is
+  visible to its test step without writing to GITHUB_ENV.
 
 inputs:
   cases:
@@ -24,19 +25,22 @@ runs:
       env:
         CORPUS_CASES: ${{ inputs.cases }}
         # Truncated to 16 hex digits below: generate.c parses the seed
-        # with strtoull, and a full 40-character SHA overflows it.
+        # with strtoull, and a full 40-character SHA overflows it. Using
+        # the commit means all eight port jobs compare identical bytes
+        # and a re-run of the same commit reproduces them.
         CORPUS_COMMIT: ${{ github.sha }}
       run: |
         set -euo pipefail
-        corpus="$RUNNER_TEMP/hayahash-differential.bin"
+        : "${HAYAHASH_CORPUS:?the calling job must set HAYAHASH_CORPUS}"
         seed="0x${CORPUS_COMMIT:0:16}"
         cc -O2 -std=c11 -Wall -Wextra -Werror \
           tests/differential/generate.c -o "$RUNNER_TEMP/hayahash-generate"
-        "$RUNNER_TEMP/hayahash-generate" "$corpus" "$seed" "$CORPUS_CASES"
+        "$RUNNER_TEMP/hayahash-generate" \
+          "$HAYAHASH_CORPUS" "$seed" "$CORPUS_CASES"
         # Every port skips when HAYAHASH_CORPUS is unset, and all but two
         # skip by passing rather than reporting a skip. A missing corpus
         # would therefore leave this gate green while checking nothing,
         # so fail here instead.
-        test -s "$corpus"
-        echo "HAYAHASH_CORPUS=$corpus" >> "$GITHUB_ENV"
-        echo "corpus: $CORPUS_CASES cases, seed $seed, $(wc -c <"$corpus") bytes"
+        test -s "$HAYAHASH_CORPUS"
+        echo "corpus: $CORPUS_CASES cases, seed $seed," \
+             "$(wc -c <"$HAYAHASH_CORPUS") bytes"

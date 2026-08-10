@@ -275,6 +275,8 @@ jobs:
   rust:
     name: Rust
     runs-on: avrea-ubuntu-latest-2-vcpu
+    env:
+      HAYAHASH_CORPUS: ${{ runner.temp }}/hayahash-differential.bin
 
     steps:
       - name: Check out repository
@@ -309,6 +311,8 @@ jobs:
   go:
     name: Go
     runs-on: avrea-ubuntu-latest-2-vcpu
+    env:
+      HAYAHASH_CORPUS: ${{ runner.temp }}/hayahash-differential.bin
 
     steps:
       - name: Check out repository
@@ -348,6 +352,8 @@ jobs:
   zig:
     name: Zig
     runs-on: avrea-ubuntu-latest-2-vcpu
+    env:
+      HAYAHASH_CORPUS: ${{ runner.temp }}/hayahash-differential.bin
 
     steps:
       - name: Check out repository
@@ -373,6 +379,8 @@ jobs:
   java:
     name: Java
     runs-on: avrea-ubuntu-latest-2-vcpu
+    env:
+      HAYAHASH_CORPUS: ${{ runner.temp }}/hayahash-differential.bin
 
     steps:
       - name: Check out repository
@@ -401,6 +409,8 @@ jobs:
   csharp:
     name: C#
     runs-on: avrea-ubuntu-latest-2-vcpu
+    env:
+      HAYAHASH_CORPUS: ${{ runner.temp }}/hayahash-differential.bin
 
     steps:
       - name: Check out repository
@@ -427,6 +437,8 @@ jobs:
   python:
     name: Python
     runs-on: avrea-ubuntu-latest-2-vcpu
+    env:
+      HAYAHASH_CORPUS: ${{ runner.temp }}/hayahash-differential.bin
 
     steps:
       - name: Check out repository
@@ -510,6 +522,8 @@ jobs:
   swift:
     name: Swift
     runs-on: avrea-ubuntu-latest-2-vcpu
+    env:
+      HAYAHASH_CORPUS: ${{ runner.temp }}/hayahash-differential.bin
 
     steps:
       - name: Check out repository
@@ -532,6 +546,8 @@ jobs:
   js:
     name: JavaScript
     runs-on: avrea-ubuntu-latest-2-vcpu
+    env:
+      HAYAHASH_CORPUS: ${{ runner.temp }}/hayahash-differential.bin
 
     steps:
       - name: Check out repository
