@@ -180,6 +180,47 @@ jobs:
           CFLAGS="-O2 -x c++ -std=${{ matrix.std }} -Wall -Wextra -Werror"
           run-hash128
 
+  # The CMake package has to stay interchangeable with `make install`,
+  # not merely work: a distro picking one path over the other must get
+  # the same header at the same place and the same .pc contents. So this
+  # stages both and diffs them, then builds a consumer that resolves the
+  # package through find_package rather than the source tree.
+  cmake:
+    name: C (CMake package)
+    runs-on: avrea-ubuntu-latest-2-vcpu
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Install via CMake and via make, and compare
+        run: |
+          cmake -S . -B build -DCMAKE_INSTALL_PREFIX=/usr
+          DESTDIR="$PWD/stage-cmake" cmake --install build
+          make install DESTDIR="$PWD/stage-make" PREFIX=/usr
+          diff -u stage-make/usr/include/hayahash.h \
+                  stage-cmake/usr/include/hayahash.h
+          diff -u stage-make/usr/lib/pkgconfig/hayahash.pc \
+                  stage-cmake/usr/lib/pkgconfig/hayahash.pc
+          echo "OK: CMake and make install the same header and .pc"
+
+      - name: Build a find_package consumer against the install
+        run: |
+          cmake -S tests/cmake -B consumer-build \
+            -DCMAKE_PREFIX_PATH="$PWD/stage-cmake/usr"
+          cmake --build consumer-build
+          ./consumer-build/consumer
+
+      - name: Check pkg-config resolves from the CMake install
+        run: |
+          version="$(tr -d ' \n' < VERSION)"
+          export PKG_CONFIG_PATH="$PWD/stage-cmake/usr/lib/pkgconfig"
+          pkg-config --exact-version="$version" hayahash
+          test "$(pkg-config --variable=includedir hayahash)" = "/usr/include"
+          echo "OK: pkg-config resolves hayahash $version"
+
   # Coverage-guided fuzzing of the three parts of hayasum that take
   # untrusted input: argv, the byte stream, and the file name that goes
   # back out on the digest line. Each target asserts invariants rather
@@ -323,7 +364,7 @@ jobs:
     name: Rust
     runs-on: avrea-ubuntu-latest-2-vcpu
     env:
-      HAYAHASH_CORPUS: ${{ runner.temp }}/hayahash-differential.bin
+      HAYAHASH_CORPUS: ${{ github.workspace }}/hayahash-differential.bin
 
     steps:
       - name: Check out repository
@@ -359,7 +400,7 @@ jobs:
     name: Go
     runs-on: avrea-ubuntu-latest-2-vcpu
     env:
-      HAYAHASH_CORPUS: ${{ runner.temp }}/hayahash-differential.bin
+      HAYAHASH_CORPUS: ${{ github.workspace }}/hayahash-differential.bin
 
     steps:
       - name: Check out repository
@@ -400,7 +441,7 @@ jobs:
     name: Zig
     runs-on: avrea-ubuntu-latest-2-vcpu
     env:
-      HAYAHASH_CORPUS: ${{ runner.temp }}/hayahash-differential.bin
+      HAYAHASH_CORPUS: ${{ github.workspace }}/hayahash-differential.bin
 
     steps:
       - name: Check out repository
@@ -427,7 +468,7 @@ jobs:
     name: Java
     runs-on: avrea-ubuntu-latest-2-vcpu
     env:
-      HAYAHASH_CORPUS: ${{ runner.temp }}/hayahash-differential.bin
+      HAYAHASH_CORPUS: ${{ github.workspace }}/hayahash-differential.bin
 
     steps:
       - name: Check out repository
@@ -457,7 +498,7 @@ jobs:
     name: C#
     runs-on: avrea-ubuntu-latest-2-vcpu
     env:
-      HAYAHASH_CORPUS: ${{ runner.temp }}/hayahash-differential.bin
+      HAYAHASH_CORPUS: ${{ github.workspace }}/hayahash-differential.bin
 
     steps:
       - name: Check out repository
@@ -485,7 +526,7 @@ jobs:
     name: Python
     runs-on: avrea-ubuntu-latest-2-vcpu
     env:
-      HAYAHASH_CORPUS: ${{ runner.temp }}/hayahash-differential.bin
+      HAYAHASH_CORPUS: ${{ github.workspace }}/hayahash-differential.bin
 
     steps:
       - name: Check out repository
@@ -570,7 +611,7 @@ jobs:
     name: Swift
     runs-on: avrea-ubuntu-latest-2-vcpu
     env:
-      HAYAHASH_CORPUS: ${{ runner.temp }}/hayahash-differential.bin
+      HAYAHASH_CORPUS: ${{ github.workspace }}/hayahash-differential.bin
 
     steps:
       - name: Check out repository
@@ -594,7 +635,7 @@ jobs:
     name: JavaScript
     runs-on: avrea-ubuntu-latest-2-vcpu
     env:
-      HAYAHASH_CORPUS: ${{ runner.temp }}/hayahash-differential.bin
+      HAYAHASH_CORPUS: ${{ github.workspace }}/hayahash-differential.bin
 
     steps:
       - name: Check out repository

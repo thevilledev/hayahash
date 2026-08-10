@@ -70,6 +70,24 @@ make install PREFIX=/usr/local
 cc $(pkg-config --cflags hayahash) main.c -o main
 ```
 
+CMake consumers can use the same install, or `find_package`:
+
+```sh
+cmake -S . -B build && cmake --install build --prefix /usr/local
+```
+
+```cmake
+find_package(hayahash 0.5 REQUIRED)
+target_link_libraries(app PRIVATE hayahash::hayahash)
+```
+
+Both paths install the same two files to the same locations, and CI
+diffs one against the other so they cannot drift. CMake adds a package
+config under `lib/cmake/hayahash` on top. The version request is checked
+`SameMinorVersion` rather than `SameMajorVersion`, because pre-1.0
+digests may change between minor releases; see
+[`stability.md`](stability.md).
+
 `make check-install` stages into a temporary DESTDIR and verifies the
 `.pc` file resolves. Embedding by copying the header remains fully
 supported; the install target is for distro and system packaging.

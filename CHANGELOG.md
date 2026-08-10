@@ -49,6 +49,17 @@ Known-answer vectors for the current digest live under
   gives the declarations C language linkage and puts the guard where it
   has to be before any future non-static build mode.
 
+- CMake package for the C reference (`CMakeLists.txt`,
+  `cmake/hayahashConfig.cmake.in`). `cmake --install` writes the same
+  header and pkg-config file to the same paths as `make install`, and
+  adds an exported `hayahash::hayahash` interface target so consumers
+  can `find_package(hayahash 0.5)`. Version comes from the root
+  `VERSION` file, so `scripts/bump-version.sh` needs no new target. CI
+  stages both install paths and diffs them, then builds a consumer
+  (`tests/cmake/`) that resolves the package rather than the source
+  tree. Package-version compatibility is `SameMinorVersion` while
+  pre-1.0 digests can change between minors.
+
 ### Fixed
 
 - hayasum no longer exits `0` when a digest fails to reach stdout (full

@@ -83,6 +83,18 @@ make install PREFIX=/usr/local
 cc $(pkg-config --cflags hayahash) main.c -o main
 ```
 
+CMake installs the same header and pkg-config file to the same paths,
+and adds a package config for `find_package`:
+
+```sh
+cmake -S . -B build && cmake --install build --prefix /usr/local
+```
+
+```cmake
+find_package(hayahash 0.5 REQUIRED)
+target_link_libraries(app PRIVATE hayahash::hayahash)
+```
+
 Streaming uses one shared state for both output widths. Calling a digest
 function does not modify the state:
 
