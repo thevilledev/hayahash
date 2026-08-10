@@ -79,6 +79,13 @@ and `hi` words in that order, and `lo` is exactly hayahash64 for the
 same input and seed. In C, the streaming `hayahash128_state`, init, and
 update names are zero-cost aliases for the shared hayahash64 state.
 
+The ports are one-shot only. `init` / `update` / `digest` exists in
+[`hayahash.h`](../hayahash.h) and in no port yet, so code that has to
+absorb input in chunks has to buffer it first outside C. Bringing
+streaming to the ports is tracked in [`roadmap.md`](roadmap.md); the
+published streaming vectors in [`test_vectors/`](../test_vectors/) are
+what a port implementation is checked against.
+
 Rust - the `hayahash` crate lives in [`rust/`](../rust/):
 
 ```rust
