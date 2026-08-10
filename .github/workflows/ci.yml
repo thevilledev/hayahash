@@ -57,6 +57,13 @@ jobs:
           CFLAGS="-O2 -std=c11 -Wall -Wextra -Werror"
           run-quality
 
+      - name: Build and smoke-test hayasum
+        run: >-
+          make -C cli
+          CC="${{ matrix.compiler }}"
+          CFLAGS="-O2 -std=c11 -Wall -Wextra -Werror"
+          check
+
       - name: Check published test vectors match hayahash.h
         run: >-
           make -C test_vectors

@@ -1,3 +1,6 @@
+# CLI
+cli/hayasum
+
 # C install / pkg-config build products
 hayahash.pc
 .install-check/

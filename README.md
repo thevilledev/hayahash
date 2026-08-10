@@ -117,6 +117,15 @@ cross-language differential conformance, big-endian output, wasm32, MSVC x64,
 and the MIPS64 n64 ABI. The exact tests, verification values, and limitations
 are documented in [`docs/quality.md`](docs/quality.md).
 
+## Tools
+
+[`cli/hayasum`](cli/) hashes files or stdin with the C reference:
+
+```sh
+make -C cli
+./cli/hayasum -b 128 README.md
+```
+
 ## Documentation
 
 - [Contributing](CONTRIBUTING.md) - port sync rules, local gates, SMHasher3 triggers
