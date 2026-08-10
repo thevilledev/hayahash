@@ -30,9 +30,10 @@ Java, C#, Python, Swift, JavaScript/TypeScript, and MIPS64 assembly. Every
   selecting 128 bits adds a second finalization path rather than a second pass
   over the input.
 - **Streaming:** one-shot and incremental APIs produce identical digests for
-  every split of the same input.
-- **Broad language support:** every maintained port exposes both widths and is
-  checked against the C reference.
+  every split of the same input. Incremental hashing is currently available
+  in the C reference only.
+- **Broad language support:** every maintained port exposes both widths as
+  one-shot functions and is checked against the C reference.
 - **Quality-gated development:** both widths pass all 188 applicable SMHasher3
   test groups, with additional structured-collision and differential tests.
 
@@ -105,6 +106,10 @@ hayahash128_t h128 = hayahash128_digest(&st);
 | [Swift](swift/) | `Hayahash` SwiftPM package (5.9+) | `Hayahash.hash64(buf, seed: 0)` | `Hayahash.hash128(buf, seed: 0)` |
 | [JS/TS](js/) | [`hayahash`](https://www.npmjs.com/package/hayahash) (wasm + pure JS) | `hayahash64(buf, seed)` | `hayahash128(buf, seed)` |
 | [MIPS64](mips/) | `hayahash.S` (n64 ABI) | `hayahash64(buf, len, seed)` | `hayahash128(buf, len, seed)` |
+
+The table lists the one-shot entry points, which is what every port
+provides. The incremental `init` / `update` / `digest` API shown above
+exists only in the C reference so far; the ports are one-shot only.
 
 Installation details, complete examples, and the repository layout are in
 [`docs/ports.md`](docs/ports.md).

@@ -29,9 +29,7 @@ const INLINE_CAP: usize = 64;
 /// Buffering [`Hasher`] and [`BuildHasher`] producing [`hayahash64`]
 /// digests with a fixed seed.
 ///
-/// hayahash64 premixes the total input length into its state before
-/// absorbing any bytes, so it cannot hash a stream incrementally.
-/// Instead, [`write`](Hasher::write) appends to an internal buffer and
+/// [`write`](Hasher::write) appends to an internal buffer and
 /// [`finish`](Hasher::finish) hashes the buffered bytes, so the digest
 /// always equals [`hayahash64`] of the concatenated writes.
 ///
@@ -39,6 +37,16 @@ const INLINE_CAP: usize = 64;
 /// keys do not allocate. Only larger concatenated inputs spill to the
 /// heap. When hashing raw byte strings, calling [`hayahash64`]
 /// directly is still cheaper.
+///
+/// Buffering is a limitation of this port, not of the algorithm. Before
+/// v0.5.0 hayahash64 premixed the total input length into its state
+/// before absorbing any bytes, which did make incremental hashing
+/// impossible; v0.5.0 moved the length into the finalizer precisely so
+/// that a digest is a pure function of the seed and the bytes seen so
+/// far. The C reference exposes `init` / `update` / `digest` on that
+/// basis, and this port has not implemented the equivalent state yet.
+/// Until it does, a large input hashed through [`Hasher`] is held in
+/// memory in full rather than absorbed as it arrives.
 ///
 /// The [`BuildHasher`] implementation makes the type double as a
 /// hash-map hasher builder: built hashers start empty with the same
