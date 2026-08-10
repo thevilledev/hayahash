@@ -25,6 +25,8 @@ start. Detailed evidence, measurements, and implementation notes live here:
 - [`optimization/`](optimization/) - the optimization log: five measured
   passes, the ideas that were rejected along the way, and the open
   experiment list
+- [`roadmap.md`](roadmap.md) - how hayahash compares to established hash
+  repositories, what is missing, and the order in which to close it
 
 The authoritative commentary on the algorithm itself is in
 [`hayahash.h`](../hayahash.h): every structural decision is documented
