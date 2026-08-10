@@ -24,6 +24,16 @@ pub fn build(b: *std.Build) void {
             },
         }),
     });
+    const stream_tests = b.addTest(.{
+        .root_module = b.createModule(.{
+            .root_source_file = b.path("tests/stream.zig"),
+            .target = target,
+            .optimize = optimize,
+            .imports = &.{
+                .{ .name = "hayahash", .module = mod },
+            },
+        }),
+    });
     const differential_tests = b.addTest(.{
         .root_module = b.createModule(.{
             .root_source_file = b.path("tests/differential.zig"),
@@ -38,5 +48,6 @@ pub fn build(b: *std.Build) void {
     const test_step = b.step("test", "Run tests");
     test_step.dependOn(&b.addRunArtifact(mod_tests).step);
     test_step.dependOn(&b.addRunArtifact(kat_tests).step);
+    test_step.dependOn(&b.addRunArtifact(stream_tests).step);
     test_step.dependOn(&b.addRunArtifact(differential_tests).step);
 }

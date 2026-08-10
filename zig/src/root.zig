@@ -79,8 +79,15 @@ inline fn stripe(h: *u64, wp: *u64, p: []const u8, i: usize) void {
     wp.* = w;
 }
 
-/// A 128-bit digest represented as two words. `lo` is exactly
-/// `hayahash64` for the same input and seed.
+/// Internals shared with `stream.zig`. Not part of the public API:
+/// exposed only so the streaming state reuses the same constants and
+/// helpers as the one-shot path rather than duplicating them.
+pub const internal = struct {
+    pub const k = K;
+    pub const injpFn = injp;
+    pub const fmix128Fn = fmix128;
+};
+
 pub const Digest128 = struct {
     lo: u64,
     hi: u64,
@@ -90,6 +97,8 @@ pub const Digest128 = struct {
 ///
 /// Produces exactly the same value as the C reference `hayahash64()`
 /// for all inputs, seeds, and host endiannesses.
+pub const Hasher = @import("stream.zig").Hasher;
+
 pub fn hayahash64(key: []const u8, seed: u64) u64 {
     return hash(false, key, seed).lo;
 }

@@ -4,11 +4,11 @@ from __future__ import annotations
 
 from importlib.metadata import PackageNotFoundError, version
 
-from hayahash._hayahash import hayahash64, hayahash128
+from hayahash._hayahash import Hasher, hayahash64, hayahash128
 
 try:
     __version__ = version("hayahash")
 except PackageNotFoundError:  # pragma: no cover - editable/uninstalled tree
     __version__ = "0.5.0"
 
-__all__ = ["__version__", "hayahash64", "hayahash128"]
+__all__ = ["Hasher", "__version__", "hayahash64", "hayahash128"]

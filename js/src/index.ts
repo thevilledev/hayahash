@@ -11,6 +11,7 @@
 // domain. For more information, please refer to <https://unlicense.org/>
 
 import { hash128Pure, hashPure, type Hash128 } from "./pure.js";
+import { Hasher } from "./stream.js";
 import { initWasm, initWasmFromModule } from "./wasm.js";
 
 const MASK64 = 0xffffffffffffffffn;
@@ -26,6 +27,7 @@ const encoder = new TextEncoder();
  * (hashed as its UTF-8 encoding). */
 export type HayahashInput = Uint8Array | string;
 export type { Hash128 };
+export { Hasher };
 
 /** Which engine the hash functions currently use: `"wasm"` (the reference
  * C header compiled to WebAssembly) or `"js"` (the pure BigInt

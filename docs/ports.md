@@ -97,12 +97,33 @@ and `hi` words in that order, and `lo` is exactly hayahash64 for the
 same input and seed. In C, the streaming `hayahash128_state`, init, and
 update names are zero-cost aliases for the shared hayahash64 state.
 
-The ports are one-shot only. `init` / `update` / `digest` exists in
-[`hayahash.h`](../hayahash.h) and in no port yet, so code that has to
-absorb input in chunks has to buffer it first outside C. Bringing
-streaming to the ports is tracked in [`roadmap.md`](roadmap.md); the
-published streaming vectors in [`test_vectors/`](../test_vectors/) are
-what a port implementation is checked against.
+## Streaming
+
+Every port except Swift also absorbs input incrementally, producing the
+same digest as the one-shot function over the concatenation of every
+update, for any split. Digesting never consumes the state, so hashing
+can continue afterwards.
+
+| language | type | absorb | finish |
+|---|---|---|---|
+| C | `hayahash64_state` | `hayahash64_update` | `hayahash64_digest` / `hayahash128_digest` |
+| Rust | `hayahash::Digest` | `update` | `finish64` / `finish128` |
+| Go | `hayahash.Digest` (a `hash.Hash64`) | `Write` | `Sum64` / `Sum128` |
+| Zig | `hayahash.Hasher` | `update` | `digest64` / `digest128` |
+| Java | `Hasher` | `update` | `digest64` / `digest128` |
+| C# | `Hasher` | `Update` | `Digest64` / `Digest128` |
+| Python | `hayahash.Hasher` | `update` | `digest64` / `digest128` |
+| JS/TS | `Hasher` | `update` | `digest64` / `digest128` |
+
+Swift is one-shot only for now. The JavaScript `Hasher` runs on the
+pure-BigInt core because the wasm module exports only the one-shot
+entry points; one-shot hashing of a whole buffer still takes the wasm
+fast path.
+
+Each port checks streaming against its own one-shot output over every
+length through 640 and a set of chunk sizes that straddle the 448-byte
+buffer, the 128-byte keep floor and the 64-byte block, and pins the
+published streaming vectors in [`test_vectors/`](../test_vectors/).
 
 Rust - the `hayahash` crate lives in [`rust/`](../rust/):
 

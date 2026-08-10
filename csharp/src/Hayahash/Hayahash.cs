@@ -53,7 +53,7 @@ public readonly record struct Digest128
 public static class Hayahash
 {
     // Multiplier: 2^64 / golden ratio, odd.
-    private const ulong K = 0x9E3779B97F4A7C15UL;
+    internal const ulong K = 0x9E3779B97F4A7C15UL;
 
     // moremur finalizer constants (Pelle Evensen); M1 doubles as the
     // second multiplier of the short path.
@@ -439,7 +439,7 @@ public static class Hayahash
     }
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    private static ulong Fmix128(ulong x)
+    internal static ulong Fmix128(ulong x)
     {
         x ^= x >> 30;
         x *= N1;
@@ -462,11 +462,11 @@ public static class Hayahash
         => w ^ Rotl(w, 11) ^ Rotl(w, 50);
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    private static ulong InjAt(ReadOnlySpan<byte> key, int i)
+    internal static ulong InjAt(ReadOnlySpan<byte> key, int i)
         => Inj(Load64(key, i));
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    private static ulong Rotl(ulong x, int n)
+    internal static ulong Rotl(ulong x, int n)
         => (x << n) | (x >> (64 - n));
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
@@ -474,7 +474,7 @@ public static class Hayahash
         => BinaryPrimitives.ReadUInt64LittleEndian(p);
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    private static ulong Load64(ReadOnlySpan<byte> key, int i)
+    internal static ulong Load64(ReadOnlySpan<byte> key, int i)
         => BinaryPrimitives.ReadUInt64LittleEndian(key.Slice(i));
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
