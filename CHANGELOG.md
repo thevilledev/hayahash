@@ -53,6 +53,14 @@ Known-answer vectors for the current digest live under
   digest of piped bytes at CRLF and stopped at Ctrl-Z.
 - hayasum reports the underlying `errno` for a failed read (a directory,
   for instance) instead of a bare "read error".
+- Cross-port differential conformance now runs on pull requests. Every
+  port's differential test skips when `HAYAHASH_CORPUS` is unset, and
+  `ci.yml` never set it, so the gate silently checked zero cases on every
+  pull request and a divergence surfaced only in the next nightly run.
+  Each port job now builds a 406-case corpus (the generator's
+  deterministic prefix: lengths 0-384 plus the 21 fixed large edges,
+  820 KiB, about a second) seeded from the commit SHA, and fails rather
+  than continuing on a mismatch.
 
 ### Changed
 

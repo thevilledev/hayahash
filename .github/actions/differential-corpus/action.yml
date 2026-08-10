@@ -1,0 +1,42 @@
+name: Differential conformance corpus
+description: >-
+  Build the C-reference differential corpus and export HAYAHASH_CORPUS for
+  the rest of the job, so a port's differential test actually runs instead
+  of skipping.
+
+inputs:
+  cases:
+    description: >-
+      Case count to generate. The 406 default is the generator's minimum
+      and is exactly its deterministic prefix: lengths 0 through 384
+      exhaustively, then the 21 fixed large edges. That covers every
+      short, tail, mid-loop, tier, and 320-byte bulk dispatch boundary
+      with no random-length draws, for 820 KiB and about a second.
+      differential.yml keeps the large randomized sweep nightly.
+    required: false
+    default: "406"
+
+runs:
+  using: composite
+  steps:
+    - name: Generate the C-reference corpus
+      shell: bash
+      env:
+        CORPUS_CASES: ${{ inputs.cases }}
+        # Truncated to 16 hex digits below: generate.c parses the seed
+        # with strtoull, and a full 40-character SHA overflows it.
+        CORPUS_COMMIT: ${{ github.sha }}
+      run: |
+        set -euo pipefail
+        corpus="$RUNNER_TEMP/hayahash-differential.bin"
+        seed="0x${CORPUS_COMMIT:0:16}"
+        cc -O2 -std=c11 -Wall -Wextra -Werror \
+          tests/differential/generate.c -o "$RUNNER_TEMP/hayahash-generate"
+        "$RUNNER_TEMP/hayahash-generate" "$corpus" "$seed" "$CORPUS_CASES"
+        # Every port skips when HAYAHASH_CORPUS is unset, and all but two
+        # skip by passing rather than reporting a skip. A missing corpus
+        # would therefore leave this gate green while checking nothing,
+        # so fail here instead.
+        test -s "$corpus"
+        echo "HAYAHASH_CORPUS=$corpus" >> "$GITHUB_ENV"
+        echo "corpus: $CORPUS_CASES cases, seed $seed, $(wc -c <"$corpus") bytes"
