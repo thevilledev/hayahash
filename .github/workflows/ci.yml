@@ -323,7 +323,7 @@ jobs:
     name: Rust
     runs-on: avrea-ubuntu-latest-2-vcpu
     env:
-      HAYAHASH_CORPUS: ${{ runner.temp }}/hayahash-differential.bin
+      HAYAHASH_CORPUS: ${{ github.workspace }}/hayahash-differential.bin
 
     steps:
       - name: Check out repository
@@ -359,7 +359,7 @@ jobs:
     name: Go
     runs-on: avrea-ubuntu-latest-2-vcpu
     env:
-      HAYAHASH_CORPUS: ${{ runner.temp }}/hayahash-differential.bin
+      HAYAHASH_CORPUS: ${{ github.workspace }}/hayahash-differential.bin
 
     steps:
       - name: Check out repository
@@ -400,7 +400,7 @@ jobs:
     name: Zig
     runs-on: avrea-ubuntu-latest-2-vcpu
     env:
-      HAYAHASH_CORPUS: ${{ runner.temp }}/hayahash-differential.bin
+      HAYAHASH_CORPUS: ${{ github.workspace }}/hayahash-differential.bin
 
     steps:
       - name: Check out repository
@@ -427,7 +427,7 @@ jobs:
     name: Java
     runs-on: avrea-ubuntu-latest-2-vcpu
     env:
-      HAYAHASH_CORPUS: ${{ runner.temp }}/hayahash-differential.bin
+      HAYAHASH_CORPUS: ${{ github.workspace }}/hayahash-differential.bin
 
     steps:
       - name: Check out repository
@@ -457,7 +457,7 @@ jobs:
     name: C#
     runs-on: avrea-ubuntu-latest-2-vcpu
     env:
-      HAYAHASH_CORPUS: ${{ runner.temp }}/hayahash-differential.bin
+      HAYAHASH_CORPUS: ${{ github.workspace }}/hayahash-differential.bin
 
     steps:
       - name: Check out repository
@@ -485,7 +485,7 @@ jobs:
     name: Python
     runs-on: avrea-ubuntu-latest-2-vcpu
     env:
-      HAYAHASH_CORPUS: ${{ runner.temp }}/hayahash-differential.bin
+      HAYAHASH_CORPUS: ${{ github.workspace }}/hayahash-differential.bin
 
     steps:
       - name: Check out repository
@@ -570,7 +570,7 @@ jobs:
     name: Swift
     runs-on: avrea-ubuntu-latest-2-vcpu
     env:
-      HAYAHASH_CORPUS: ${{ runner.temp }}/hayahash-differential.bin
+      HAYAHASH_CORPUS: ${{ github.workspace }}/hayahash-differential.bin
 
     steps:
       - name: Check out repository
@@ -594,7 +594,7 @@ jobs:
     name: JavaScript
     runs-on: avrea-ubuntu-latest-2-vcpu
     env:
-      HAYAHASH_CORPUS: ${{ runner.temp }}/hayahash-differential.bin
+      HAYAHASH_CORPUS: ${{ github.workspace }}/hayahash-differential.bin
 
     steps:
       - name: Check out repository

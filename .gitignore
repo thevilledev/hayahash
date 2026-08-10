@@ -14,6 +14,9 @@ cli/fuzz/artifacts/
 hayahash.pc
 .install-check/
 
+# Differential conformance corpus (CI writes it to the workspace root)
+hayahash-differential.bin
+
 # C harness binaries
 tests/bench
 tests/quality
