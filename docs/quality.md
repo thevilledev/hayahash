@@ -66,13 +66,19 @@ Nightly differential conformance fuzzing generates one C-reference
 corpus containing both output words, with random input bytes, random
 64-bit hash seeds, exhaustive
 lengths 0..384, and boundary-biased random lengths through the
-128 KiB edge. Every language port consumes the identical corpus
-(including both JavaScript engines); the MIPS assembly port is not in
-the nightly matrix and relies on the shared known-answer vectors
-instead. The logged PRNG seed or the failure artifact reproduces a run
-exactly; the workflow can also be dispatched manually with a chosen
-seed. See [`tests/differential/`](../tests/differential/) for local
-replay commands.
+128 KiB edge. The default corpus size is 32768 cases (406 fixed length
+and power-of-two edges, then randomized draws). Published known-answer
+vectors pin systematic digest paths; the differential corpus is what
+samples the `(input bytes, seed)` space, so a larger per-run `n`
+reduces the chance of missing a rare port divergence
+(`P(miss) ≈ e^(-n p)` for fail rate `p` on the random suffix). Every
+language port consumes the identical corpus (including both JavaScript
+engines); the MIPS assembly port is not in the nightly matrix and
+relies on the shared known-answer vectors instead. The logged PRNG
+seed or the failure artifact reproduces a run exactly; the workflow
+can also be dispatched manually with a chosen seed. See
+[`tests/differential/`](../tests/differential/) for local replay
+commands.
 
 ## Endianness and ABI coverage
 

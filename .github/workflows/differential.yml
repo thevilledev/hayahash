@@ -12,7 +12,7 @@ on:
       cases:
         description: "Number of cases (minimum 406)"
         required: false
-        default: "4096"
+        default: "32768"
         type: string
 
 permissions:
@@ -95,7 +95,7 @@ jobs:
           REQUESTED_CASES: ${{ inputs.cases }}
           REQUESTED_SEED: ${{ inputs.seed }}
         run: |
-          cases="${REQUESTED_CASES:-4096}"
+          cases="${REQUESTED_CASES:-32768}"
           seed="$REQUESTED_SEED"
           if [[ -z "$seed" ]]; then
             seed="0x$(od -An -N8 -tx1 /dev/urandom | tr -d ' \n')"
