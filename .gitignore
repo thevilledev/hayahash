@@ -17,6 +17,12 @@ hayahash.pc
 # Differential conformance corpus (CI writes it to the workspace root)
 hayahash-differential.bin
 
+# CMake build and install-comparison directories
+build/
+consumer-build/
+stage-cmake/
+stage-make/
+
 # C harness binaries
 tests/bench
 tests/quality
