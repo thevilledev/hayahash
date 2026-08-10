@@ -57,7 +57,10 @@ jobs:
           CFLAGS="-O2 -std=c11 -Wall -Wextra -Werror"
           run-quality
 
-      - name: Build and smoke-test hayasum
+      # cli/check builds hayasum plus the one-shot oracle, replays the
+      # committed fuzz corpus through the portable drivers, and runs the
+      # functional harness in cli/tests/run.sh.
+      - name: Build and test hayasum
         run: >-
           make -C cli
           CC="${{ matrix.compiler }}"
@@ -117,6 +120,56 @@ jobs:
           -fno-sanitize-recover=all"
           check-kat-haya
 
+      # The CLI owns argv handling, a chunked reader and output
+      # escaping, none of which the header harnesses touch. Its own
+      # tests and corpus replay run under the same sanitizers.
+      - name: Build and test hayasum under sanitizers
+        run: >-
+          make -C cli
+          CC=clang
+          CFLAGS="-O1 -g -std=c11 -Wall -Wextra -Werror
+          -fsanitize=address,undefined
+          -fno-omit-frame-pointer
+          -fno-sanitize-recover=all"
+          check
+
+  # Coverage-guided fuzzing of the three parts of hayasum that take
+  # untrusted input: argv, the byte stream, and the file name that goes
+  # back out on the digest line. Each target asserts invariants rather
+  # than just looking for crashes, so a wrong answer fails as loudly as
+  # a memory error. Longer runs live in fuzz.yml.
+  cli-fuzz:
+    name: hayasum fuzzing (libFuzzer)
+    runs-on: avrea-ubuntu-latest-2-vcpu
+    timeout-minutes: 15
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Install the clang sanitizer runtimes
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends \
+            "libclang-rt-$(clang -dumpversion | cut -d. -f1)-dev"
+
+      - name: Build the fuzz targets
+        run: make -C cli fuzz
+
+      - name: Fuzz
+        run: make -C cli fuzz-run FUZZ_SECONDS=60
+
+      - name: Upload crashing inputs
+        if: failure()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: hayasum-fuzz-${{ github.run_id }}-${{ github.run_attempt }}
+          path: cli/fuzz/artifacts/
+          if-no-files-found: ignore
+          retention-days: 7
+
   # MSVC x64 takes the compact dispatch and the one-block bulk loop;
   # this job pins its digests to the committed KAT and runs the
   # quality harness. Timing on shared runners is too noisy to gate,
@@ -140,6 +193,33 @@ jobs:
           kat_msvc.exe > kat_msvc.txt || exit /b 1
           cl /nologo /std:c11 /O2 /W4 /WX /I. tests\quality.c tests\chibihash_v1.c /Fe:quality.exe || exit /b 1
           quality.exe haya || exit /b 1
+          cl /nologo /std:c11 /O2 /W4 /WX /I. /D_CRT_SECURE_NO_WARNINGS cli\hayasum.c /Fe:hayasum.exe || exit /b 1
+
+      # Only hayasum has a Windows-specific code path: stdin has to be
+      # switched out of text mode or CRLF and Ctrl-Z would change the
+      # digest of piped bytes. The fixture contains both.
+      - name: Check hayasum reads stdin as binary
+        shell: pwsh
+        run: |
+          [System.IO.File]::WriteAllBytes("$PWD/crlf.bin",
+            [byte[]](0x61, 0x0d, 0x0a, 0x1a, 0x62, 0x0d, 0x0a, 0x63))
+          $expected = "990cc8889a9d44c2"
+          $viaFile = (& ./hayasum.exe crlf.bin).Split(" ")[0]
+          $viaStdin = (cmd /c ".\hayasum.exe < crlf.bin").Split(" ")[0]
+          Write-Host "file=$viaFile stdin=$viaStdin expected=$expected"
+          if ($viaFile -ne $expected) {
+            Write-Host "::error::MSVC hayasum file digest differs from the reference"
+            exit 1
+          }
+          if ($viaStdin -ne $expected) {
+            Write-Host "::error::MSVC hayasum mangles stdin; it is not in binary mode"
+            exit 1
+          }
+          & ./hayasum.exe --version
+          if ($LASTEXITCODE -ne 0) {
+            Write-Host "::error::hayasum --version failed"
+            exit 1
+          }
 
       - name: Check MSVC digests match the committed KAT
         shell: pwsh

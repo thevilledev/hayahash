@@ -22,6 +22,37 @@ Known-answer vectors for the current digest live under
   pkg-config package (`VERSION`, `hayahash.pc.in`); `scripts/bump-version.sh`
   and the release version guard keep `VERSION` in lockstep with port
   manifests.
+- `hayasum`, a CLI that hashes files or stdin with the C reference
+  ([`cli/`](cli/)). Short and long options with attached or separate
+  values, `--` to end them, `-V` reporting the root `VERSION`, and exit
+  status `0` / `1` / `2` for success, I/O error, and usage error.
+- `make -C cli check`: a POSIX-shell functional harness
+  ([`cli/tests/run.sh`](cli/tests/run.sh)) over option parsing, exit
+  statuses, diagnostics, escaping, and read/write errors, plus a
+  differential of hayasum's chunked reader against a one-shot oracle at
+  every size where its buffering changes. Runs on both compilers and
+  under ASan/UBSan in CI.
+- Coverage-guided fuzzing of hayasum's argv parsing, byte reader, and
+  output escaping ([`cli/fuzz/`](cli/fuzz/)), with a committed seed
+  corpus, invariant assertions rather than crash-only checks, and a
+  libFuzzer-free replay driver so every CI compiler runs the corpus.
+  One minute per target on pull requests; longer nightly runs in
+  `fuzz.yml`.
+
+### Fixed
+
+- hayasum no longer exits `0` when a digest fails to reach stdout (full
+  disk, closed descriptor): the write is checked and reported.
+- hayasum rejects seeds that would silently mean something else — a
+  leading `-` wrapping past 2^64-1, a leading `+`, surrounding
+  whitespace, or a leading zero read as octal.
+- hayasum escapes backslash, newline, and carriage return in file names
+  so one input cannot produce more than one output line, and sanitizes
+  argv echoed back in diagnostics.
+- hayasum reads stdin in binary mode on Windows; text mode changed the
+  digest of piped bytes at CRLF and stopped at Ctrl-Z.
+- hayasum reports the underlying `errno` for a failed read (a directory,
+  for instance) instead of a bare "read error".
 
 ## [0.5.0] - 2026-08-09
 
