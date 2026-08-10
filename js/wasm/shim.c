@@ -32,9 +32,8 @@ void *memcpy(void *dst, const void *src, size_t n)
 	return dst;
 }
 
-// Referenced by the header's streaming buffer management; the shim
-// exports only the one-shot function, so --gc-sections drops this
-// until a streaming export exists.
+// Referenced by the header's streaming buffer management, which the
+// streaming exports below now reach.
 __attribute__((no_builtin("memmove")))
 void *memmove(void *dst, const void *src, size_t n)
 {
@@ -58,6 +57,39 @@ __attribute__((export_name("hayahash64")))
 uint64_t wasm_hayahash64(const uint8_t *p, uint32_t len, uint64_t seed)
 {
 	return hayahash64(p, (ptrdiff_t)len, seed);
+}
+
+// Streaming. The state lives in the caller's linear memory rather than
+// in a module-static, so several hashers can be live at once and the
+// JS side owns placement and lifetime. State layout is opaque to JS:
+// it only ever moves the bytes around, never interprets them.
+__attribute__((export_name("hayahash_state_size")))
+uint32_t wasm_hayahash_state_size(void)
+{
+	return (uint32_t)sizeof(hayahash64_state);
+}
+
+__attribute__((export_name("hayahash_stream_init")))
+void wasm_hayahash_stream_init(hayahash64_state *st, uint64_t seed)
+{
+	hayahash64_init(st, seed);
+}
+
+__attribute__((export_name("hayahash_stream_update")))
+void wasm_hayahash_stream_update(hayahash64_state *st, const uint8_t *p,
+                                 uint32_t n)
+{
+	hayahash64_update(st, p, (size_t)n);
+}
+
+// Both words at once: the low word is hayahash64_digest(st), so one
+// crossing serves digest64() and digest128() alike.
+__attribute__((export_name("hayahash_stream_digest")))
+void wasm_hayahash_stream_digest(const hayahash64_state *st, uint64_t out[2])
+{
+	hayahash128_t digest = hayahash128_digest(st);
+	out[0] = digest.lo;
+	out[1] = digest.hi;
 }
 
 __attribute__((export_name("hayahash128")))

@@ -2,7 +2,7 @@
 //
 // npm port of the reference C implementation (hayahash.h at the
 // repository root); see that header for the full design notes. The
-// fast path runs the reference header itself, compiled to a ~3 KB
+// fast path runs the reference header itself, compiled to a small
 // WebAssembly module; a pure-JS BigInt port takes over where wasm is
 // unavailable. Output is identical for every input and seed on every
 // platform and engine.
@@ -11,8 +11,8 @@
 // domain. For more information, please refer to <https://unlicense.org/>
 
 import { hash128Pure, hashPure, type Hash128 } from "./pure.js";
-import { Hasher } from "./stream.js";
-import { initWasm, initWasmFromModule } from "./wasm.js";
+import { PureHasher } from "./stream.js";
+import { type Engine, initWasm, initWasmFromModule } from "./wasm.js";
 
 const MASK64 = 0xffffffffffffffffn;
 
@@ -27,7 +27,7 @@ const encoder = new TextEncoder();
  * (hashed as its UTF-8 encoding). */
 export type HayahashInput = Uint8Array | string;
 export type { Hash128 };
-export { Hasher };
+export { PureHasher };
 
 /** Which engine the hash functions currently use: `"wasm"` (the reference
  * C header compiled to WebAssembly) or `"js"` (the pure BigInt
@@ -56,6 +56,114 @@ export function getEngine(): "wasm" | "js" {
  */
 export function setWasmModule(module: WebAssembly.Module): void {
 	wasm = initWasmFromModule(module);
+}
+
+/**
+ * A streaming hayahash state.
+ *
+ * The digest equals {@link hayahash64} / {@link hayahash128} over the
+ * concatenation of every {@link Hasher.update}, for any split of that
+ * input. Digesting does not consume the state, so absorbing may
+ * continue afterwards.
+ *
+ * ```js
+ * const h = new Hasher(7n);
+ * h.update(new TextEncoder().encode("hello "));
+ * h.update(new TextEncoder().encode("world"));
+ * h.digest64() === hayahash64("hello world", 7n); // true
+ * ```
+ *
+ * Runs on the wasm engine when one is active, otherwise on the pure
+ * BigInt core. The engine is captured at construction, so a later
+ * {@link setWasmModule} does not change an existing instance.
+ *
+ * Not safe for concurrent use.
+ */
+export class Hasher {
+	// Exactly one of these is set, chosen at construction.
+	readonly #engine: Engine | null;
+	readonly #state: Uint8Array | null;
+	readonly #pure: PureHasher | null;
+	#seed: bigint;
+	#total = 0n;
+
+	/** Creates an empty state seeded with `seed` (default 0). */
+	constructor(seed: bigint | number = 0n) {
+		this.#seed = BigInt(seed) & MASK64;
+		this.#engine = wasm;
+		if (this.#engine !== null) {
+			this.#state = new Uint8Array(this.#engine.stateSize);
+			this.#engine.streamInit(this.#state, this.#seed);
+			this.#pure = null;
+		} else {
+			this.#state = null;
+			this.#pure = new PureHasher(this.#seed);
+		}
+	}
+
+	/** The seed this state was created or last reset with. */
+	get seed(): bigint {
+		return this.#seed;
+	}
+
+	/** Number of bytes absorbed so far. */
+	get length(): bigint {
+		return this.#total;
+	}
+
+	/** Discards absorbed input, optionally reseeding. */
+	reset(seed?: bigint | number): void {
+		if (seed !== undefined) {
+			this.#seed = BigInt(seed) & MASK64;
+		}
+		this.#total = 0n;
+		if (this.#engine !== null && this.#state !== null) {
+			this.#engine.streamInit(this.#state, this.#seed);
+		} else {
+			this.#pure?.reset(this.#seed);
+		}
+	}
+
+	/** Absorbs `data`. */
+	update(data: Uint8Array): void {
+		if (data.length === 0) {
+			return;
+		}
+		this.#total = (this.#total + BigInt(data.length)) & MASK64;
+		if (this.#engine === null || this.#state === null) {
+			this.#pure?.update(data);
+			return;
+		}
+		// The wasm update length is a u32; split anything larger.
+		for (let off = 0; off < data.length; off += WASM_MAX_LEN) {
+			this.#engine.streamUpdate(
+				this.#state,
+				data.subarray(off, Math.min(off + WASM_MAX_LEN, data.length)),
+			);
+		}
+	}
+
+	/**
+	 * Returns the 64-bit digest of everything absorbed so far, without
+	 * consuming the state.
+	 */
+	digest64(): bigint {
+		if (this.#engine !== null && this.#state !== null) {
+			return this.#engine.streamDigest(this.#state).lo;
+		}
+		return this.#pure?.digest64() ?? 0n;
+	}
+
+	/**
+	 * Returns both digest words, without consuming the state. `lo` is
+	 * exactly {@link Hasher.digest64}.
+	 */
+	digest128(): Hash128 {
+		if (this.#engine !== null && this.#state !== null) {
+			return this.#engine.streamDigest(this.#state);
+		}
+		return this.#pure?.digest128() ?? { lo: 0n, hi: 0n };
+	}
 }
 
 function normalize(input: HayahashInput, seed: bigint | number): [Uint8Array, bigint] {

@@ -232,10 +232,8 @@ worth what it cost.
 README's streaming claim needs no caveat.
 
 **Status:** streaming has landed in Rust, Go, Zig, Java, C#, Python and
-JavaScript. Swift is the one port still one-shot only, and the
-JavaScript hasher runs on the pure-BigInt core because the wasm module
-exports only the one-shot entry points. Language-native benchmarks are
-still open.
+JavaScript, on the wasm engine where one is available. Swift is the one
+port still one-shot only. Language-native benchmarks are still open.
 
 ### Phase 3 - Make CI prove the claims
 

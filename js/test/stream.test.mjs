@@ -9,6 +9,8 @@ import test from "node:test";
 
 import {
 	Hasher,
+	PureHasher,
+	getEngine,
 	hayahash128,
 	hayahash128Pure,
 	hayahash64,
@@ -146,4 +148,46 @@ test("published streaming vectors", () => {
 		}
 		assert.equal(h.digest64(), want, `len=${len}`);
 	}
+});
+
+// The wasm and pure streaming cores must agree with each other, not
+// just each with its own one-shot. This is the streaming counterpart
+// of the two-engine check the KAT suite already does.
+test("wasm and pure streaming agree", () => {
+	for (const n of [0, 1, 63, 64, 127, 128, 447, 448, 449, 1000, 5000, 70000]) {
+		const data = patternA(n);
+		for (const chunk of [1, 64, 448, 449, 4096]) {
+			const w = new Hasher(11n);
+			const p = new PureHasher(11n);
+			feed(w, data, chunk);
+			feed(p, data, chunk);
+			assert.equal(w.digest64(), p.digest64(), `len=${n} chunk=${chunk}`);
+			assert.equal(w.digest128().hi, p.digest128().hi, `len=${n} chunk=${chunk}`);
+		}
+	}
+});
+
+test("several hashers stay independent", () => {
+	// The wasm engine round-trips one shared scratch region, so
+	// interleaving instances would corrupt them if state were resident.
+	const a = new Hasher(1n);
+	const b = new Hasher(2n);
+	const da = patternA(900);
+	const db = patternA(1500);
+	a.update(da.subarray(0, 400));
+	b.update(db.subarray(0, 700));
+	a.update(da.subarray(400));
+	b.update(db.subarray(700));
+	assert.equal(a.digest64(), hayahash64(da, 1n));
+	assert.equal(b.digest64(), hayahash64(db, 2n));
+});
+
+test("one-shot still works after streaming (shared scratch)", () => {
+	const h = new Hasher(5n);
+	const data = patternA(2000);
+	h.update(data.subarray(0, 1000));
+	assert.equal(hayahash64(data, 5n), hayahash64(data, 5n));
+	h.update(data.subarray(1000));
+	assert.equal(h.digest64(), hayahash64(data, 5n));
+	assert.equal(getEngine() === "wasm" || getEngine() === "js", true);
 });

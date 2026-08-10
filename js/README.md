@@ -14,7 +14,7 @@ their speed comes from, while hayahash runs at full design speed.
 
 This package therefore does not port the algorithm to JavaScript for
 its fast path: it ships the untouched reference header (`hayahash.h`
-at the repository root) compiled to a ~3 KB wasm32 module, embedded
+at the repository root) compiled to a ~6 KB wasm32 module, embedded
 as base64 and instantiated synchronously at import. Digests are
 bit-exact with the C reference by construction. A pure-JS BigInt port
 serves as the fallback engine where WebAssembly is unavailable, and as
