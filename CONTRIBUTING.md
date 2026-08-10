@@ -31,6 +31,7 @@ digests and ports aligned.
 | `hayahash.h` | `make -C tests run-quality` |
 | Streaming / 128-bit | `make -C tests run-hash128` |
 | Published KATs | `make -C test_vectors check` |
+| `cli/` | `make -C cli check` |
 | A language port | that port's unit/KAT + differential tests |
 | Docs only | render/link sanity; no algorithm edits |
 
@@ -39,6 +40,7 @@ Useful commands:
 ```sh
 make -C tests run-quality
 make -C test_vectors check
+make -C cli check
 make -C rust test          # or: cd rust && cargo test
 cd go && go test ./...
 # see docs/ports.md for Java, C#, Python, Swift, Zig, JS, MIPS
@@ -47,6 +49,14 @@ cd go && go test ./...
 Nightly differential conformance (`tests/differential/`, workflow
 `differential.yml`) is the cross-port fuzz gate. Reproduce a failure with
 the logged PRNG seed from that workflow.
+
+`hayasum` is fuzzed separately, since argv, its chunked reader, and the
+file names it echoes are its own attack surface rather than the hash's:
+`make -C cli fuzz-run` locally, one minute per target on every pull
+request, longer nightly runs in `fuzz.yml`. See
+[`cli/fuzz/README.md`](cli/fuzz/README.md). A digest change has to
+update the known answers in `cli/tests/run.sh` alongside
+[`test_vectors/`](test_vectors/).
 
 ## When to re-run SMHasher3
 

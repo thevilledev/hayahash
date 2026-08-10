@@ -126,6 +126,11 @@ make -C cli
 ./cli/hayasum -b 128 README.md
 ```
 
+Its own tests and fuzz targets live under [`cli/`](cli/):
+`make -C cli check` runs the functional harness and replays the fuzz
+corpus, `make -C cli fuzz-run` fuzzes argv parsing, the reader, and the
+output escaper.
+
 ## Documentation
 
 - [Contributing](CONTRIBUTING.md) - port sync rules, local gates, SMHasher3 triggers

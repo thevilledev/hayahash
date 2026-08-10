@@ -1,5 +1,14 @@
-# CLI
+# CLI: binaries, the test oracle, and fuzzing build/run products. The
+# seed corpus under cli/fuzz/corpus/ is committed; fuzz runs write new
+# inputs and any crashers to cli/fuzz/artifacts/ instead.
 cli/hayasum
+cli/tests/refhash
+cli/fuzz/fuzz_args
+cli/fuzz/fuzz_label
+cli/fuzz/fuzz_stream
+cli/fuzz/fuzz_stream_small
+cli/fuzz/*-replay
+cli/fuzz/artifacts/
 
 # C install / pkg-config build products
 hayahash.pc

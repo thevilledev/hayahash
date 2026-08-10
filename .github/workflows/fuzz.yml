@@ -1,0 +1,92 @@
+name: Nightly hayasum fuzzing
+
+# The PR job in ci.yml fuzzes each target for a minute, which only ever
+# re-covers what the committed corpus already reaches. This runs the
+# same targets long enough to find something new, one job per target so
+# they run in parallel and a finding names itself.
+
+on:
+  schedule:
+    - cron: "47 3 * * *"
+  workflow_dispatch:
+    inputs:
+      seconds:
+        description: "Seconds to fuzz each target"
+        required: false
+        default: "900"
+        type: string
+      max_len:
+        description: "Maximum generated input length in bytes (0 = per-target default)"
+        required: false
+        default: "0"
+        type: string
+
+permissions:
+  contents: read
+
+concurrency:
+  group: hayasum-fuzz-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  fuzz:
+    name: ${{ matrix.target }}
+    runs-on: avrea-ubuntu-latest-2-vcpu
+    timeout-minutes: 45
+    strategy:
+      fail-fast: false
+      matrix:
+        target:
+          - fuzz_args
+          - fuzz_label
+          - fuzz_stream
+          - fuzz_stream_small
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Install the clang sanitizer runtimes
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends \
+            "libclang-rt-$(clang -dumpversion | cut -d. -f1)-dev"
+
+      - name: Fuzz
+        env:
+          TARGET: ${{ matrix.target }}
+          REQUESTED_SECONDS: ${{ inputs.seconds }}
+          REQUESTED_MAXLEN: ${{ inputs.max_len }}
+        run: |
+          seconds="${REQUESTED_SECONDS:-900}"
+          # Only the 64 KiB-buffer stream build needs inputs large
+          # enough to fill its read buffer; for the others a large
+          # -max_len just slows the loop down.
+          case "$TARGET" in
+          fuzz_stream) maxlen=262144 ;;
+          *) maxlen=8192 ;;
+          esac
+          if [ -n "${REQUESTED_MAXLEN:-}" ] && [ "${REQUESTED_MAXLEN:-0}" -gt 0 ]; then
+            maxlen="$REQUESTED_MAXLEN"
+          fi
+          {
+            echo "### $TARGET"
+            echo
+            echo "- Seconds: \`$seconds\`"
+            echo "- Max input length: \`$maxlen\`"
+          } >> "$GITHUB_STEP_SUMMARY"
+          make -C cli fuzz-one \
+            TARGET="$TARGET" \
+            FUZZ_SECONDS="$seconds" \
+            FUZZ_MAXLEN="$maxlen"
+
+      - name: Upload crashing inputs
+        if: failure()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: hayasum-${{ matrix.target }}-${{ github.run_id }}-${{ github.run_attempt }}
+          path: cli/fuzz/artifacts/
+          if-no-files-found: ignore
+          retention-days: 14
