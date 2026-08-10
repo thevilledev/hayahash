@@ -115,10 +115,7 @@ can continue afterwards.
 | Python | `hayahash.Hasher` | `update` | `digest64` / `digest128` |
 | JS/TS | `Hasher` | `update` | `digest64` / `digest128` |
 
-Swift is one-shot only for now. The JavaScript `Hasher` runs on the
-pure-BigInt core because the wasm module exports only the one-shot
-entry points; one-shot hashing of a whole buffer still takes the wasm
-fast path.
+Swift is one-shot only for now.
 
 Each port checks streaming against its own one-shot output over every
 length through 640 and a set of chunk sizes that straddle the 448-byte
@@ -188,7 +185,7 @@ let h128 = Hayahash.hash128(buf, seed: 0)
 ```
 
 JavaScript/TypeScript - the npm package lives in [`js/`](../js/); the
-fast path is `hayahash.h` itself, compiled to a ~3 KB WebAssembly
+fast path is `hayahash.h` itself, compiled to a ~6 KB WebAssembly
 module, with a pure-JS fallback:
 
 ```js

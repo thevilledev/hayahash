@@ -48,7 +48,6 @@ Known-answer vectors for the current digest live under
   `static inline`, so this changes no symbol and fixes no link error; it
   gives the declarations C language linkage and puts the guard where it
   has to be before any future non-static build mode.
-
 - CMake package for the C reference (`CMakeLists.txt`,
   `cmake/hayahashConfig.cmake.in`). `cmake --install` writes the same
   header and pkg-config file to the same paths as `make install`, and
@@ -59,7 +58,14 @@ Known-answer vectors for the current digest live under
   (`tests/cmake/`) that resolves the package rather than the source
   tree. Package-version compatibility is `SameMinorVersion` while
   pre-1.0 digests can change between minors.
-
+- The JavaScript `Hasher` now runs on the wasm engine, not just the
+  pure-BigInt core: `hayahash.h`'s streaming state is exported from the
+  wasm module and the state round-trips through linear memory on each
+  call, so the JS object stays the sole owner and the public API needs
+  no `dispose()` or finalizer. Measured on Node 24 over 8 MiB, wasm
+  streaming is 4.5x the pure core at 64-byte chunks and 126x at 64 KiB.
+  The wasm module grows from ~3 KB to ~6 KB. `PureHasher` is exported
+  for the same reason `hayahash64Pure` is.
 - Streaming (`init` / `update` / `digest`) in the Rust, Go, Zig, Java,
   C#, Python and JavaScript ports. v0.5.0 moved the length into the
   finalizer specifically to make this possible, but until now only the C
@@ -69,8 +75,7 @@ Known-answer vectors for the current digest live under
   any split. Digesting does not consume the state. Spelled per language
   (`Digest` in Rust and Go, where it is also a `hash.Hash64`; `Hasher`
   elsewhere) - see [`docs/ports.md`](docs/ports.md#streaming). Swift
-  remains one-shot only. The JavaScript `Hasher` runs on the pure-BigInt
-  core, since the wasm module exports only the one-shot entry points.
+  remains one-shot only.
 
 ### Fixed
 

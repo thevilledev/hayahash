@@ -3,11 +3,8 @@
 // The digest equals hayahash64()/hayahash128() of the concatenation of
 // everything written, for every split of that input.
 //
-// This runs on the pure-BigInt core rather than the wasm engine: the
-// wasm module exports only the one-shot entry points, so a streaming
-// state would have to live in linear memory and cross the boundary on
-// every update. One-shot hashing of a whole buffer still takes the
-// wasm fast path.
+// This is the pure-BigInt implementation. index.ts exports a `Hasher`
+// that prefers the wasm engine and falls back to this one.
 //
 // This is free and unencumbered software released into the public
 // domain. For more information, please refer to https://unlicense.org/
@@ -42,15 +39,15 @@ const BUF_CAP = 448;
 const KEEP = 128;
 
 /**
- * A streaming hayahash state.
+ * Streaming hayahash state, pure-BigInt implementation.
  *
- * The digest equals the one-shot function over the concatenation of
- * every {@link Hasher.update}, for any split. Digesting does not
- * consume the state, so absorbing may continue afterwards.
+ * Prefer {@link "index".Hasher}, which uses the wasm engine when it is
+ * available and falls back to this. Exported for the same reason
+ * `hayahash64Pure` is: as an independent cross-check.
  *
  * Not safe for concurrent use.
  */
-export class Hasher {
+export class PureHasher {
 	readonly #h = new BigUint64Array(8);
 	readonly #buf = new Uint8Array(BUF_CAP);
 	readonly #view: DataView;
@@ -217,7 +214,7 @@ export class Hasher {
 
 	/**
 	 * Returns both digest words, without consuming the state. `lo` is
-	 * exactly {@link Hasher.digest64}.
+	 * exactly {@link PureHasher.digest64}.
 	 */
 	digest128(): Hash128 {
 		if (!this.#bulk) {
