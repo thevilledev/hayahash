@@ -13,14 +13,20 @@ The `HAYAFZ02` corpus stores the 128-bit result as little-endian `lo`, then
 every short, tail, mid-loop, tier, and 320-byte bulk dispatch boundary. Larger
 fixed edges and boundary-biased random lengths are followed by broad random
 lengths around the 128 KiB edge. All input bytes and per-hash seeds are
-randomized.
+randomized. The default case count is 32768 (minimum 406): the first 406
+cases are the fixed length/edge prefix, and the rest are i.i.d. random
+draws. For a latent port bug that fails a random draw with probability
+`p`, the per-run miss chance is about `e^(-n p)` with
+`n = case_count - 406`, so the larger default strengthens detection of
+rare content- or seed-dependent divergences that published KATs do not
+sample.
 
 Generate and replay a corpus from the repository root:
 
 ```sh
 cc -O2 -std=c11 -Wall -Wextra -Werror \
   tests/differential/generate.c -o /tmp/hayahash-generate
-/tmp/hayahash-generate /tmp/hayahash-corpus.bin 0x0123456789abcdef 4096
+/tmp/hayahash-generate /tmp/hayahash-corpus.bin 0x0123456789abcdef 32768
 
 HAYAHASH_CORPUS=/tmp/hayahash-corpus.bin \
   cargo test --manifest-path rust/Cargo.toml --test differential -- --nocapture

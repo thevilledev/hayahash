@@ -23,6 +23,13 @@ Known-answer vectors for the current digest live under
   and the release version guard keep `VERSION` in lockstep with port
   manifests.
 
+### Changed
+
+- Nightly differential conformance default corpus size raised from 4096
+  to 32768 cases (same format and fixed 406-case length/edge prefix).
+  Digests are unchanged; this only increases per-run sampling of
+  random `(input, seed)` pairs across ports.
+
 ## [0.5.0] - 2026-08-09
 
 ### Changed
