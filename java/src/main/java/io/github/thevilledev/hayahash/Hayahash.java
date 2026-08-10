@@ -36,7 +36,7 @@ public final class Hayahash {
       MethodHandles.byteArrayViewVarHandle(int[].class, ByteOrder.LITTLE_ENDIAN);
 
   // Multiplier: 2^64 / golden ratio, odd.
-  private static final long K = 0x9E3779B97F4A7C15L;
+  static final long K = 0x9E3779B97F4A7C15L;
 
   // moremur finalizer constants (Pelle Evensen); M1 doubles as the
   // second multiplier of the short path.
@@ -375,7 +375,7 @@ public final class Hayahash {
     return x ^ (x >>> 27);
   }
 
-  private static long fmix128(long x) {
+  static long fmix128(long x) {
     x ^= x >>> 30;
     x *= N1;
     x ^= x >>> 31;
@@ -396,11 +396,11 @@ public final class Hayahash {
     return w ^ Long.rotateLeft(w, 11) ^ Long.rotateLeft(w, 50);
   }
 
-  private static long injAt(byte[] key, int i) {
+  static long injAt(byte[] key, int i) {
     return inj(load64(key, i));
   }
 
-  private static long load64(byte[] key, int i) {
+  static long load64(byte[] key, int i) {
     return (long) LONG_LE.get(key, i);
   }
 

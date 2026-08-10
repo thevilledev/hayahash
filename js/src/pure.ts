@@ -13,10 +13,10 @@
 // This is free and unencumbered software released into the public
 // domain. For more information, please refer to <https://unlicense.org/>
 
-const MASK64 = 0xffffffffffffffffn;
+export const MASK64 = 0xffffffffffffffffn;
 
 // Multiplier: 2^64 / golden ratio, odd.
-const K = 0x9e3779b97f4a7c15n;
+export const K = 0x9e3779b97f4a7c15n;
 // moremur finalizer constants (Pelle Evensen); M1 doubles as the
 // second multiplier of the short path.
 const M1 = 0x3c79ac492ba7b653n;
@@ -26,20 +26,20 @@ const N2 = 0xc4ceb9fe1a85ec53n;
 
 // Shifted copies of K used for lane IVs, precomputed and masked so
 // the hash body never mixes an over-wide value into an xor.
-const K_SHL9 = (K << 9n) & MASK64;
-const K_SHL21 = (K << 21n) & MASK64;
-const K_SHL30 = (K << 30n) & MASK64;
-const K_SHL42 = (K << 42n) & MASK64;
-const K_SHR13 = K >> 13n;
+export const K_SHL9 = (K << 9n) & MASK64;
+export const K_SHL21 = (K << 21n) & MASK64;
+export const K_SHL30 = (K << 30n) & MASK64;
+export const K_SHL42 = (K << 42n) & MASK64;
+export const K_SHR13 = K >> 13n;
 const K_SHR19 = K >> 19n;
-const K_SHR27 = K >> 27n;
-const K_SHR40 = K >> 40n;
+export const K_SHR27 = K >> 27n;
+export const K_SHR40 = K >> 40n;
 
 // Input length (in bytes) at or above which the 8-lane bulk loop
 // kicks in.
 const BULK_MIN = 320;
 
-function rotl(x: bigint, n: bigint): bigint {
+export function rotl(x: bigint, n: bigint): bigint {
 	return ((x << n) & MASK64) | (x >> (64n - n));
 }
 
@@ -54,7 +54,7 @@ function fmix(x: bigint): bigint {
 }
 
 // Bijective finalizer for the high word.
-function fmix128(x: bigint): bigint {
+export function fmix128(x: bigint): bigint {
 	x ^= x >> 30n;
 	x = (x * N1) & MASK64;
 	x ^= x >> 31n;
@@ -66,7 +66,7 @@ function fmix128(x: bigint): bigint {
 // The long path has already mixed every input byte through a
 // multiply and a non-linear lane merge, so its final avalanche needs
 // only one serial multiply. Reusing K also avoids another constant.
-function fmixLong(x: bigint): bigint {
+export function fmixLong(x: bigint): bigint {
 	x ^= x >> 37n;
 	x = (x * K) & MASK64;
 	x ^= x >> 32n;
@@ -75,7 +75,7 @@ function fmixLong(x: bigint): bigint {
 
 // Bijective stripe injections; see hayahash.h for why the short path
 // needs a second one with different rotation amounts.
-function inj(w: bigint): bigint {
+export function inj(w: bigint): bigint {
 	return w ^ rotl(w, 21n) ^ rotl(w, 41n);
 }
 

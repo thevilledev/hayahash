@@ -60,6 +60,18 @@ Known-answer vectors for the current digest live under
   tree. Package-version compatibility is `SameMinorVersion` while
   pre-1.0 digests can change between minors.
 
+- Streaming (`init` / `update` / `digest`) in the Rust, Go, Zig, Java,
+  C#, Python and JavaScript ports. v0.5.0 moved the length into the
+  finalizer specifically to make this possible, but until now only the C
+  reference had it, so the streaming rows in `test_vectors/` were
+  consumed by nothing. Digests are unchanged: each port produces exactly
+  its own one-shot output over the concatenation of every update, for
+  any split. Digesting does not consume the state. Spelled per language
+  (`Digest` in Rust and Go, where it is also a `hash.Hash64`; `Hasher`
+  elsewhere) - see [`docs/ports.md`](docs/ports.md#streaming). Swift
+  remains one-shot only. The JavaScript `Hasher` runs on the pure-BigInt
+  core, since the wasm module exports only the one-shot entry points.
+
 ### Fixed
 
 - hayasum no longer exits `0` when a digest fails to reach stdout (full

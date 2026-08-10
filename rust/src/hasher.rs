@@ -38,15 +38,15 @@ const INLINE_CAP: usize = 64;
 /// heap. When hashing raw byte strings, calling [`hayahash64`]
 /// directly is still cheaper.
 ///
-/// Buffering is a limitation of this port, not of the algorithm. Before
-/// v0.5.0 hayahash64 premixed the total input length into its state
-/// before absorbing any bytes, which did make incremental hashing
-/// impossible; v0.5.0 moved the length into the finalizer precisely so
-/// that a digest is a pure function of the seed and the bytes seen so
-/// far. The C reference exposes `init` / `update` / `digest` on that
-/// basis, and this port has not implemented the equivalent state yet.
-/// Until it does, a large input hashed through [`Hasher`] is held in
-/// memory in full rather than absorbed as it arrives.
+/// Buffering here is a deliberate trade, not a limitation. The type
+/// exists to back hash maps, where keys are short and a map stores a
+/// hasher inline, so a 64-byte inline buffer and a one-shot finish beat
+/// carrying the full ~512-byte streaming state through every lookup.
+///
+/// The cost is that a large concatenated input is held in memory in
+/// full rather than absorbed as it arrives. For that, use
+/// [`Digest`](crate::Digest), which absorbs incrementally, never
+/// allocates, and produces the same digest for every split.
 ///
 /// The [`BuildHasher`] implementation makes the type double as a
 /// hash-map hasher builder: built hashers start empty with the same

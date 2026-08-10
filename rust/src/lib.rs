@@ -30,6 +30,9 @@ extern crate alloc;
 #[cfg(all(feature = "std", not(feature = "hashbrown")))]
 extern crate std;
 
+mod stream;
+pub use stream::Digest;
+
 #[cfg(any(feature = "std", feature = "hashbrown"))]
 mod hasher;
 

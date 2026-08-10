@@ -231,6 +231,12 @@ worth what it cost.
 *Done when* every maintained port passes the streaming vectors and the
 README's streaming claim needs no caveat.
 
+**Status:** streaming has landed in Rust, Go, Zig, Java, C#, Python and
+JavaScript. Swift is the one port still one-shot only, and the
+JavaScript hasher runs on the pure-BigInt core because the wasm module
+exports only the one-shot entry points. Language-native benchmarks are
+still open.
+
 ### Phase 3 - Make CI prove the claims
 
 Set `HAYAHASH_CORPUS` on pull requests and fail on divergence. Add
