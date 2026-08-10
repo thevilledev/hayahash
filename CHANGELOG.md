@@ -38,6 +38,16 @@ Known-answer vectors for the current digest live under
   libFuzzer-free replay driver so every CI compiler runs the corpus.
   One minute per target on pull requests; longer nightly runs in
   `fuzz.yml`.
+- C++ conformance job: the existing KAT, published-vector, and
+  128-bit/streaming harnesses are rebuilt with g++ and clang++ at C++11
+  and C++17. `hayahash.h` is a C header that C++ projects include, and
+  nothing compiled it as C++ before, so a valid-C-but-not-valid-C++
+  construct could land unnoticed. Digests are unchanged and identical to
+  the C build on every combination.
+- `extern "C"` guard in `hayahash.h`. Every declaration is
+  `static inline`, so this changes no symbol and fixes no link error; it
+  gives the declarations C language linkage and puts the guard where it
+  has to be before any future non-static build mode.
 
 ### Fixed
 
@@ -68,6 +78,10 @@ Known-answer vectors for the current digest live under
   to 32768 cases (same format and fixed 406-case length/edge prefix).
   Digests are unchanged; this only increases per-run sampling of
   random `(input, seed)` pairs across ports.
+- `hayahash.h` withdraws its 13 `HAYAHASH*_INTERNAL_*` macros with
+  `#undef` at the end of the header, so they no longer leak into the
+  including translation unit. The `hayahash*_internal_*` functions and
+  enum constants cannot be withdrawn this way and are unchanged.
 
 ## [0.5.0] - 2026-08-09
 

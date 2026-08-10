@@ -82,6 +82,18 @@
 #include <stddef.h>
 #include <string.h>
 
+// The standard headers stay outside the language-linkage block on
+// purpose: in C++ they declare templates and namespace members that are
+// ill-formed inside extern "C".
+//
+// Everything here is static inline, so this changes no symbol and fixes
+// no link error today. It gives the declarations C language linkage so
+// the types are what a C++ caller expects, and it is where the guard has
+// to already be if a future build mode stops making these static.
+#ifdef __cplusplus
+extern "C" {
+#endif
+
 // Loads use memcpy (never UB, any alignment) + byte swap on known
 // big-endian hosts. If a compiler exposes no byte-order macro, fall
 // back to explicit byte assembly rather than silently assuming little
@@ -1941,5 +1953,28 @@ static inline hayahash128_t hayahash128_digest(const hayahash128_state *st)
 		(h2 ^ hayahash64_internal_rotl_product(h3, 33)) * K;
 	return hayahash128_internal_longmix(s, t0, t1, K);
 }
+
+#ifdef __cplusplus
+} // extern "C"
+#endif
+
+// Every macro above is an implementation detail of this header and is
+// fully expanded by the time the last function body is parsed, so none
+// of them needs to survive into the including translation unit. The
+// hayahash*_internal_* functions and enum constants cannot be withdrawn
+// this way and do remain visible.
+#undef HAYAHASH64_INTERNAL_ENDIAN
+#undef HAYAHASH64_INTERNAL_COMPILER_GUARD
+#undef HAYAHASH64_INTERNAL_NOINLINE
+#undef HAYAHASH64_INTERNAL_TIERS
+#undef HAYAHASH64_INTERNAL_K
+#undef HAYAHASH64_INTERNAL_M1
+#undef HAYAHASH64_INTERNAL_M2
+#undef HAYAHASH128_INTERNAL_N1
+#undef HAYAHASH128_INTERNAL_N2
+#undef HAYAHASH64_INTERNAL_VECGCC
+#undef HAYAHASH64_INTERNAL_BULK_LANE_GUARD
+#undef HAYAHASH64_INTERNAL_BULK_BLOCK
+#undef HAYAHASH128_INTERNAL_INLINEBULK
 
 #endif // HAYAHASH_H

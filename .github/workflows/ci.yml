@@ -133,6 +133,53 @@ jobs:
           -fno-sanitize-recover=all"
           check
 
+  # hayahash.h is a C header that C++ projects include, but nothing here
+  # compiled it as C++, so a construct that is valid C and not valid C++
+  # could land unnoticed. These are the existing harnesses rebuilt with a
+  # C++ compiler; between them they touch every public entry point,
+  # including the streaming API. -x c++ is required because clang++
+  # rejects a .c input under -Werror; it is a no-op for g++.
+  cpp:
+    name: C++ (${{ matrix.compiler }}, ${{ matrix.std }})
+    runs-on: avrea-ubuntu-latest-2-vcpu
+    strategy:
+      fail-fast: false
+      matrix:
+        compiler:
+          - g++
+          - clang++
+        std:
+          - c++11
+          - c++17
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Check digests match the committed KAT
+        run: >-
+          make -C tests/wasm
+          CC="${{ matrix.compiler }}"
+          CFLAGS="-O2 -x c++ -std=${{ matrix.std }} -Wall -Wextra -Werror"
+          check-kat-haya
+
+      - name: Check published test vectors match hayahash.h
+        run: >-
+          make -C test_vectors
+          CC="${{ matrix.compiler }}"
+          CFLAGS="-O2 -x c++ -std=${{ matrix.std }} -Wall -Wextra -Werror"
+          check
+
+      - name: Check 128-bit and streaming paths
+        run: >-
+          make -C tests
+          CC="${{ matrix.compiler }}"
+          ARCH=
+          CFLAGS="-O2 -x c++ -std=${{ matrix.std }} -Wall -Wextra -Werror"
+          run-hash128
+
   # Coverage-guided fuzzing of the three parts of hayasum that take
   # untrusted input: argv, the byte stream, and the file name that goes
   # back out on the digest line. Each target asserts invariants rather
