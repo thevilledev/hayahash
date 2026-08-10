@@ -166,25 +166,30 @@ Hasher_update(HasherObject *self, PyObject *data_obj)
 }
 
 static PyObject *
-Hasher_digest64(HasherObject *self, PyObject *Py_UNUSED(ignored))
+Hasher_digest64(HasherObject *self, PyObject *ignored)
 {
+	(void)ignored;
 	return PyLong_FromUnsignedLongLong(
 		(unsigned long long)hayahash64_digest(&self->st));
 }
 
 static PyObject *
-Hasher_digest128(HasherObject *self, PyObject *Py_UNUSED(ignored))
+Hasher_digest128(HasherObject *self, PyObject *ignored)
 {
 	hayahash128_t digest = hayahash128_digest(&self->st);
+
+	(void)ignored;
 	return Py_BuildValue("(KK)",
 		(unsigned long long)digest.lo,
 		(unsigned long long)digest.hi);
 }
 
 static PyObject *
-Hasher_copy(HasherObject *self, PyObject *Py_UNUSED(ignored))
+Hasher_copy(HasherObject *self, PyObject *ignored)
 {
 	HasherObject *copy;
+
+	(void)ignored;
 
 	copy = PyObject_New(HasherObject, &Hasher_Type);
 	if (copy == NULL) {
@@ -218,14 +223,16 @@ Hasher_reset(HasherObject *self, PyObject *args, PyObject *kwargs)
 }
 
 static PyObject *
-Hasher_get_seed(HasherObject *self, void *Py_UNUSED(closure))
+Hasher_get_seed(HasherObject *self, void *closure)
 {
+	(void)closure;
 	return PyLong_FromUnsignedLongLong((unsigned long long)self->seed);
 }
 
 static PyObject *
-Hasher_get_length(HasherObject *self, void *Py_UNUSED(closure))
+Hasher_get_length(HasherObject *self, void *closure)
 {
+	(void)closure;
 	return PyLong_FromUnsignedLongLong(
 		(unsigned long long)self->st.total);
 }
