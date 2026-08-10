@@ -266,10 +266,15 @@ is "the last width wins the other way" "$plain" "$stdout"
 run "$HAYASUM" -s 1 -s 0 hw
 is "the last seed wins" "$plain" "$stdout"
 
+# -h and -V end the run and -s/-b swallow the rest of the argument, so
+# only the first short option in a bundle is ever acted on.
 run "$HAYASUM" -hV
-has "a cluster stops at the first action" "$stdout" "Usage: hayasum"
+has "only the first short option acts" "$stdout" "Usage: hayasum"
 run "$HAYASUM" -Vh
 is "and the other order picks the other one" "hayasum $version" "$stdout"
+run "$HAYASUM" -sh hw
+is "-s swallows the rest of the argument" 2 "$status"
+has "and reports it as the seed" "$stderr" "invalid seed 'h'"
 
 # ------------------------------------------------------------------
 # Operands, "--", and POSIX option ordering.

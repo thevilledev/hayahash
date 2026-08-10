@@ -194,7 +194,7 @@ static hayasum_status hayasum_parse_args(int argc, char *const *argv,
 	for (i = o->first; i < argc; i++) {
 		const char *a = argv[i];
 		const char *v;
-		int j;
+		int c;
 
 		// A lone "-" is stdin, not an option, and anything not
 		// starting with '-' ends the option section (POSIX ordering).
@@ -252,39 +252,35 @@ static hayasum_status hayasum_parse_args(int argc, char *const *argv,
 			continue;
 		}
 
-		// Short option cluster: -b128, -s 7, -hV, ...
-		for (j = 1; a[j] != '\0'; j++) {
-			int c = (unsigned char)a[j];
+		// Short option: -b128, -s 7, -h. Only the first letter is
+		// ever acted on, so there is no cluster loop to write: -h
+		// and -V end the run, and -s and -b take the rest of the
+		// argument as their value.
+		c = (unsigned char)a[1];
+		if (c == 'h')
+			return HAYASUM_HELP;
+		if (c == 'V')
+			return HAYASUM_SHOW_VERSION;
+		if (c != 's' && c != 'b') {
+			char one[2];
 
-			if (c == 'h')
-				return HAYASUM_HELP;
-			if (c == 'V')
-				return HAYASUM_SHOW_VERSION;
-			if (c == 's' || c == 'b') {
-				if (a[j + 1] != '\0') {
-					v = a + j + 1;
-				} else if (i + 1 < argc && argv[i + 1] != NULL) {
-					v = argv[++i];
-				} else {
-					snprintf(err, errsz,
-						"option '-%c' requires an argument",
-						c);
-					return HAYASUM_USAGE_ERROR;
-				}
-				if (!hayasum_set_option(c, v, o, err, errsz))
-					return HAYASUM_USAGE_ERROR;
-				break; // the value took the rest of the cluster
-			}
-			{
-				char one[2];
-
-				one[0] = (char)c;
-				one[1] = '\0';
-				hayasum_quote(tok, sizeof tok, one);
-				snprintf(err, errsz, "unknown option '-%s'", tok);
-			}
+			one[0] = (char)c;
+			one[1] = '\0';
+			hayasum_quote(tok, sizeof tok, one);
+			snprintf(err, errsz, "unknown option '-%s'", tok);
 			return HAYASUM_USAGE_ERROR;
 		}
+		if (a[2] != '\0') {
+			v = a + 2;
+		} else if (i + 1 < argc && argv[i + 1] != NULL) {
+			v = argv[++i];
+		} else {
+			snprintf(err, errsz,
+				"option '-%c' requires an argument", c);
+			return HAYASUM_USAGE_ERROR;
+		}
+		if (!hayasum_set_option(c, v, o, err, errsz))
+			return HAYASUM_USAGE_ERROR;
 	}
 
 	o->first = i;
