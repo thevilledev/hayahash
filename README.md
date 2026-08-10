@@ -137,6 +137,8 @@ output escaper.
 - [Changelog](CHANGELOG.md) - release history; `DIGEST` marks digest-breaking changes
 - [Test vectors](test_vectors/) - versioned known-answer digests for external implementers
 - [Stability / 1.0 criteria](docs/stability.md) - when digests freeze
+- [Roadmap](docs/roadmap.md) - gaps against established hash repositories
+  and the order for closing them
 - [Security policy](SECURITY.md) - threat model and private reporting
 - [Benchmarks](docs/benchmarks.md) - comparative results and methodology
 - [Design](docs/design.md) - the algorithm and structural decisions
