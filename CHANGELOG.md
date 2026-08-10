@@ -67,15 +67,16 @@ Known-answer vectors for the current digest live under
   The wasm module grows from ~3 KB to ~6 KB. `PureHasher` is exported
   for the same reason `hayahash64Pure` is.
 - Streaming (`init` / `update` / `digest`) in the Rust, Go, Zig, Java,
-  C#, Python and JavaScript ports. v0.5.0 moved the length into the
-  finalizer specifically to make this possible, but until now only the C
-  reference had it, so the streaming rows in `test_vectors/` were
+  C#, Python, Swift and JavaScript ports. v0.5.0 moved the length into
+  the finalizer specifically to make this possible, but until now only
+  the C reference had it, so the streaming rows in `test_vectors/` were
   consumed by nothing. Digests are unchanged: each port produces exactly
   its own one-shot output over the concatenation of every update, for
   any split. Digesting does not consume the state. Spelled per language
-  (`Digest` in Rust and Go, where it is also a `hash.Hash64`; `Hasher`
-  elsewhere) - see [`docs/ports.md`](docs/ports.md#streaming). Swift
-  remains one-shot only.
+  (`Digest` in Rust and Go, where it is also a `hash.Hash64`;
+  `Hayahash.Hasher` in Swift, nested so it cannot collide with the
+  standard library's `Hasher`; `Hasher` elsewhere) - see
+  [`docs/ports.md`](docs/ports.md#streaming).
 
 ### Fixed
 

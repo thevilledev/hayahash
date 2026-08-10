@@ -231,9 +231,11 @@ worth what it cost.
 *Done when* every maintained port passes the streaming vectors and the
 README's streaming claim needs no caveat.
 
-**Status:** streaming has landed in Rust, Go, Zig, Java, C#, Python and
-JavaScript, on the wasm engine where one is available. Swift is the one
-port still one-shot only. Language-native benchmarks are still open.
+**Status:** streaming has landed in every maintained port - Rust, Go,
+Zig, Java, C#, Python, Swift and JavaScript, on the wasm engine where
+one is available - so the README's streaming claim now needs no caveat.
+The idiomatic wrappers in the table above and language-native benchmarks
+are still open.
 
 ### Phase 3 - Make CI prove the claims
 
