@@ -34,7 +34,7 @@ public struct Hash128: Equatable, Sendable {
 /// All methods are static, allocation-free, and thread-safe.
 public enum Hayahash {
     // Multiplier: 2^64 / golden ratio, odd.
-    private static let k: UInt64 = 0x9E3779B97F4A7C15
+    static let k: UInt64 = 0x9E3779B97F4A7C15
 
     // moremur finalizer constants (Pelle Evensen); m1 doubles as the
     // second multiplier of the short path.
@@ -399,7 +399,7 @@ public enum Hayahash {
     }
 
     @inline(__always)
-    private static func fmix128(_ x: UInt64) -> UInt64 {
+    static func fmix128(_ x: UInt64) -> UInt64 {
         var x = x
         x ^= x >> 30
         x &*= n1
@@ -414,7 +414,7 @@ public enum Hayahash {
     // so the two multiply terms can never be erased simultaneously by
     // one sparse difference.
     @inline(__always)
-    private static func inj(_ w: UInt64) -> UInt64 {
+    static func inj(_ w: UInt64) -> UInt64 {
         w ^ rotl(w, 21) ^ rotl(w, 41)
     }
 
@@ -429,13 +429,13 @@ public enum Hayahash {
     }
 
     @inline(__always)
-    private static func rotl(_ x: UInt64, _ n: Int) -> UInt64 {
+    static func rotl(_ x: UInt64, _ n: Int) -> UInt64 {
         (x << n) | (x >> (64 - n))
     }
 
     // Explicit little-endian loads so digests match on big-endian hosts.
     @inline(__always)
-    private static func load64(_ key: UnsafeRawBufferPointer, _ i: Int) -> UInt64 {
+    static func load64(_ key: UnsafeRawBufferPointer, _ i: Int) -> UInt64 {
         let b0 = UInt64(key[i])
         let b1 = UInt64(key[i &+ 1]) << 8
         let b2 = UInt64(key[i &+ 2]) << 16

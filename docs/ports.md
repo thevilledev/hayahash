@@ -99,10 +99,10 @@ update names are zero-cost aliases for the shared hayahash64 state.
 
 ## Streaming
 
-Every port except Swift also absorbs input incrementally, producing the
-same digest as the one-shot function over the concatenation of every
-update, for any split. Digesting never consumes the state, so hashing
-can continue afterwards.
+Every port also absorbs input incrementally, producing the same digest
+as the one-shot function over the concatenation of every update, for any
+split. Digesting never consumes the state, so hashing can continue
+afterwards.
 
 | language | type | absorb | finish |
 |---|---|---|---|
@@ -113,9 +113,13 @@ can continue afterwards.
 | Java | `Hasher` | `update` | `digest64` / `digest128` |
 | C# | `Hasher` | `Update` | `Digest64` / `Digest128` |
 | Python | `hayahash.Hasher` | `update` | `digest64` / `digest128` |
+| Swift | `Hayahash.Hasher` | `update` | `digest64` / `digest128` |
 | JS/TS | `Hasher` | `update` | `digest64` / `digest128` |
 
-Swift is one-shot only for now.
+The Swift hasher is nested under `Hayahash` rather than declared at the
+top level so it cannot collide with the standard library's `Hasher`. It
+is also a value type, so copying one forks its state - the Swift
+spelling of Python's explicit `copy()`.
 
 Each port checks streaming against its own one-shot output over every
 length through 640 and a set of chunk sizes that straddle the 448-byte

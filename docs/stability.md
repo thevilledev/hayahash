@@ -11,7 +11,7 @@ This document is the adoption contract for when digests become immutable.
 | Item | Status |
 |---|---|
 | Public API surface (64/128 one-shot) | Present in 0.5.x |
-| Streaming API (init/update/digest) | C reference and every port but Swift |
+| Streaming API (init/update/digest) | C reference and every maintained port |
 | SMHasher3 default suite (both widths) | 188/188 on recorded hosts |
 | Cross-port bit-exactness | Required in CI + nightly differential |
 | Digest freeze | **Not yet** — pre-1.0 |
