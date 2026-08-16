@@ -16,18 +16,27 @@ website/
     playground.js
     bench.wasm
     vendor/
-      index.js
-      pure.js
-      wasm.js
-      wasm-module.js
+      <every module js/dist emits>
       kat.txt
 ```
+
+`vendor/` takes all of `js/dist/*.js`, not a hand-picked subset. The npm
+package's own import graph decides what the browser fetches, so a listed
+subset silently breaks the playground as soon as the package gains a module.
 
 The HTML always revalidates `playground-assets.json`, then dynamically imports
 the entry module named there. Module imports and the wasm/KAT fetches resolve
 relative to that entry module, so one page load cannot mix files from different
 builds. Files below `assets/<content-hash>/` are immutable and must never be
 purged or overwritten.
+
+Before it names a namespace, `scripts/version-playground.mjs` resolves every
+import and every `new URL(..., import.meta.url)` fetch in the staged set
+against the set itself, and fails the deploy if one does not land on a file
+that ships. A module missing from the bundle takes the whole graph down, and
+the browser reports only that the import failed: Safari says "Importing a
+module script failed", Chrome "Failed to fetch dynamically imported module".
+Neither names the file it wanted, so the check names it instead.
 
 The unversioned `bench.wasm` and `vendor/` files are temporary compatibility
 aliases for browsers that cached the HTML shell from before content versioning.
