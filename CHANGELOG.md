@@ -100,6 +100,17 @@ Known-answer vectors for the current digest live under
   deterministic prefix: lengths 0-384 plus the 21 fixed large edges,
   820 KiB, about a second) seeded from the commit SHA, and fails rather
   than continuing on a mismatch.
+- The browser playground loads again. `scripts/build-playground.sh` copied
+  a hand-listed subset of `js/dist/` into the deployed bundle, so the
+  streaming `Hasher` arriving in the npm package left `vendor/index.js`
+  importing a `vendor/stream.js` that never shipped. One missing module
+  takes down the whole graph, and the page could only report that the
+  import failed — "Importing a module script failed" in Safari, "Failed to
+  fetch dynamically imported module" in Chrome — without naming the file.
+  The bundle now carries every module tsc emits, and
+  `scripts/version-playground.mjs` resolves every import and every
+  `import.meta.url` fetch in the staged set before publishing it, so a gap
+  fails the deploy instead of the page.
 
 ### Changed
 

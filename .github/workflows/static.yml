@@ -89,6 +89,7 @@ jobs:
                 "https://hayaha.sh/bench.wasm",
                 "https://hayaha.sh/vendor/index.js",
                 "https://hayaha.sh/vendor/pure.js",
+                "https://hayaha.sh/vendor/stream.js",
                 "https://hayaha.sh/vendor/wasm.js",
                 "https://hayaha.sh/vendor/wasm-module.js",
                 "https://hayaha.sh/vendor/kat.txt"
