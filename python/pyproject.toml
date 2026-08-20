@@ -34,7 +34,7 @@ Issues = "https://github.com/thevilledev/hayahash/issues"
 [project.optional-dependencies]
 test = ["pytest>=8"]
 dev = [
-  "ruff==0.16.1",
+  "ruff==0.16.2",
   "pyright==1.1.411",
   "pytest>=8",
 ]
