@@ -90,20 +90,10 @@ release tarball.
 
 ### Port parity
 
-Streaming exists in C only.
-
-`hayahash64_init` / `_update` / `_digest` and their 128-bit counterparts
-are in [`hayahash.h`](../hayahash.h), but **zero of the nine ports expose
-them**. This is the sharpest gap in the repository, because v0.5.0 was a
-digest-breaking change made specifically to enable streaming - every
-output value changed to buy an API that nine of ten implementations do
-not have. The nine streaming rows in
-[`test_vectors/v0.5.0.txt`](../test_vectors/v0.5.0.txt) are consumed by
-nothing but the C generator's own self-check. `js/wasm/shim.c` says so
-outright: the shim "exports only the one-shot function ... until a
-streaming export exists."
-
-Idiomatic integration is Rust-only. `rust/src/hasher.rs` provides
+Streaming has landed in every maintained port. What is still missing is
+**idiomatic integration**: each port exposes `init` / `update` / `digest`
+spelled its own way, but not the standard-library interface a user of that
+language would reach for first. That is Rust-only. `rust/src/hasher.rs` provides
 `HayaHasher` (`Hasher` + `BuildHasher`) and the `HayaHashMap` /
 `HayaHashSet` aliases. Nothing equivalent exists elsewhere:
 
@@ -117,8 +107,8 @@ Idiomatic integration is Rust-only. `rust/src/hasher.rs` provides
 | Swift | `Hashable` / `HashFunction` bridge | no |
 | JS | incremental API | no |
 
-Most of these fall out of implementing streaming, which is why they are
-one workstream rather than eight.
+Each is a thin wrapper over the streaming API that already exists in that
+port, which is why they are one workstream rather than eight.
 
 There are also no language-native benchmarks anywhere. Every number in
 [`benchmarks.md`](benchmarks.md) is C or wasm, so a Go, Java or .NET user
@@ -170,20 +160,17 @@ trusting the author's tree. Until hayahash is upstream, 188/188 is a
 self-run result against a self-maintained adapter, and SMHasher3 never
 runs in CI.
 
-Evidence for the shipping digest is also thinner than for the one it
-replaced. v0.5 has one archived full-suite record: 128-bit, one KVM host,
-one compiler. hayahash64 at v0.5 is `reported` with no raw dump. The
-nine-build, four-host, five-compiler sweep belongs to the superseded v0.4
-digest. [`quality.md`](quality.md) and
-[`../paper/AUDIT.md`](../paper/AUDIT.md) both say this plainly - the
-honesty is not the problem, the coverage is.
+Full-suite coverage is thin. There is exactly one archived record:
+128-bit, one KVM host, one compiler. hayahash64 is `reported` with no raw
+dump, and no host has an archived run for every compiled dispatch shape.
+[`quality.md`](quality.md) and [`../paper/AUDIT.md`](../paper/AUDIT.md)
+both say this plainly - the honesty is not the problem, the coverage is.
 
 The hash core itself is never fuzzed; all four targets are `hayasum` CLI
 surface. `make -C paper check` is not wired into any workflow, so the
 snapshot register can drift from the header between manual runs. There is
 no SBOM, no build provenance attestation, no CodeQL and no OpenSSF
-Scorecard. And the digest is unfrozen, having moved twice in eleven days
-(v0.3.0 and v0.5.0), so the soak clause in
+Scorecard. And the digest is still unfrozen, so the soak clause in
 [`stability.md`](stability.md) has not started.
 
 ## Fix now
@@ -193,10 +180,10 @@ enough not to wait for a phase:
 
 1. **The PR differential no-op.** Set `HAYAHASH_CORPUS` in `ci.yml` with
    a small corpus and fail rather than `continue-on-error`.
-2. **`rust/src/hasher.rs:32` documents a constraint that v0.5.0
-   removed.** It still reads "hayahash64 premixes the total input length
+2. **`rust/src/hasher.rs:32` documents a constraint the algorithm no
+   longer has.** It still reads "hayahash64 premixes the total input length
    into its state before absorbing any bytes, so it cannot hash a stream
-   incrementally." `HayaHasher` therefore buffers the entire input into a
+   incrementally." The length is absorbed in the finalizer. `HayaHasher` therefore buffers the entire input into a
    `Vec` on the strength of a premise the algorithm no longer has: a
    1 GiB stream allocates 1 GiB.
 3. **Streaming is advertised without its caveat.** The
@@ -225,8 +212,7 @@ compiler.
 Implement streaming in every port against the streaming rows already
 sitting in [`test_vectors/`](../test_vectors/), then the idiomatic
 wrappers that fall out of it, then language-native benchmarks. This
-retires fix-now item 2 as a side effect and makes v0.5.0's digest break
-worth what it cost.
+retires fix-now item 2 as a side effect.
 
 *Done when* every maintained port passes the streaming vectors and the
 README's streaming claim needs no caveat.
@@ -250,8 +236,8 @@ the maintainer's laptop.
 
 ### Phase 4 - External validation, then the freeze
 
-Submit the adapter to SMHasher3 upstream. Re-run the multi-host,
-multi-compiler sweep for the v0.5 digest so `AUDIT.md` can move the
+Submit the adapter to SMHasher3 upstream. Run a multi-host,
+multi-compiler sweep at the current digest so `AUDIT.md` can move the
 64-bit full-suite row from `reported` to `archived`. Then execute the
 five 1.0 criteria in [`stability.md`](stability.md), soak period
 included.

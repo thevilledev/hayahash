@@ -84,10 +84,11 @@
         Native x86-64 and ARM64 CPUs have a wide multiply. For a 64-bit
         digest on those CPUs,
         <a href="https://github.com/Nicoshev/rapidhash">rapidhash v3</a> is
-        the better default. It is faster on small keys on each CPU we
-        measured. On the M1, it is faster in bulk too. hayahash is ahead in
-        bulk on Zen&nbsp;5, but only with AVX-512DQ vectorization. The
-        <a href="benchmarks.html">benchmarks</a> measure this trade.
+        the better default: it is built on exactly the instruction
+        hayahash's portability rules exclude. Take hayahash where that
+        instruction is not there. In baseline wasm the gap runs the other
+        way, 23.55 against 6.43&nbsp;GB/s at 1&nbsp;MiB in the same runtime.
+        The <a href="benchmarks.html">benchmarks</a> measure the trade.
       </p>
 
       <div class="notice">
@@ -104,9 +105,9 @@
         <tbody>
           <tr>
             <th scope="row">Release</th>
-            <td><a href="https://github.com/thevilledev/hayahash/releases/tag/v0.4.5">v0.4.5</a>.
-              That release contains hayahash64 in every port. The current
-              v0.5 candidate adds hayahash128 to the C reference.</td>
+            <td><a href="https://github.com/thevilledev/hayahash/releases/tag/v0.5.0">v0.5.0</a>.
+              Both digest widths and the streaming API, in every
+              maintained port.</td>
           </tr>
           <tr>
             <th scope="row">Hash value / seed</th>
@@ -135,15 +136,15 @@
       <h2 id="benchmarks">Benchmarks</h2>
 
       <p>
-        Producing the second word is inexpensive on the M1 and has a larger
-        bulk cost on the two Zen&nbsp;5 systems measured. These are medians
-        of nine calibrated rounds on one pinned core; every cell shows
-        hayahash64 / hayahash128.
+        Medians of nine calibrated rounds on one pinned core; every cell
+        shows hayahash64 / hayahash128. Bulk throughput is at parity between
+        the widths on all three hosts, so the second word costs a finalizer
+        rather than a second pass.
       </p>
 
       <div class="table-scroll">
         <table>
-          <caption>Current v0.5 candidate: 64 / 128</caption>
+          <caption>64 / 128, current digest</caption>
           <thead>
             <tr>
               <th scope="col">host</th>
@@ -159,7 +160,7 @@
         </table>
       </div>
 
-      <h3>Current 128-bit SMHasher3 shootout</h3>
+      <h3>128-bit SMHasher3 shootout</h3>
 
       <p>
         Three round-robin process replicates on each bare-metal host;
@@ -188,146 +189,45 @@
       </div>
 
       <p>
-        Small-key latency still favors the wide-multiply passers, but in
-        Zen&nbsp;5 bulk hayahash128 now passes every wide-multiply passer and
-        sits within 4% of AES-based MeowHash. Among ordinary-scalar passers,
-        hayahash128 leads FarmHash bulk by 1.73&times; on M1 and 1.89&times;
-        on Zen&nbsp;5. XXH3-128 is fastest overall and fails 26 of 188 test
-        groups. * The Zen&nbsp;5 hayahash bulk loop is
-        compiler-auto-vectorized. Full methodology and instruction
+        Small-key latency favors the wide-multiply passers. In Zen&nbsp;5
+        bulk, hayahash128 clears every wide-multiply passer and sits within
+        4% of AES-based MeowHash. Among ordinary-scalar passers it leads
+        FarmHash in bulk by 1.73&times; on M1 and 1.89&times; on Zen&nbsp;5.
+        XXH3-128 is fastest overall and fails 26 of 188 test groups.
+        * The Zen&nbsp;5 hayahash bulk loop is compiler-auto-vectorized from
+        the same portable scalar source. Full methodology and instruction
         requirements are on the
         <a href="benchmarks.html#shootout">benchmark page</a>.
       </p>
 
-      <h3>Archived <code>v0.4.0</code> 64-bit shootout</h3>
-
-      <p>The competitive hayahash64 data supports two claims. Each claim
-        has limits. You can reproduce each
-        claim:</p>
-
-      <ol>
-        <li>
-          Compare the hashes that use only portable scalar 64-bit code and
-          that pass all SMHasher3 tests. In this group, hayahash64 has the
-          highest bulk speed on the two bare-metal machines in the
-          competitive shootout.
-        </li>
-        <li>
-          On Zen 5, GCC can vectorize the hayahash bulk loop. Then hayahash
-          has more bulk speed than each wide-multiply hash we measured.
-          This includes rapidhash v3. Only XXH3-64 and gxhash are faster in
-          bulk there. Those two fail the suite.
-        </li>
-      </ol>
-
-      <div class="table-scroll">
-        <table>
-          <caption>
-            SMHasher3 64-bit archive. Small keys: cycles/hash on keys of 1 to 31
-            bytes. Lower is better. Bulk: bytes/cycle on 256&nbsp;KiB keys.
-            Higher is better.
-          </caption>
-          <thead>
-            <tr>
-              <th scope="col">hash</th>
-              <th scope="col" class="n">M1 small</th>
-              <th scope="col" class="n">M1 bulk</th>
-              <th scope="col" class="n">Zen 5 small</th>
-              <th scope="col" class="n">Zen 5 bulk</th>
-              <th scope="col">full suite</th>
-              <th scope="col">needs for peak speed</th>
-            </tr>
-          </thead>
-          <tbody>
-            <tr>
-              <td>rapidhash v3</td>
-              <td class="n">21.5</td><td class="n">15.2</td>
-              <td class="n">9.8</td><td class="n">28.6</td>
-              <td>pass</td><td>64&times;64&rarr;128 multiply</td>
-            </tr>
-            <tr>
-              <td>wyhash v4.2</td>
-              <td class="n">22.5</td><td class="n">8.8</td>
-              <td class="n">8.8</td><td class="n">19.8</td>
-              <td>fail (11)</td><td>64&times;64&rarr;128 multiply</td>
-            </tr>
-            <tr>
-              <td>a5hash v5.21</td>
-              <td class="n">23.3</td><td class="n">3.0</td>
-              <td class="n">6.1</td><td class="n">6.9</td>
-              <td>pass</td><td>64&times;64&rarr;128 multiply</td>
-            </tr>
-            <tr>
-              <td>komihash v5.27</td>
-              <td class="n">25.3</td><td class="n">7.5</td>
-              <td class="n">10.7</td><td class="n">19.9</td>
-              <td>pass</td><td>64&times;64&rarr;128 multiply</td>
-            </tr>
-            <tr>
-              <td>XXH3-64</td>
-              <td class="n">25.9</td><td class="n">12.6</td>
-              <td class="n">10.1</td><td class="n">48.9</td>
-              <td>fail (22)</td><td>SIMD</td>
-            </tr>
-            <tr>
-              <td>gxhash-64</td>
-              <td class="n">-</td><td class="n">-</td>
-              <td class="n">16.4</td><td class="n">64.7</td>
-              <td>fail (23)</td><td>AES instructions</td>
-            </tr>
-            <tr class="self">
-              <td>hayahash64</td>
-              <td class="n">33.5</td><td class="n">9.8</td>
-              <td class="n">12.0</td><td class="n">31.2*</td>
-              <td>pass</td><td>ordinary 64&times;64&rarr;64 multiply</td>
-            </tr>
-            <tr>
-              <td>ChibiHash v2</td>
-              <td class="n">37.7</td><td class="n">6.1</td>
-              <td class="n">9.2</td><td class="n">15.7</td>
-              <td>pass</td><td>ordinary 64&times;64&rarr;64 multiply</td>
-            </tr>
-            <tr>
-              <td>mx3.v3</td>
-              <td class="n">44.7</td><td class="n">4.2</td>
-              <td class="n">16.9</td><td class="n">10.1</td>
-              <td>fail (26)</td><td>ordinary 64&times;64&rarr;64 multiply</td>
-            </tr>
-            <tr>
-              <td>SpookyHash2-64</td>
-              <td class="n">52.6</td><td class="n">4.1</td>
-              <td class="n">18.1</td><td class="n">15.4</td>
-              <td>fail (5)</td><td>ordinary 64-bit operations</td>
-            </tr>
-          </tbody>
-        </table>
-      </div>
+      <h3>Portable-scalar baseline</h3>
 
       <p>
-        * The 31.2 value needs vectorization. GCC vectorizes the bulk loop
-        only when AVX-512DQ is available. Without AVX-512DQ, the same
-        scalar source runs
-        at 17.6 bytes/cycle. That is less than rapidhash. No code is
-        vectorized by hand. The small-key column shows dependent latency.
-        Each hash value goes into the next key. So do not compare this
-        column with independent-hash numbers. The data comes from our own
-        runs at a pinned SMHasher3 commit. Each cell has five replicates,
-        measured at v0.4.0. The <a href="benchmarks.html">benchmarks
-        page</a> has the full tables, the hosts, the method, and the
-        caveats.
+        <a href="https://github.com/N-R-K/ChibiHash">ChibiHash v2</a> is the
+        nearest comparable hash: same portability rules, same instruction
+        set, and it passes the suite too. Comparing against it isolates
+        design choices from instruction sets. At 1&nbsp;MiB, hayahash64
+        reaches 30.73&nbsp;GB/s against ChibiHash v2's 18.99 on the M1 Pro
+        (1.6&times;), and 61.6 against 31.3 on Zen&nbsp;5 with AVX-512DQ
+        (2.0&times;); without AVX-512DQ the same portable source gets about
+        35&nbsp;GB/s there.
       </p>
 
       <p>
-        <a href="https://github.com/N-R-K/ChibiHash">ChibiHash v2</a> is
-        the nearest comparable hash. It has the same portability rules. It
-        passes the suite. At 1&nbsp;MiB on the M1, hayahash64 reaches
-        29.78&nbsp;GB/s and ChibiHash v2 reaches 18.35&nbsp;GB/s. That is a
-        1.6&times; lead. At 1&nbsp;MiB on Zen&nbsp;5 with AVX-512, hayahash
-        reaches 61.60&nbsp;GB/s and ChibiHash v2 reaches 31.25&nbsp;GB/s.
-        That is a 2.0&times; lead. Without AVX-512DQ, hayahash reaches
-        approximately 35&nbsp;GB/s there. Small keys differ by CPU. On the
-        M1, hayahash needs 11 percent less time. On Zen&nbsp;5, hayahash
-        needs 30 percent more time.
+        Both loops spend the same five operations per 8-byte stripe. The
+        difference is where the dependencies sit: hayahash carries only
+        <code>xor &rarr; mul</code> per lane over eight lanes and 64-byte
+        blocks, so multiplier issue binds before latency does. ChibiHash v2
+        carries a cross-lane add as well, over four lanes and 32-byte
+        blocks, which binds on latency first. The
+        <a href="design.html">design page</a> has the arithmetic.
+      </p>
+
+      <p>
+        A 64-bit competitive sweep against the wide-multiply and SIMD
+        families has not been re-run since the digest changed, so this site
+        makes no 64-bit ranking claim beyond that baseline. The 128-bit
+        table above is current.
       </p>
 
       <p>
@@ -428,11 +328,10 @@
       <ul>
         <li>
           SMHasher3: 188 of 188 tests pass. The verification value is
-          <code>0x65F2AC15</code>. The v0.5 digest passed the full suite
-          on an Apple M1 Pro, with all dispatch shapes measured
-          bit-identical locally; the v0.4.0 nine-build sweep across four
-          hosts and five compilers has not been repeated for it yet.
-          ChibiHash v2 passes the suite too. ChibiHash v1 fails it.
+          <code>0x65F2AC15</code>. Every compiled dispatch shape must
+          produce byte-identical output; one archived full-suite record
+          exists so far, and a multi-host, multi-compiler sweep is open
+          work. ChibiHash v2 passes the suite too. ChibiHash v1 fails it.
         </li>
         <li>
           hayahash128 also passes 188 of 188 tests with 128-bit-wide
@@ -468,27 +367,41 @@
         tracks the evidence for each claim.
       </p>
 
-      <h2 id="design">Design: four ideas</h2>
+      <h2 id="design">Design</h2>
 
       <ol>
-        <li>The bulk loop has 8 independent lanes over 64-byte blocks. The
-          loop-carried path is <code>add &rarr; mul</code> only.</li>
-        <li>Each lane absorbs <code>w + rotl(w_prev, 27)</code>. This
-          absorb is injective by first-difference induction.</li>
-        <li>One premixed seed value makes all lane constants; the code
-          has no large per-lane literals. The length is absorbed in the
-          finalizer instead, which is what makes the streaming API's
-          digests identical to one-shot calls.</li>
-        <li>Tail code reads whole words that overlap, in the wyhash style.
-          Keys of 16 bytes or less use a special two-multiply path.</li>
+        <li><strong>Eight lanes, nothing but <code>xor &rarr; mul</code>
+          carried.</strong> The bulk loop takes 64-byte blocks across eight
+          independent lanes with no cross-lane work on the loop-carried
+          path.</li>
+        <li><strong>A chained, injective absorb.</strong> Each lane absorbs
+          <code>w + rotl(w_prev, 27)</code>. The stripe-to-absorbed map is a
+          bijection, so at the first stripe where two inputs differ, their
+          absorbed values differ. The rotated copy also gives every stripe a
+          second life at a low position of the next absorb, under addition
+          rather than XOR.</li>
+        <li><strong>Seed-derived lane constants; length in the
+          finalizer.</strong> All eight lane values come from one premixed
+          seed word plus shifted copies of the single multiplier, so there
+          are no large per-lane literals. The length is absorbed at the end,
+          which is what lets the streaming API match one-shot digests
+          exactly.</li>
+        <li><strong>Overlapping tail reads, two-multiply short path.</strong>
+          Tails read whole words from the end of the input, wyhash-style, so
+          no length uses a byte-at-a-time loop. Keys of 16 bytes or less take
+          a dedicated path whose 128-bit output is injective in both the
+          message and the seed.</li>
       </ol>
 
       <p>
-        The hard part was to close each structural collision class that
-        SMHasher3 found, and to keep the speed. The
-        <a href="design.html">design page</a> tells more about both. Its
-        <a href="design.html#simulator">simulator</a> runs the algorithm
-        on your own input, one absorb at a time.
+        The hard part is that removing the wide product is not only a speed
+        cost. It leaves multiplication mod 2<sup>64</sup> as the only
+        nonlinear operation, and that operation is the identity on a
+        four-element subgroup at the top of the word &mdash; so specific
+        cancellation channels open, and specific constants close them. The
+        <a href="design.html">design page</a> works through the arithmetic,
+        and its <a href="design.html#simulator">simulator</a> runs the
+        algorithm on your own input, one absorb at a time.
       </p>
 
       <h2 id="license">License</h2>

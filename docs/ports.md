@@ -38,8 +38,9 @@
   run-bench`. Competitor headers (rapidhash, xxHash) are fetched
   pinned to exact upstream commits at build time
 - `docs/` - this documentation ([index](README.md))
-- `paper/` - working paper, claim-by-claim evidence register
-  ([`AUDIT.md`](../paper/AUDIT.md)), and archived evaluation records
+- `paper/` - working paper (specification and proofs), the claim-by-claim
+  evidence register ([`AUDIT.md`](../paper/AUDIT.md)), and the raw
+  evaluation records behind it
 - `scripts/` - release tooling (`bump-version.sh` sets the shared
   version in root `VERSION` and every port manifest)
 

@@ -69,8 +69,13 @@ records:
 | `HAYAHASH64_INTERNAL_TIERS` | AArch64 or x86-64, **and not Clang** | straight-line length tiers for 17..319-byte keys |
 | `HAYAHASH64_INTERNAL_VECGCC` | x86-64, GCC, `__AVX512DQ__`, and a Zen 4/5 target | array-and-loop bulk spelling that GCC's SLP vectorizer can seed from |
 
-As of `v0.4.0` that gives three distinct shapes, and a conformance run should
-cover all of them:
+A third switch, `HAYAHASH128_INTERNAL_INLINEBULK`, follows the same
+compiler split (Clang and not wasm) and therefore adds no shape a
+`HASH=hayahash128` run over the matrix below would miss.
+[`implementation.md`](implementation.md#compiled-shapes) lists every gate.
+
+That gives three distinct shapes, and a conformance run should cover all of
+them:
 
 | shape | how to build it |
 |---|---|
@@ -95,12 +100,13 @@ Which shape a machine gives you is not obvious, so the hosts behind
 | " | GCC 13.3 `-U__AVX512DQ__` | tiers 1, vecgcc 0 |
 | " | clang 18.1 | tiers 0, vecgcc 0 |
 
-All nine of those builds pass 188/188 at `v0.4.0` and produce byte-identical
-output once timing lines are removed. Three traps are visible in the table.
+Any two builds must produce byte-identical output once timing lines are
+removed; that equality is the conformance gate. Three traps are visible in
+the table.
 
-**Apple Silicon is `tiers 0`** as of `v0.4.0`, though it was `tiers 1` in
-`v0.3.0`, when the condition keyed off the architecture rather than the
-compiler. Never assume the M1 covers the wide shape.
+**Apple Silicon is `tiers 0`**: the condition keys off the compiler, not the
+architecture, and every Apple toolchain is Clang. Never assume the M1 covers
+the wide shape.
 
 **`-march=native` does not imply `vecgcc 1`.** The Zen 3 host has no AVX-512
 at all, so GCC there gets the plain spelling however aggressively you tune it,
@@ -265,8 +271,7 @@ done
 
 The pinned commit includes the macOS `size_t` build fix and Apple Silicon Arm
 detection previously carried as local patches. Advancing the pin means
-re-running everything: archived records name the exact commit that produced
-them.
+re-running everything: every record names the exact commit that produced it.
 
 ## Licensing
 
