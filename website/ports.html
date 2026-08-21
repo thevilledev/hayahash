@@ -38,7 +38,7 @@
         <a href="https://github.com/thevilledev/hayahash/blob/main/hayahash.h"><code>hayahash.h</code></a>.
         It is one C99 header. The repository contains nine bit-exact
         ports. All ten implementations share one version number, now
-        v0.4.5. One version is the same algorithm in each language.
+        v0.5.0. One version is the same algorithm in each language.
       </p>
 
       <p>
@@ -86,7 +86,7 @@ h128 := hayahash.Hash128(buf, seed)</code></pre>
 
       <h2 id="zig">Zig</h2>
       <p>The port needs Zig 0.16. Get the module from the release:</p>
-      <pre><code>zig fetch --save https://github.com/thevilledev/hayahash/releases/download/v0.4.5/hayahash-zig-0.4.5.tar.gz</code></pre>
+      <pre><code>zig fetch --save https://github.com/thevilledev/hayahash/releases/download/v0.5.0/hayahash-zig-0.5.0.tar.gz</code></pre>
       <p>Then add this to <code>build.zig</code>:</p>
       <pre><code>const hayahash = b.dependency("hayahash", .{});
 exe.root_module.addImport("hayahash", hayahash.module("hayahash"));</code></pre>
@@ -101,7 +101,7 @@ const h128 = hayahash.hayahash128(buf, seed);</code></pre>
       <pre><code>&lt;dependency&gt;
   &lt;groupId&gt;io.github.thevilledev&lt;/groupId&gt;
   &lt;artifactId&gt;hayahash&lt;/artifactId&gt;
-  &lt;version&gt;0.4.5&lt;/version&gt;
+  &lt;version&gt;0.5.0&lt;/version&gt;
 &lt;/dependency&gt;</code></pre>
       <pre><code>import io.github.thevilledev.hayahash.Hayahash;
 
@@ -132,8 +132,8 @@ h128 = hayahash128(buf, seed)  # (lo, hi)</code></pre>
       <p>The port is a SwiftPM package. It needs Swift 5.9 or later. The
         package is in a subdirectory of the repository. Use one of two
         methods. Add the package as a local path dependency. Or use the
-        <code>hayahash-swift-0.4.5.tar.gz</code>
-        <a href="https://github.com/thevilledev/hayahash/releases/tag/v0.4.5">release asset</a>.
+        <code>hayahash-swift-0.5.0.tar.gz</code>
+        <a href="https://github.com/thevilledev/hayahash/releases/tag/v0.5.0">release asset</a>.
         That archive has <code>Package.swift</code> at its root:</p>
       <pre><code>import Hayahash
 
@@ -173,7 +173,7 @@ hayahash128_t h128 = hayahash128(buf, len, seed);</code></pre>
             <tr><td><code>tests/smhasher3/</code></td><td>The SMHasher3 adapter and the pinned build harness. GPL-3.0-or-later. Not in release artifacts.</td></tr>
             <tr><td><code>tests/differential/</code></td><td>The corpus generator for the nightly cross-port fuzz.</td></tr>
             <tr><td><code>tests/wasm/</code></td><td>The wasm32 shootout and the wasm-against-native bit-exactness check.</td></tr>
-            <tr><td><code>docs/</code> <code>paper/</code></td><td>The design, quality, and port documents. The working paper, the evidence register, and the archived runs.</td></tr>
+            <tr><td><code>docs/</code> <code>paper/</code></td><td>The design, quality, and port documents. The working paper, the evidence register, and the raw evaluation records.</td></tr>
           </tbody>
         </table>
       </div>

@@ -9,7 +9,7 @@ them.
 
 | File | Digest series | Release |
 |---|---|---|
-| [`v0.5.0.txt`](v0.5.0.txt) | v0.5 (length in finalizer + streaming API) | 0.5.0 |
+| [`v0.5.0.txt`](v0.5.0.txt) | current: length absorbed in the finalizer, streaming-compatible | 0.5.0 |
 
 When a future release changes digests, add a new `vX.Y.Z.txt` and leave
 older files in place so historical digests remain reproducible.

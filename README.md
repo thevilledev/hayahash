@@ -22,25 +22,43 @@ Java, C#, Python, Swift, JavaScript/TypeScript, and MIPS64 assembly. Every
 
 *Haya* (速) is Japanese for "fast."
 
-## Why hayahash
+## How it works
 
-- **Portable scalar core:** ordinary 64-bit operations, endian-independent
-  output, no undefined behavior, and no architecture-specific intrinsics.
-- **Two output widths:** hayahash64 and hayahash128 share the same state walk;
-  selecting 128 bits adds a second finalization path rather than a second pass
-  over the input.
-- **Streaming:** one-shot and incremental APIs produce identical digests for
-  every split of the same input, in the C reference and in every port.
-- **Broad language support:** every maintained port exposes both widths and
-  is checked against the C reference.
-- **Quality-gated development:** both widths pass all 188 applicable SMHasher3
-  test groups, with additional structured-collision and differential tests.
+The primitive set is exactly `+`, `^`, `<<`, `>>`, `rotl`, and
+`* mod 2^64` on 64-bit words. Four decisions follow from that:
 
-The design is aimed at wasm, JVM, .NET, portable C, and other environments
-where wide multiplication or hardware acceleration cannot be assumed. It is
-not a universal speed claim: hashes that target native wide multiply, SIMD,
-or AES instructions can be faster on hardware that provides them. See the
-[benchmark record](docs/benchmarks.md) for competitive results and methodology.
+1. **Eight lanes, nothing but `xor -> mul` carried.** The bulk loop absorbs
+   64-byte blocks across eight independent lanes with no cross-lane work on
+   the loop-carried path, so the loop is bound by multiplier issue rather
+   than by dependency latency.
+2. **A chained, injective absorb.** Each lane absorbs
+   `t = w + rotl(w_prev, 27)`. The stripe-to-absorbed map is a bijection, so
+   at the first stripe where two inputs differ their absorbed values differ.
+   The rotated copy also gives every stripe a second life at a low position
+   of the next absorb, under addition rather than XOR, so cancelling both
+   copies needs a carry pattern rather than an algebraic identity.
+3. **Seed-derived lane constants; length in the finalizer.** All eight lane
+   IVs come from one premixed seed word plus shifted copies of the single
+   multiplier, so no large per-lane literal is materialized. The length is
+   absorbed in the finalizer, which makes the state a pure function of
+   `(seed, bytes so far)` — and that is what lets the streaming API
+   reproduce one-shot digests exactly.
+4. **Overlapping tail reads, two-multiply short path.** Tails read whole
+   words from the end of the input, wyhash-style, so no length uses a
+   byte-at-a-time loop. Inputs of at most 16 bytes take a dedicated path
+   whose 128-bit output is injective in both the message and the seed.
+
+Removing the wide product is not only a throughput cost: it opens specific
+algebraic channels, because multiplication mod 2^64 is then the only
+nonlinear operation and is the identity on a four-element subgroup at the
+top of the word. [`docs/design.md`](docs/design.md) states the complete
+algorithm and the constants that close those channels; the
+[working paper](paper/) proves the structural properties.
+
+This targets wasm, the JVM, .NET, portable C, and anywhere else wide
+multiplication or hardware acceleration cannot be assumed. It is not a
+universal speed claim: hashes built on a native wide multiply, SIMD, or AES
+are faster on hardware that provides them.
 
 ## Performance
 
@@ -55,14 +73,13 @@ Representative measurements of the public 64- and 128-bit APIs:
 
 The M1 and Ryzen native runs are bare metal. The EPYC guest has no frequency
 control, so its within-host ratio is more meaningful than its absolute rate.
-The 128-bit dispatch change recorded in the
-[optimization log](docs/optimization/) brought 128-bit bulk to parity with
-the 64-bit rate on all three machines. The wasm build uses no SIMD or wide
-multiply. These are point measurements, not a claim that one hash is fastest
-on every workload or machine.
+128-bit bulk is at parity with 64-bit on all three machines. The wasm build
+uses no SIMD or wide multiply. These are point measurements, not a claim that
+one hash is fastest on every workload or machine.
 
-Detailed size sweeps, ChibiHash comparisons, SMHasher3 shootouts, caveats, and
-reproduction notes are in [`docs/benchmarks.md`](docs/benchmarks.md).
+Size sweeps, the ChibiHash comparison, the 128-bit SMHasher3 shootout,
+caveats, and reproduction notes are in
+[`docs/benchmarks.md`](docs/benchmarks.md).
 
 ## Usage
 
@@ -129,10 +146,12 @@ Installation details, complete examples, and the repository layout are in
 ## Quality
 
 hayahash64 and hayahash128 each pass all 188 applicable SMHasher3 test
-groups. CI also checks structured collision sets, one-shot/streaming equality,
+groups, with canonical verification values `0x65F2AC15` and `0x3F0411F4`.
+CI also checks structured collision sets, one-shot/streaming equality,
 cross-language differential conformance, big-endian output, wasm32, MSVC x64,
-and the MIPS64 n64 ABI. The exact tests, verification values, and limitations
-are documented in [`docs/quality.md`](docs/quality.md).
+and the MIPS64 n64 ABI. Every compiled dispatch shape must produce identical
+output. The exact tests, verification values, and limitations are documented
+in [`docs/quality.md`](docs/quality.md).
 
 ## Tools
 
@@ -150,20 +169,25 @@ output escaper.
 
 ## Documentation
 
+- [Design](docs/design.md) - the complete algorithm: constants, dispatch,
+  absorb, tail, finalizers, and the cancellation channels the constants close
+- [Paper](paper/) - exact specification, proofs of the structural properties,
+  and the claim-by-claim evidence register
+- [Implementation](docs/implementation.md) - how the header compiles per
+  target, and the digest-changing ideas that were screened and rejected
+- [Quality](docs/quality.md) - test coverage and conformance evidence
+- [Benchmarks](docs/benchmarks.md) - measurements and methodology
+- [SMHasher3](docs/smhasher3.md) - reproducing the suite and speed shootouts
+- [Test vectors](test_vectors/) - versioned known-answer digests for external
+  implementers
+- [Ports](docs/ports.md) - installation, language examples, and layout
+- [Stability / 1.0 criteria](docs/stability.md) - when digests freeze
+- [Security policy](SECURITY.md) - threat model and private reporting
 - [Contributing](CONTRIBUTING.md) - port sync rules, local gates, SMHasher3 triggers
 - [Changelog](CHANGELOG.md) - release history; `DIGEST` marks digest-breaking changes
-- [Test vectors](test_vectors/) - versioned known-answer digests for external implementers
-- [Stability / 1.0 criteria](docs/stability.md) - when digests freeze
 - [Roadmap](docs/roadmap.md) - gaps against established hash repositories
   and the order for closing them
-- [Security policy](SECURITY.md) - threat model and private reporting
-- [Benchmarks](docs/benchmarks.md) - comparative results and methodology
-- [Design](docs/design.md) - the algorithm and structural decisions
-- [Quality](docs/quality.md) - test coverage and conformance evidence
-- [Ports](docs/ports.md) - installation, language examples, and layout
-- [SMHasher3](docs/smhasher3.md) - reproducing the suite and speed shootouts
 - [Website deployment](docs/deployment.md) - Pages and Cloudflare cache setup
-- [Optimization log](docs/optimization/) - measured changes and rejected ideas
 
 ## License
 

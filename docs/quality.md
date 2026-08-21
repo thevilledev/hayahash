@@ -14,12 +14,10 @@ claim-by-claim evidence register for the working paper is
   verification value `0x3F0411F4` (canonical little-endian reading;
   the byte-swapped value is `0x46140A64`). The complete run took
   839.5 seconds on an Apple M1 Pro.
-- The `v0.5` digest (length absorbed in the finalizer rather than the
-  premix, enabling the streaming API) passed the full suite on an
-  Apple M1 Pro, with all dispatch shapes measured bit-identical
-  locally. Release `v0.4.0` had additionally been verified on nine
-  builds spanning four hosts, two architectures, and five compilers;
-  that sweep has not been repeated for the new digest yet.
+- Every compiled dispatch shape must produce byte-identical non-timing
+  output. [`smhasher3.md`](smhasher3.md#covering-every-dispatch-shape)
+  gives the build matrix that covers them all in one run; a multi-host,
+  multi-compiler sweep at the current digest is open work.
 - The self-contained adapter lives in
   [`tests/smhasher3/`](../tests/smhasher3/) and mirrors the reference
   implementation in SMHasher3's upstream-ready form.
@@ -29,9 +27,9 @@ claim-by-claim evidence register for the working paper is
 ## Published test vectors
 
 [`test_vectors/`](../test_vectors/) holds versioned known-answer digests
-for the current digest series (`v0.5.0.txt` for the v0.5 streaming
-digest). `make -C test_vectors check` recomputes every row from
-`hayahash.h` and requires an exact match. Prefer these files over
+for the current digest series. `make -C test_vectors check` recomputes
+every row from `hayahash.h` and requires an exact match. Prefer these
+files over
 in-tree language-port tables when implementing hayahash outside this
 repository. Digest-breaking releases add a new vector file and record a
 `DIGEST` entry in [`CHANGELOG.md`](../CHANGELOG.md).
@@ -40,9 +38,9 @@ repository. Digest-breaking releases add a new vector file and record a
 
 `make -C tests run-quality` runs a strict avalanche criterion over
 input and seed bits, plus exact-collision tests over 24 structured key
-sets, including reproductions of the SMHasher3 keysets that broke
-earlier iterations of the design. All clean. The same harness can run
-the constructed rotation-orbit set against ChibiHash v2
+sets, including a constructed family for every channel listed in
+[`design.md`](design.md#cancellation-channels). All clean. The same
+harness can run the constructed rotation-orbit set against ChibiHash v2
 (`./tests/quality v2`), where it finds 512 colliding pairs by design -
 an expected-failure control, not a general quality ranking.
 
@@ -89,10 +87,14 @@ the Windows ABI; the MIPS64 port runs under qemu-mips64el.
 
 ## Structural arguments
 
-The absorb sequence is injective by construction (first-difference
-induction), and all tail injections are bijective. These are
-structural arguments about the absorb, not collision-resistance proofs
-for the complete hash; [`design.md`](design.md) and the header notes
-state their scope. hayahash is not a cryptographic hash or MAC; see
+The absorb chain is a bijection on stripe sequences, the tail injections
+and all three finalizers are bijections, inputs of equal state and
+unequal length separate in the finalizer, and the short-input 128-bit
+digest is injective in both the message and the seed. These are local
+structural statements, not collision-resistance proofs for the complete
+hash; [`design.md`](design.md) states them and the
+[working paper](../paper/) proves them and delimits their scope.
+
+hayahash is not a cryptographic hash or MAC; see
 [`SECURITY.md`](../SECURITY.md). Digest freeze criteria for 1.0 are in
 [`stability.md`](stability.md).

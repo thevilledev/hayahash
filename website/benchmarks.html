@@ -34,12 +34,19 @@
       <h1>Benchmarks</h1>
 
       <p>
-        You can reproduce all data on this page from the repository. All
-        full-suite results are our own runs. They are not the published
-        tables from upstream. The dual-width and ChibiHash tables were
-        measured from the current v0.5 candidate. The older competitive
-        shootout is labeled separately: each of those cells was measured
-        at v0.4.0 with five replicates per hash.
+        Every number on this page is from our own runs at the current
+        digest, reproducible from the repository. They are not upstream's
+        published tables. Raw records with host, compiler, dispatch shape,
+        and source checksums are in
+        <a href="https://github.com/thevilledev/hayahash/tree/main/paper/results"><code>paper/results/</code></a>.
+      </p>
+
+      <p>
+        These tables check an analytic claim rather than establish one. The
+        bulk loop is shaped so that multiplier issue, not dependency
+        latency, is the binding resource; that argument comes from the
+        dependency graph and needs no measurement. The
+        <a href="design.html">design page</a> has it.
       </p>
 
       <p>
@@ -83,7 +90,7 @@
 
       <div class="table-scroll">
         <table>
-          <caption>hayahash64 / hayahash128 on the current v0.5 candidate</caption>
+          <caption>hayahash64 / hayahash128 at the current digest</caption>
           <thead>
             <tr>
               <th scope="col">host</th>
@@ -122,7 +129,7 @@
         comparing its absolute speed with the bare-metal hosts.
       </p>
 
-      <h3>Baseline wasm32 on the M1 Pro</h3>
+      <h3 id="wasm">Baseline wasm32 on the M1 Pro</h3>
 
       <p>
         Zig 0.16 compiled all rows into one <code>wasm32-wasi</code> module
@@ -200,25 +207,20 @@
       <p>
         Small-key values are dependent latency, not independent throughput.
         Their raw process averages are corrected to one call-overhead baseline
-        per host; the archived records contain every process value and the
+        per host; the raw records contain every process value and the
         calculation. MeowHash has no M1 row because this implementation needs
         x86 AES instructions.
       </p>
 
       <p>
-        XXH3-128 is the bulk leader on both hosts but fails 26 of the 188
-        test groups. Among the passers, small-key latency still favors the
-        wide-multiply pair (a5hash, MuseAir), but the sixth optimization
-        pass reordered Zen&nbsp;5 bulk: hayahash128 reaches 31.02
-        bytes/cycle there without a wide-result multiply or AES - past
-        every wide-multiply passer and within 4% of AES-based MeowHash -
-        because the outlined dispatch lets GCC auto-vectorize the 128-bit
-        bulk walk. On M1 it reaches 9.77 bytes/cycle, still behind
-        a5hash's 10.92 bulk on that host. The hayahash128 cells were
-        re-measured after that digest-identical change and its tier
-        follow-up (three fresh process replicates per host, same pinned
-        commit and correction); the competitor rows are from the original
-        sweep.
+        XXH3-128 is the bulk leader on both hosts and fails 26 of the 188
+        test groups. Among the passers, small-key latency favors the
+        wide-multiply pair (a5hash, MuseAir). In Zen&nbsp;5 bulk,
+        hayahash128 reaches 31.02 bytes/cycle without a wide-result
+        multiply or AES - past every wide-multiply passer and within 4% of
+        AES-based MeowHash - because the outlined 128-bit dispatch is the
+        shape GCC can auto-vectorize. On M1 it reaches 9.77 bytes/cycle,
+        behind a5hash's 10.92 on that host.
       </p>
 
       <p>
@@ -232,173 +234,27 @@
         and <a href="https://github.com/thevilledev/hayahash/blob/main/docs/smhasher3.md">method</a>.
       </p>
 
-      <h2 id="shootout64">SMHasher3 64-bit shootout (<code>v0.4.0</code> archive)</h2>
+      <h2 id="shootout64">64-bit competitive data</h2>
 
       <p>
-        Run it with <code>make -C tests/smhasher3 run</code>. The command
-        pins SMHasher3 to an exact upstream commit. Small keys: cycles/hash
-        on keys of 1 to 31 bytes. Lower is better. Bulk: bytes/cycle on
-        256&nbsp;KiB keys. Higher is better.
+        A 64-bit competitive sweep against the wide-multiply and SIMD
+        families &mdash; rapidhash, wyhash, komihash, a5hash, XXH3-64,
+        gxhash, mx3 &mdash; has not been re-run since the digest changed, so
+        this page carries none. What stands in its place is the
+        <a href="#chibihash">ChibiHash comparison</a> below: the one other
+        hash in the sweep that meets the same portability rules and passes
+        the suite, which is what makes it the comparison that isolates
+        design from instruction set.
       </p>
 
-      <div class="table-scroll">
-        <table>
-          <thead>
-            <tr>
-              <th scope="col">hash</th>
-              <th scope="col" class="n">M1 small (cy)</th>
-              <th scope="col" class="n">M1 bulk (B/cy)</th>
-              <th scope="col" class="n">Zen 5 small (cy)</th>
-              <th scope="col" class="n">Zen 5 bulk (B/cy)</th>
-              <th scope="col">full suite</th>
-              <th scope="col">needs for peak speed</th>
-            </tr>
-          </thead>
-          <tbody>
-            <tr>
-              <td>rapidhash v3</td>
-              <td class="n">21.5</td><td class="n">15.2</td>
-              <td class="n">9.8</td><td class="n">28.6</td>
-              <td>pass</td><td>64&times;64&rarr;128 multiply</td>
-            </tr>
-            <tr>
-              <td>wyhash v4.2</td>
-              <td class="n">22.5</td><td class="n">8.8</td>
-              <td class="n">8.8</td><td class="n">19.8</td>
-              <td>fail (11)</td><td>64&times;64&rarr;128 multiply</td>
-            </tr>
-            <tr>
-              <td>a5hash v5.21</td>
-              <td class="n">23.3</td><td class="n">3.0</td>
-              <td class="n">6.1</td><td class="n">6.9</td>
-              <td>pass</td><td>64&times;64&rarr;128 multiply</td>
-            </tr>
-            <tr>
-              <td>komihash v5.27</td>
-              <td class="n">25.3</td><td class="n">7.5</td>
-              <td class="n">10.7</td><td class="n">19.9</td>
-              <td>pass</td><td>64&times;64&rarr;128 multiply</td>
-            </tr>
-            <tr>
-              <td>XXH3-64</td>
-              <td class="n">25.9</td><td class="n">12.6</td>
-              <td class="n">10.1</td><td class="n">48.9</td>
-              <td>fail (22)</td><td>SIMD</td>
-            </tr>
-            <tr>
-              <td>gxhash-64</td>
-              <td class="n">-</td><td class="n">-</td>
-              <td class="n">16.4</td><td class="n">64.7</td>
-              <td>fail (23)</td><td>AES instructions</td>
-            </tr>
-            <tr class="self">
-              <td>hayahash64</td>
-              <td class="n">33.5</td><td class="n">9.8</td>
-              <td class="n">12.0</td><td class="n">31.2*</td>
-              <td>pass</td><td>ordinary 64&times;64&rarr;64 multiply</td>
-            </tr>
-            <tr>
-              <td>ChibiHash v2</td>
-              <td class="n">37.7</td><td class="n">6.1</td>
-              <td class="n">9.2</td><td class="n">15.7</td>
-              <td>pass</td><td>ordinary 64&times;64&rarr;64 multiply</td>
-            </tr>
-            <tr>
-              <td>mx3.v3</td>
-              <td class="n">44.7</td><td class="n">4.2</td>
-              <td class="n">16.9</td><td class="n">10.1</td>
-              <td>fail (26)</td><td>ordinary 64&times;64&rarr;64 multiply</td>
-            </tr>
-            <tr>
-              <td>SpookyHash2-64</td>
-              <td class="n">52.6</td><td class="n">4.1</td>
-              <td class="n">18.1</td><td class="n">15.4</td>
-              <td>fail (5)</td><td>ordinary 64-bit operations</td>
-            </tr>
-          </tbody>
-        </table>
-      </div>
-
-      <h3>Read these caveats first</h3>
-
-      <ul>
-        <li>
-          <strong>* The AVX-512 condition.</strong> The 31.2 value needs
-          vectorization. GCC vectorizes the bulk loop only when AVX-512DQ
-          is available. AVX-512DQ has the packed 64-bit multiply. A separate sweep with
-          five replicates ran on the same host. It gives 31.1 bytes/cycle
-          with GCC and 31.1 with Clang. Without AVX-512DQ, GCC gives
-          <strong>17.6</strong>. That is less than the 28.6 of rapidhash.
-          An EPYC 9655 shows the same 1.8&times; gap with GCC 13 and Clang
-          18. An EPYC 7B13 has no AVX-512. It cannot reach the vectorized
-          shape with any tuning. The source stays portable scalar C in each
-          case. No code is vectorized by hand. A machine without AVX-512
-          gets the lower bulk speed. Small-key speeds do not change.
-        </li>
-        <li>
-          <strong>The small-key column shows dependent latency, not
-          throughput.</strong> SMHasher3 puts each hash value into the next
-          key. So the hashes cannot overlap. Do not compare this column
-          with the independent-hash numbers in the ChibiHash tables below.
-        </li>
-        <li>
-          <strong>Calibration correction.</strong> SMHasher3 measures its
-          call overhead one time for each process. It subtracts that value
-          from all 31 lengths. The value changed by approximately 2 cycles
-          between runs. On Zen&nbsp;5 that is 10 to 40 percent of the
-          result. We corrected the calibration. After the correction, the
-          five Zen&nbsp;5 replicates agree to 0.35 cycles. The archived
-          records in
-          <a href="https://github.com/thevilledev/hayahash/tree/main/paper">paper/</a>
-          show the raw and the corrected numbers.
-        </li>
-        <li>
-          <strong>gxhash has numbers on Zen 5 only.</strong> Its SMHasher3
-          port uses the hardware path only with x86 AES. An ARM number
-          would show a software-AES fallback, not gxhash.
-        </li>
-      </ul>
-
-      <h3>The results by instruction class</h3>
-
-      <ul>
-        <li>
-          <strong>Wide multiply:</strong> rapidhash v3 passes the suite. It
-          is faster than hayahash on small keys on each host. On the M1 it
-          is faster on both axes. Use rapidhash v3 when a native 128-bit
-          multiply result is available. That instruction is exactly what
-          the hayahash portability rules exclude. In Zen&nbsp;5 bulk,
-          hayahash is now ahead: 31.2 against 28.6 bytes/cycle. This holds
-          only where the hayahash bulk loop vectorizes.
-        </li>
-        <li>
-          <strong>SIMD or hardware AES:</strong> these win bulk where the
-          hardware has them. XXH3-64 reaches 48.9 bytes/cycle on
-          Zen&nbsp;5 and 12.6 on the M1. gxhash reaches 64.7 on
-          Zen&nbsp;5. Those two fail the suite. But no hash here has more
-          speed than them.
-        </li>
-        <li>
-          <strong>Portable scalar:</strong> ChibiHash v2 is the one other
-          hash that has the same constraints and passes. hayahash has more
-          bulk speed on both hosts: 1.61&times; on the M1 and 1.99&times;
-          on Zen&nbsp;5. Small keys differ by CPU. On the M1, hayahash
-          needs 11 percent less time. On Zen&nbsp;5, it needs 30 percent
-          more. There ChibiHash v2 wins the 8 to 15 byte band by
-          approximately 5.3 cycles. mx3.v3 is the last ordinary-multiply
-          candidate. It fails 26 tests.
-        </li>
-      </ul>
-
       <p>
-        Summary: compare the portable scalar hashes that pass the full
-        suite. Among them, hayahash has the highest sustained bulk speed on
-        both hosts. In Zen&nbsp;5 bulk, hayahash is ahead of each
-        wide-multiply hash we measured. That result needs the vectorized
-        bulk loop. Without AVX-512DQ, the bulk speed falls to 17.6
-        bytes/cycle, behind rapidhash. The claims have limits: two
-        bare-metal hosts, and the approximately 250 hashes that SMHasher3
-        tracks.
+        Two things are worth stating without a table. Where a native
+        <code>64&times;64&rarr;128</code> multiply exists, functions built
+        on it are the more direct choice, and rapidhash v3 is the one to
+        reach for; that instruction is precisely what hayahash's portability
+        rules exclude. Where it does not exist &mdash; baseline wasm being
+        the clearest case &mdash; the ordering inverts, and the
+        <a href="#wasm">wasm table</a> shows by how much.
       </p>
 
       <h2 id="chibihash">Comparison: ChibiHash</h2>
@@ -491,9 +347,9 @@
         show a dispatch choice on clang targets. The compact dispatch loses
         5 to 9 percent at these fixed sizes. It gains 2 to 10 percent on
         mixed-size workloads. A single-size table cannot show that gain.
-        The
-        <a href="https://github.com/thevilledev/hayahash/tree/main/docs/optimization">optimization log</a>
-        records the measurements.
+        <a href="https://github.com/thevilledev/hayahash/blob/main/docs/implementation.md">implementation.md</a>
+        lists which target compiles which shape; every shape makes the same
+        hash values.
       </p>
 
       <h3>AMD Zen 5, GCC 16 -march=native</h3>
@@ -536,15 +392,13 @@
 
       <p>
         On this host, hayahash64 is ahead of the two ChibiHash versions at
-        each measured size. hayahash128 stays ahead of ChibiHash v2 at
-        128 bytes, and after the sixth optimization pass its long-input
-        rate matches hayahash64 within noise: the 128-bit bulk dispatch
-        moved out of line, where GCC vectorizes it the same way. Before
-        the fifth optimization pass, ChibiHash v2 led the 320 to 512 byte
-        band. That band now shows a hayahash lead for both widths. Bulk
-        speed at 1&nbsp;MiB almost doubled when GCC vectorized the bulk
-        loop for AVX-512. The dispatch shape changes with the CPU and the
-        compiler. Each shape makes the same hash values.
+        each measured size, and hayahash128's long-input rate matches
+        hayahash64 within noise: on GCC the 128-bit bulk loop is outlined,
+        which is the shape the vectorizer can take. The 1&nbsp;MiB row is
+        where AVX-512DQ vectorization applies; the row below it is the same
+        portable source built without it. The dispatch shape changes with
+        the CPU and the compiler, and every shape makes the same hash
+        values.
       </p>
 
       <h2 id="reproduce">Reproduce it</h2>
@@ -564,7 +418,8 @@ make -C tests/wasm run-kat run-bench</code></pre>
         tells you how to compute the verification values again after a
         change.
         <a href="https://github.com/thevilledev/hayahash/tree/main/paper/results">paper/results/</a>
-        keeps the raw dual-width runs and the archived competitive records.
+        keeps the raw runs behind every table on this page, each with its
+        host, compiler, dispatch shape, and source checksums.
       </p>
     </main>
 

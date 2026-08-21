@@ -9,7 +9,7 @@ and this project uses [Semantic Versioning](https://semver.org/).
 input and seed. Do not mix digests across releases when hashes are persisted.
 While hayahash is pre-1.0 and marked experimental, digests may still change;
 see the experimental notice in the README and
-[`docs/design.md`](docs/design.md#digest-stability).
+[`docs/stability.md`](docs/stability.md).
 
 Known-answer vectors for the current digest live under
 [`test_vectors/`](test_vectors/).
@@ -122,6 +122,19 @@ Known-answer vectors for the current digest live under
   `#undef` at the end of the header, so they no longer leak into the
   including translation unit. The `hayahash*_internal_*` functions and
   enum constants cannot be withdrawn this way and are unchanged.
+- Documentation, website, and paper refactored around the algorithm.
+  `docs/design.md` is now the complete algorithm - constants, dispatch,
+  absorb, tail, finalizers, both widths - followed by the three
+  cancellation channels and the constants that close them. The paper is
+  specification-and-proof first: new lemmas for top-window invariance
+  under odd multiplication, ladder return distance under the absorb
+  rotation (`D(21) = 3` against `D(27) = 19`), fold-rotation resonance,
+  and short-path injectivity in the seed, plus a dependency-graph cost
+  model that replaces its benchmark section. The six per-pass optimization
+  logs are consolidated into `docs/implementation.md` (compiled shapes,
+  screened-and-rejected algorithm ideas, open questions). Superseded-digest
+  evaluation records and the `v0.4.0` competitive tables are removed rather
+  than carried forward; no digest, API, or test changes.
 
 ## [0.5.0] - 2026-08-09
 
@@ -135,7 +148,7 @@ Known-answer vectors for the current digest live under
   APIs that share state across both widths (`hayahash128.lo == hayahash64`).
 - Bit-exact hayahash128 support in every maintained language port.
 - hayahash128 bulk path brought to hayahash64 throughput parity on measured
-  hosts (sixth optimization pass).
+  hosts.
 
 ### Migration
 
