@@ -43,4 +43,7 @@ documented where it lives in the code.
 
 - [`roadmap.md`](roadmap.md) - how hayahash compares to established hash
   repositories, what is missing, and the order for closing it
+- [`wasm-landscape.md`](wasm-landscape.md) - which hash functions actually
+  run in wasm, how the popular packages implement them, and follow-on
+  hyperoptimization targets
 - [`deployment.md`](deployment.md) - website Pages and Cloudflare setup

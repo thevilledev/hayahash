@@ -18,6 +18,13 @@ Known-answer vectors for the current digest live under
 
 ### Added
 
+- [`docs/wasm-landscape.md`](docs/wasm-landscape.md): a snapshot of the
+  hashes that actually run in WebAssembly (`xxhash-wasm`, `hash-wasm`,
+  webpack's AssemblyScript XXH64, WebCrypto SHA-256), how each is
+  implemented (hand-written WAT, freestanding clang, AssemblyScript,
+  Rust/wasm-bindgen), and the follow-on projects that still have
+  instruction-selection work — WAT XXH3, streaming SHA-256 with SIMD,
+  `hayahash.wat`, WAT CRC32.
 - Root `Makefile` install path for the C header plus a `hayahash`
   pkg-config package (`VERSION`, `hayahash.pc.in`); `scripts/bump-version.sh`
   and the release version guard keep `VERSION` in lockstep with port
