@@ -41,7 +41,7 @@ Known-answer vectors for the current digest live under
   output escaping ([`cli/fuzz/`](cli/fuzz/)), with a committed seed
   corpus, invariant assertions rather than crash-only checks, and a
   libFuzzer-free replay driver so every CI compiler runs the corpus.
-  One minute per target on pull requests; longer nightly runs in
+  30 seconds per target on pull requests; longer nightly runs in
   `fuzz.yml`.
 - C++ conformance job: the existing KAT, published-vector, and
   128-bit/streaming harnesses are rebuilt with g++ and clang++ at C++11

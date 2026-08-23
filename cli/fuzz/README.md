@@ -22,7 +22,7 @@ use-after-free would.
 
 ```sh
 make -C cli fuzz-replay                      # corpus as a regression suite
-make -C cli fuzz-run FUZZ_SECONDS=60         # all targets, libFuzzer
+make -C cli fuzz-run FUZZ_SECONDS=30         # all targets, libFuzzer
 make -C cli fuzz-one TARGET=fuzz_stream FUZZ_SECONDS=600
 ```
 
