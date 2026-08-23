@@ -10,8 +10,8 @@ requiring SIMD, AES instructions, or a 64x64-to-128-bit multiply.
 
 The reference implementation is the single C header
 [`hayahash.h`](hayahash.h). Bit-exact ports are available for Rust, Go, Zig,
-Java, C#, Python, Swift, JavaScript/TypeScript, and MIPS64 assembly. Every
-128-bit API returns ordered `lo` and `hi` words, with
+Java, C#, Python, Swift, JavaScript/TypeScript, Haskell, and MIPS64 assembly.
+Every 128-bit API returns ordered `lo` and `hi` words, with
 `hayahash128.lo == hayahash64` for the same input and seed.
 
 > **Experimental:** the algorithm, constants, and digest values may still
@@ -133,12 +133,13 @@ hayahash128_t h128 = hayahash128_digest(&st);
 | [Python](python/) | [`hayahash`](https://pypi.org/project/hayahash/) (3.9+) | `hayahash64(buf, seed)` | `hayahash128(buf, seed)` |
 | [Swift](swift/) | `Hayahash` SwiftPM package (5.9+) | `Hayahash.hash64(buf, seed: 0)` | `Hayahash.hash128(buf, seed: 0)` |
 | [JS/TS](js/) | [`hayahash`](https://www.npmjs.com/package/hayahash) (wasm + pure JS) | `hayahash64(buf, seed)` | `hayahash128(buf, seed)` |
+| [Haskell](haskell/) | `hayahash` Cabal package (GHC 8.10+) | `hayahash64 buf seed` | `hayahash128 buf seed` |
 | [MIPS64](mips/) | `hayahash.S` (n64 ABI) | `hayahash64(buf, len, seed)` | `hayahash128(buf, len, seed)` |
 
 The table lists the one-shot entry points. Every port also provides the
 incremental API shown above, spelled the way that language spells it -
 `Digest` in Go (a `hash.Hash64`) and Rust, `Hayahash.Hasher` in Swift,
-`Hasher` elsewhere. See [`docs/ports.md`](docs/ports.md#streaming).
+and `Hasher` elsewhere. See [`docs/ports.md`](docs/ports.md#streaming).
 
 Installation details, complete examples, and the repository layout are in
 [`docs/ports.md`](docs/ports.md).
@@ -148,10 +149,10 @@ Installation details, complete examples, and the repository layout are in
 hayahash64 and hayahash128 each pass all 188 applicable SMHasher3 test
 groups, with canonical verification values `0x65F2AC15` and `0x3F0411F4`.
 CI also checks structured collision sets, one-shot/streaming equality,
-cross-language differential conformance, big-endian output, wasm32, MSVC x64,
-and the MIPS64 n64 ABI. Every compiled dispatch shape must produce identical
-output. The exact tests, verification values, and limitations are documented
-in [`docs/quality.md`](docs/quality.md).
+cross-language differential conformance (including Haskell), big-endian
+output, wasm32, MSVC x64, and the MIPS64 n64 ABI. Every compiled dispatch
+shape must produce identical output. The exact tests, verification values,
+and limitations are documented in [`docs/quality.md`](docs/quality.md).
 
 ## Tools
 

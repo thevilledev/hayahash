@@ -46,6 +46,12 @@ jobs:
         with:
           go-version: stable
 
+      - name: Install Haskell
+        uses: haskell-actions/setup@6037f33647c3f17758a2356c80fc4a53d7e0685d # v2.12.0
+        with:
+          ghc-version: "9.6.7"
+          cabal-version: "3.10.3.0"
+
       - name: Install Zig
         uses: mlugg/setup-zig@d1434d08867e3ee9daa34448df10607b98908d29 # v2.2.1
         with:
@@ -128,6 +134,12 @@ jobs:
         continue-on-error: true
         run: go test -C go -run '^TestDifferentialConformance$' -v
 
+      - name: Check Haskell port
+        id: haskell
+        continue-on-error: true
+        run: cabal test all --test-show-details=direct
+        working-directory: haskell
+
       - name: Check Zig port
         id: zig
         continue-on-error: true
@@ -177,6 +189,7 @@ jobs:
         env:
           CSHARP_RESULT: ${{ steps.csharp.outcome }}
           GO_RESULT: ${{ steps.go.outcome }}
+          HASKELL_RESULT: ${{ steps.haskell.outcome }}
           JAVA_RESULT: ${{ steps.java.outcome }}
           JS_RESULT: ${{ steps.js.outcome }}
           PYTHON_RESULT: ${{ steps.python.outcome }}
@@ -184,10 +197,11 @@ jobs:
           SWIFT_RESULT: ${{ steps.swift.outcome }}
           ZIG_RESULT: ${{ steps.zig.outcome }}
         run: |
-          printf 'Rust=%s Go=%s Zig=%s Java=%s C#=%s Python=%s Swift=%s JavaScript=%s\n' \
-            "$RUST_RESULT" "$GO_RESULT" "$ZIG_RESULT" "$JAVA_RESULT" \
-            "$CSHARP_RESULT" "$PYTHON_RESULT" "$SWIFT_RESULT" "$JS_RESULT"
+          printf 'Rust=%s Go=%s Haskell=%s Zig=%s Java=%s C#=%s Python=%s Swift=%s JavaScript=%s\n' \
+            "$RUST_RESULT" "$GO_RESULT" "$HASKELL_RESULT" "$ZIG_RESULT" \
+            "$JAVA_RESULT" "$CSHARP_RESULT" "$PYTHON_RESULT" "$SWIFT_RESULT" "$JS_RESULT"
           if [[ "$RUST_RESULT" != success || "$GO_RESULT" != success || \
+                "$HASKELL_RESULT" != success || \
                 "$ZIG_RESULT" != success || "$JAVA_RESULT" != success || \
                 "$CSHARP_RESULT" != success || "$PYTHON_RESULT" != success || \
                 "$SWIFT_RESULT" != success || "$JS_RESULT" != success ]]; then

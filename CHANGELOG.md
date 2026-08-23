@@ -18,6 +18,11 @@ Known-answer vectors for the current digest live under
 
 ### Added
 
+- Bit-exact pure Haskell port (`haskell/`) over strict `ByteString`, with
+  64- and 128-bit one-shot hashing and an immutable, bounded-memory
+  incremental `Hasher`. Its Cabal test suite pins known-answer and streaming
+  vectors, the SMHasher3 verification value, and the shared randomized
+  C-reference differential corpus.
 - Root `Makefile` install path for the C header plus a `hayahash`
   pkg-config package (`VERSION`, `hayahash.pc.in`); `scripts/bump-version.sh`
   and the release version guard keep `VERSION` in lockstep with port

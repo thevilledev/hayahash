@@ -42,7 +42,8 @@ make -C tests run-quality
 make -C test_vectors check
 make -C cli check
 make -C rust test          # or: cd rust && cargo test
-cd go && go test ./...
+(cd go && go test ./...)
+(cd haskell && cabal test)
 # see docs/ports.md for Java, C#, Python, Swift, Zig, JS, MIPS
 ```
 

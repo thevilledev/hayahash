@@ -26,7 +26,7 @@ runs:
         CORPUS_CASES: ${{ inputs.cases }}
         # Truncated to 16 hex digits below: generate.c parses the seed
         # with strtoull, and a full 40-character SHA overflows it. Using
-        # the commit means all eight port jobs compare identical bytes
+        # the commit means all nine differential port jobs compare identical bytes
         # and a re-run of the same commit reproduces them.
         CORPUS_COMMIT: ${{ github.sha }}
       run: |
