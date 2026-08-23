@@ -2,7 +2,7 @@ name: Release
 
 # One annotated tag (vX.Y.Z) releases every port: npm and crates.io
 # via trusted publishing, the Go module via a derived go/vX.Y.Z tag,
-# Zig and C via GitHub release assets, Python sdist + cibuildwheel
+# Zig, Haskell and C via GitHub release assets, Python sdist + cibuildwheel
 # binary wheels (PyPI once PUBLISH_PYPI is enabled), and (once
 # enabled) Maven Central and NuGet. Versions are kept in lockstep
 # across all ports; the check job refuses to release if any manifest
@@ -57,6 +57,8 @@ jobs:
             "$(sed -n 's/^version = "\(.*\)"$/\1/p' python/pyproject.toml)"
           check swift/Package.swift \
             "$(sed -n 's/^\/\/ hayahash-version: \(.*\)$/\1/p' swift/Package.swift)"
+          check haskell/hayahash.cabal \
+            "$(sed -n 's/^version:[[:space:]]*\(.*\)$/\1/p' haskell/hayahash.cabal)"
           exit "$fail"
 
   npm:
@@ -180,8 +182,8 @@ jobs:
         with:
           persist-credentials: false
 
-      # The zig and swift tarballs exist because package managers cannot
-      # address a subdirectory inside a repository archive; the header
+      # Zig and Swift package managers cannot address a repository subdirectory;
+      # the Haskell archive makes its Cabal subpackage self-contained. The header
       # is a courtesy for C users.
       - name: Create release with assets
         env:
@@ -192,13 +194,16 @@ jobs:
             -o "hayahash-zig-${version}.tar.gz" "${GITHUB_REF_NAME}:zig"
           git archive --format=tar.gz --prefix="hayahash-swift-${version}/" \
             -o "hayahash-swift-${version}.tar.gz" "${GITHUB_REF_NAME}:swift"
+          git archive --format=tar.gz --prefix="hayahash-haskell-${version}/" \
+            -o "hayahash-haskell-${version}.tar.gz" "${GITHUB_REF_NAME}:haskell"
           if gh release view "$GITHUB_REF_NAME" >/dev/null 2>&1; then
             echo "release ${GITHUB_REF_NAME} already exists"
           else
             gh release create "$GITHUB_REF_NAME" --verify-tag \
               --title "hayahash ${GITHUB_REF_NAME}" --generate-notes \
               hayahash.h "hayahash-zig-${version}.tar.gz" \
-              "hayahash-swift-${version}.tar.gz"
+              "hayahash-swift-${version}.tar.gz" \
+              "hayahash-haskell-${version}.tar.gz"
           fi
 
   # Source distribution only. Binary wheels are produced by cibuildwheel

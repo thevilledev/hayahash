@@ -52,7 +52,7 @@ one-shot and streaming equality and `hayahash128.lo == hayahash64`.
 
 ## Cross-port conformance
 
-The Rust, Go, Zig, Java, C#, Python, Swift, JavaScript, and MIPS64
+The Rust, Go, Zig, Java, C#, Python, Swift, JavaScript, Haskell, and MIPS64
 assembly ports of both digest widths are bit-exact against the C reference:
 each port's test suite checks the 64-bit SMHasher3 verification value,
 shared 64-bit known-answer vectors, fixed 128-bit boundary vectors, and
@@ -71,7 +71,7 @@ samples the `(input bytes, seed)` space, so a larger per-run `n`
 reduces the chance of missing a rare port divergence
 (`P(miss) ≈ e^(-n p)` for fail rate `p` on the random suffix). Every
 language port consumes the identical corpus (including both JavaScript
-engines); the MIPS assembly port is not in the nightly matrix and
+engines and Haskell); the MIPS assembly port is not in the nightly matrix and
 relies on the shared known-answer vectors instead. The logged PRNG
 seed or the failure artifact reproduces a run exactly; the workflow
 can also be dispatched manually with a chosen seed. See

@@ -22,6 +22,7 @@
 - `swift/` - Swift port (SwiftPM package `Hayahash`, Swift 5.9+)
 - `js/` - JavaScript/TypeScript port for npm (`hayahash` package): the
   reference header compiled to WebAssembly, plus a pure-JS fallback
+- `haskell/` - pure Haskell port (`hayahash` Cabal package, GHC 8.10+)
 - `mips/` - MIPS64 assembly port (`hayahash.S`, n64 ABI); tested under
   qemu-mips64el against the shared known-answer vectors
 - `tests/` - C quality and benchmark harnesses; ChibiHash v1/v2
@@ -49,8 +50,8 @@ the reference implementation via the SMHasher3 verification value and
 the shared known-answer vectors (see `rust/tests/kat.rs`,
 `go/kat_test.go`, `zig/tests/kat.zig`, the Java `KatTest` under
 `java/src/test`, the C# `KatTests` under `csharp/tests`,
-`python/tests`, `swift/Tests`, `js/test/hayahash.test.mjs`, and
-`make -C mips test`).
+`python/tests`, `swift/Tests`, `js/test/hayahash.test.mjs`,
+`haskell/test/Main.hs`, and `make -C mips test`).
 All ports share one version number, so a given version denotes the
 same algorithm everywhere.
 
@@ -116,6 +117,7 @@ afterwards.
 | Python | `hayahash.Hasher` | `update` | `digest64` / `digest128` |
 | Swift | `Hayahash.Hasher` | `update` | `digest64` / `digest128` |
 | JS/TS | `Hasher` | `update` | `digest64` / `digest128` |
+| Haskell | `Hasher` | `update` | `digest64` / `digest128` |
 
 The Swift hasher is nested under `Hayahash` rather than declared at the
 top level so it cannot collide with the standard library's `Hasher`. It
@@ -199,6 +201,19 @@ import { hayahash128, hayahash64 } from "hayahash";
 const h = hayahash64(buf, seed); // unsigned 64-bit bigint
 const h128 = hayahash128(buf, seed); // { lo, hi }
 ```
+
+Haskell - the Cabal package lives in [`haskell/`](../haskell/) and hashes
+strict `ByteString` values:
+
+```haskell
+import Data.Hash.Hayahash
+
+h = hayahash64 buf seed
+h128 = hayahash128 buf seed
+```
+
+Use it as a local package, from the Haskell release archive, or pin the
+repository and `subdir: haskell` in a `source-repository-package` stanza.
 
 MIPS64 assembly - the port lives in [`mips/`](../mips/):
 

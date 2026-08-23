@@ -25,7 +25,7 @@ cases, ahead of xxHash and BLAKE3:
   conformance artifact with a documented format, a shared input formula,
   and an add-a-file-never-edit policy. Most hash projects publish
   per-language tables or nothing.
-- One SemVer across ten implementations, with a release-time job that
+- One SemVer across eleven implementations, with a release-time job that
   re-derives every manifest and refuses to publish on disagreement.
 - Trusted publishing (OIDC, no long-lived tokens) on npm, crates.io,
   PyPI and NuGet.
@@ -143,7 +143,7 @@ Beyond those: big-endian coverage is 42 lines (three variants, 14
 lengths, one seed), so the published vector file, the streaming samples,
 the 24 collision sets and the differential corpus never run big-endian.
 There is no coverage instrumentation in any language, no property-based
-testing in any of the nine, no MSan, TSan, valgrind or GCC sanitizer
+testing in any of the ten, no MSan, TSan, valgrind or GCC sanitizer
 build, and no native 32-bit target.
 
 ### External validation
@@ -218,8 +218,8 @@ retires fix-now item 2 as a side effect.
 README's streaming claim needs no caveat.
 
 **Status:** streaming has landed in every maintained port - Rust, Go,
-Zig, Java, C#, Python, Swift and JavaScript, on the wasm engine where
-one is available - so the README's streaming claim now needs no caveat.
+Zig, Java, C#, Python, Swift, JavaScript (on the wasm engine), and Haskell -
+so the README's streaming claim now needs no caveat.
 The idiomatic wrappers in the table above and language-native benchmarks
 are still open.
 
@@ -259,7 +259,7 @@ reading 1945 lines of C.
 Phase 1 is a reach bet, and it is worth being explicit that it is not the
 largest gap by either other measure.
 
-Phase 2 is the largest **functional** gap: nine ports missing the feature
+Phase 2 was the largest **functional** gap: the ports were missing the feature
 that a digest break was spent to enable. Phase 4 is the largest
 **credibility** gap: no claim in this repository has yet been checked by
 anyone outside it, and no amount of additional in-tree testing changes

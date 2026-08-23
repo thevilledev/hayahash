@@ -63,7 +63,7 @@
       <p>
         The reference implementation is one C99 header,
         <a href="https://github.com/thevilledev/hayahash/blob/main/hayahash.h"><code>hayahash.h</code></a>.
-        hayahash64 has bit-exact ports to nine other languages.
+        hayahash64 has bit-exact ports to ten other languages.
         <em>Haya</em> is the stem of Japanese <em>hayai</em> (速い),
         "fast".
       </p>
@@ -123,8 +123,8 @@
           <tr>
             <th scope="row">Implementations</th>
             <td>Both widths have bit-exact ports to Rust, Go, Zig,
-              Java, C#, Python, Swift, JavaScript/TypeScript, and MIPS64
-              assembly.</td>
+              Java, C#, Python, Swift, JavaScript/TypeScript, Haskell,
+              and MIPS64 assembly.</td>
           </tr>
           <tr>
             <th scope="row">License</th>
@@ -309,6 +309,12 @@
                 <code>hayahash128(buf, seed)</code></td>
             </tr>
             <tr>
+              <td>Haskell (GHC 8.10+)</td>
+              <td>Cabal package from the repository subdirectory</td>
+              <td><code>hayahash64 buf seed</code><br>
+                <code>hayahash128 buf seed</code></td>
+            </tr>
+            <tr>
               <td>MIPS64 asm</td>
               <td>copy <code>mips/hayahash.S</code> (n64 ABI)</td>
               <td><code>hayahash64(buf, len, seed)</code><br>
@@ -346,7 +352,7 @@
           broke earlier versions of this design.
         </li>
         <li>
-          The nine ports are bit-exact. The test suite of each port checks
+          The ten ports are bit-exact. The test suite of each port checks
           the shared known-answer vectors and the verification value. A
           nightly differential fuzz sends a new random corpus through each
           language port. Each of them must return the same hash values as

@@ -5,14 +5,14 @@
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <meta
       name="description"
-      content="How to use hayahash64 and hayahash128 in C, Rust, Go, Zig, Java, C#, Python, Swift, JavaScript/TypeScript, and MIPS64 assembly."
+      content="How to use hayahash64 and hayahash128 in C, Rust, Go, Zig, Java, C#, Python, Swift, JavaScript/TypeScript, Haskell, and MIPS64 assembly."
     >
     <meta name="theme-color" content="#ffffff">
     <meta property="og:type" content="article">
     <meta property="og:title" content="hayahash64 ports">
     <meta
       property="og:description"
-      content="The C reference and nine bit-exact ports. Each port is published and tested."
+      content="The C reference and ten bit-exact ports. Each port is packaged and tested."
     >
     <meta property="og:url" content="https://hayaha.sh/ports.html">
     <link rel="canonical" href="https://hayaha.sh/ports.html">
@@ -36,8 +36,8 @@
       <p>
         The reference implementation is
         <a href="https://github.com/thevilledev/hayahash/blob/main/hayahash.h"><code>hayahash.h</code></a>.
-        It is one C99 header. The repository contains nine bit-exact
-        ports. All ten implementations share one version number, now
+        It is one C99 header. The repository contains ten bit-exact
+        ports. All eleven implementations share one version number, now
         v0.5.0. One version is the same algorithm in each language.
       </p>
 
@@ -151,6 +151,18 @@ let h128 = Hayahash.hash128(buf, seed: 0)</code></pre>
 const h = hayahash64(buf, seed); // unsigned 64-bit BigInt
 const h128 = hayahash128(buf, seed); // { lo, hi }</code></pre>
 
+      <h2 id="haskell">Haskell</h2>
+      <p>The pure Haskell port is a Cabal package for GHC 8.10 or later.
+        Build it from the repository's <code>haskell</code> subdirectory;
+        releases made after the port landed also contain a self-contained
+        Haskell archive:</p>
+      <pre><code>git clone https://github.com/thevilledev/hayahash.git
+cabal build ./hayahash/haskell</code></pre>
+      <pre><code>import Data.Hash.Hayahash
+
+h = hayahash64 buf seed
+h128 = hayahash128 buf seed</code></pre>
+
       <h2 id="mips">MIPS64 assembly</h2>
       <p>The port is <code>hayahash.S</code>, written by hand for the n64
         ABI. Copy
@@ -168,7 +180,7 @@ hayahash128_t h128 = hayahash128(buf, len, seed);</code></pre>
         <table>
           <tbody>
             <tr><td><code>hayahash.h</code></td><td>The C99 reference. One header. Public domain.</td></tr>
-            <tr><td><code>rust/ go/ zig/ java/ csharp/ python/ swift/ js/ mips/</code></td><td>One directory for each port. Each port has its own KAT test suite.</td></tr>
+            <tr><td><code>rust/ go/ zig/ java/ csharp/ python/ swift/ js/ haskell/ mips/</code></td><td>One directory for each port. Each port has its own KAT test suite.</td></tr>
             <tr><td><code>tests/</code></td><td>The quality and benchmark harnesses. The ChibiHash v1 and v2 sources are vendored here. So the comparisons are self-contained.</td></tr>
             <tr><td><code>tests/smhasher3/</code></td><td>The SMHasher3 adapter and the pinned build harness. GPL-3.0-or-later. Not in release artifacts.</td></tr>
             <tr><td><code>tests/differential/</code></td><td>The corpus generator for the nightly cross-port fuzz.</td></tr>

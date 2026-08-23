@@ -16,6 +16,7 @@ body:
         - Python
         - Swift
         - JavaScript/TypeScript
+        - Haskell
         - MIPS64
         - Other / external
     validations:

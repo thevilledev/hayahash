@@ -86,6 +86,9 @@ swift/.build/
 swift/.swiftpm/
 swift/Packages/
 
+# Haskell
+haskell/dist-newstyle/
+
 # Paper build outputs
 output/
 
