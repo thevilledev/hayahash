@@ -660,8 +660,29 @@ jobs:
       - name: Generate the differential corpus
         uses: ./.github/actions/differential-corpus
 
+      # setup-swift v3 verifies the Swiftly tarball with gpg --verify
+      # but never imports the signing key first
+      # (swift-actions/setup-swift#798). The official Swiftly install
+      # does this import; without it the job dies on
+      # "Can't check signature: No public key" for
+      # E813C892820A6FA13755B268F167DF1ACF9CE069 (Swift Automatic
+      # Signing Key #4). --compressed plus the gunzip probe handle
+      # the CDN sometimes serving all-keys.asc gzipped.
+      - name: Import Swift.org GPG keys
+        run: |
+          set -euo pipefail
+          keys="$RUNNER_TEMP/swift-all-keys.asc"
+          curl --silent --show-error --retry 3 --location --fail --compressed \
+            -o "$keys" https://www.swift.org/keys/all-keys.asc
+          if gunzip --test "$keys" >/dev/null 2>&1; then
+            zcat "$keys" | gpg --import
+          else
+            gpg --import "$keys"
+          fi
+          gpg --list-keys E813C892820A6FA13755B268F167DF1ACF9CE069
+
       - name: Install Swift
-        uses: swift-actions/setup-swift@7ca6abe6b3b0e8b5421b88be48feee39cbf52c6a # v2.4.0
+        uses: swift-actions/setup-swift@364295d9c23900ce04d4e5cc708387921b4e50f9 # v3
         with:
           swift-version: "6.0.3"
 

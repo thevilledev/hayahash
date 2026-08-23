@@ -85,7 +85,11 @@ Known-answer vectors for the current digest live under
 
 ### Fixed
 
-- hayasum no longer exits `0` when a digest fails to reach stdout (full
+- Swift CI under setup-swift v3: the action verifies the Swiftly
+  tarball without importing the swift.org signing key
+  (swift-actions/setup-swift#798). Both Swift jobs import
+  `https://www.swift.org/keys/all-keys.asc` first.
+- hayasum no longer exits `0` when a digest fails to reach stdout (full)
   disk, closed descriptor): the write is checked and reported.
 - hayasum rejects seeds that would silently mean something else — a
   leading `-` wrapping past 2^64-1, a leading `+`, surrounding
