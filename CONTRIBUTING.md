@@ -53,7 +53,7 @@ the logged PRNG seed from that workflow.
 
 `hayasum` is fuzzed separately, since argv, its chunked reader, and the
 file names it echoes are its own attack surface rather than the hash's:
-`make -C cli fuzz-run` locally, one minute per target on every pull
+`make -C cli fuzz-run` locally, 30 seconds per target on every pull
 request, longer nightly runs in `fuzz.yml`. See
 [`cli/fuzz/README.md`](cli/fuzz/README.md). A digest change has to
 update the known answers in `cli/tests/run.sh` alongside

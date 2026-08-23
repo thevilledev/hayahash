@@ -1,6 +1,6 @@
 name: Nightly hayasum fuzzing
 
-# The PR job in ci.yml fuzzes each target for a minute, which only ever
+# The PR job in ci.yml fuzzes each target for 30 seconds, which only ever
 # re-covers what the committed corpus already reaches. This runs the
 # same targets long enough to find something new, one job per target so
 # they run in parallel and a finding names itself.

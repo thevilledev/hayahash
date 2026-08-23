@@ -247,7 +247,7 @@ jobs:
         run: make -C cli fuzz
 
       - name: Fuzz
-        run: make -C cli fuzz-run FUZZ_SECONDS=60
+        run: make -C cli fuzz-run FUZZ_SECONDS=30
 
       - name: Upload crashing inputs
         if: failure()
