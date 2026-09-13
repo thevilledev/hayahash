@@ -39,7 +39,7 @@ cmake -S . -B build && cmake --install build --prefix /usr/local
 ```
 
 ```cmake
-find_package(hayahash 0.5 REQUIRED)
+find_package(hayahash 0.6 REQUIRED)
 target_link_libraries(app PRIVATE hayahash::hayahash)
 ```
 

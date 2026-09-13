@@ -9,12 +9,16 @@
 
 cmake_minimum_required(VERSION 3.14)
 
-project(hayahash-cmake-consumer LANGUAGES C)
+# Follow the release version so a minor bump cannot leave the fixture behind.
+file(READ "${CMAKE_CURRENT_LIST_DIR}/../../VERSION" HAYAHASH_TEST_VERSION)
+string(STRIP "${HAYAHASH_TEST_VERSION}" HAYAHASH_TEST_VERSION)
+
+project(hayahash-cmake-consumer VERSION "${HAYAHASH_TEST_VERSION}" LANGUAGES C)
 
 # Deliberately a two-component request: hayahashConfigVersion.cmake is
 # written SameMinorVersion while digests are unfrozen, so this also
-# pins that a 0.5 consumer resolves against a 0.5 install.
-find_package(hayahash 0.5 REQUIRED)
+# checks that the current major/minor request resolves against the install.
+find_package(hayahash "${PROJECT_VERSION_MAJOR}.${PROJECT_VERSION_MINOR}" REQUIRED)
 
 add_executable(consumer main.c)
 target_link_libraries(consumer PRIVATE hayahash::hayahash)

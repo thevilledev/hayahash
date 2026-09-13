@@ -16,6 +16,11 @@ Known-answer vectors for the current digest live under
 
 ## [Unreleased]
 
+### Fixed
+
+- CMake consumer test follows the root `VERSION` instead of requesting
+  0.5 after a minor-version bump. CMake usage examples now request 0.6.
+
 ## [0.6.0] - 2026-09-13
 
 ### Added

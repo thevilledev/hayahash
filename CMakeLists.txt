@@ -6,7 +6,7 @@
 # Installs exactly what `make install` installs, to the same paths, and
 # adds a CMake package config on top so consumers can use either:
 #
-#   find_package(hayahash 0.5 REQUIRED)
+#   find_package(hayahash 0.6 REQUIRED)
 #   target_link_libraries(app PRIVATE hayahash::hayahash)
 #
 # Copying hayahash.h into a project stays fully supported; this target
