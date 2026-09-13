@@ -1,100 +1,81 @@
 # Quality and verification
 
-What is tested, where it runs, and how to reproduce it. The
-claim-by-claim evidence register for the working paper is
-[`paper/AUDIT.md`](../paper/AUDIT.md); the archived raw runs are under
-[`paper/results/`](../paper/results/).
+**Both widths pass all 188 default SMHasher3 tests at the pinned revision.**
+CI also checks that implementations agree across languages and platforms.
+These are quality and compatibility checks, not cryptographic guarantees.
+
+[Raw results](../paper/results/) and the [paper's evidence register](../paper/AUDIT.md)
+record the supporting runs and their limitations.
 
 ## SMHasher3
 
-- Full default suite: **188/188 tests passed**, verification value
-  `0x65F2AC15` (canonical little-endian reading; the byte-swapped
-  value is `0x805DE5C0`). ChibiHash v2 also passes 188/188; v1 fails.
-- hayahash128: **188/188 tests passed** with 128-bit-wide expectations,
-  verification value `0x3F0411F4` (canonical little-endian reading;
-  the byte-swapped value is `0x46140A64`). The complete run took
-  839.5 seconds on an Apple M1 Pro.
-- Every compiled dispatch shape must produce byte-identical non-timing
-  output. [`smhasher3.md`](smhasher3.md#covering-every-dispatch-shape)
-  gives the build matrix that covers them all in one run; a multi-host,
-  multi-compiler sweep at the current digest is open work.
-- The self-contained adapter lives in
-  [`tests/smhasher3/`](../tests/smhasher3/) and mirrors the reference
-  implementation in SMHasher3's upstream-ready form.
-  [`smhasher3.md`](smhasher3.md) covers running, reproducing, and
-  re-deriving the verification values after a digest change.
+| Output | Default tests | Verification (little-endian) | Byte-swapped |
+|---|---:|---|---|
+| hayahash64 | 188/188 | `0x65F2AC15` | `0x805DE5C0` |
+| hayahash128 | 188/188 | `0x3F0411F4` | `0x46140A64` |
+
+The 128-bit run uses 128-bit-wide expectations. Every compiled dispatch
+shape must produce identical non-timing output. A full suite sweep across
+multiple hosts and compilers at the current digest remains open work.
+
+See the [SMHasher3 guide](smhasher3.md) for the adapter, build matrix, and
+verification procedure.
 
 ## Published test vectors
 
-[`test_vectors/`](../test_vectors/) holds versioned known-answer digests
-for the current digest series. `make -C test_vectors check` recomputes
-every row from `hayahash.h` and requires an exact match. Prefer these
-files over
-in-tree language-port tables when implementing hayahash outside this
-repository. Digest-breaking releases add a new vector file and record a
-`DIGEST` entry in [`CHANGELOG.md`](../CHANGELOG.md).
+Use [`test_vectors/`](../test_vectors/) when implementing hayahash outside
+this repository. These versioned files contain expected digests from the C
+reference. Check them with:
+
+```sh
+make -C test_vectors check
+```
+
+Digest-breaking releases add a new vector file and a `DIGEST` entry to the
+[changelog](../CHANGELOG.md).
 
 ## Local harness
 
-`make -C tests run-quality` runs a strict avalanche criterion over
-input and seed bits, plus exact-collision tests over 24 structured key
-sets, including a constructed family for every channel listed in
-[`design.md`](design.md#cancellation-channels). All clean. The same
-harness can run the constructed rotation-orbit set against ChibiHash v2
-(`./tests/quality v2`), where it finds 512 colliding pairs by design -
-an expected-failure control, not a general quality ranking.
+```sh
+make -C tests run-quality
+```
 
-The target also runs `tests/hash128.c`: six fixed known-answer vectors,
-all lengths through 512 under three seeds and five update patterns,
-1,000 randomized cases through 20 KiB under three larger-input split
-patterns, and non-mutating/continued digest checks. Every case requires
-one-shot and streaming equality and `hayahash128.lo == hayahash64`.
+The harness checks input-bit and seed-bit avalanche behavior, plus exact
+collisions across 24 structured key sets. These include regression cases
+for the patterns described in the [design notes](design.md#cancellation-channels).
+All pass. `./tests/quality v2` provides an expected-failure control against
+ChibiHash v2's rotation-orbit case; it is not a general quality ranking.
+
+The target also runs `tests/hash128.c`: fixed vectors, all lengths through
+512 under three seeds and five update patterns, and 1,000 randomized cases
+through 20 KiB. It checks one-shot/streaming equality, continued hashing
+after taking a digest, and `hayahash128.lo == hayahash64`.
 
 ## Cross-port conformance
 
-The Rust, Go, Zig, Java, C#, Python, Swift, JavaScript, Haskell, and MIPS64
-assembly ports of both digest widths are bit-exact against the C reference:
-each port's test suite checks the 64-bit SMHasher3 verification value,
-shared 64-bit known-answer vectors, fixed 128-bit boundary vectors, and
-the invariant `hayahash128.lo == hayahash64`.
-(The JavaScript package checks both of its engines: the wasm build of
-the reference header and the pure-JS fallback.)
+Every port checks shared known-answer vectors, the 64-bit SMHasher3
+verification value, 128-bit boundary vectors, and the low-word invariant.
+JavaScript checks both its wasm and pure-JS engines.
 
-Nightly differential conformance fuzzing generates one C-reference
-corpus containing both output words, with random input bytes, random
-64-bit hash seeds, exhaustive
-lengths 0..384, and boundary-biased random lengths through the
-128 KiB edge. The default corpus size is 32768 cases (406 fixed length
-and power-of-two edges, then randomized draws). Published known-answer
-vectors pin systematic digest paths; the differential corpus is what
-samples the `(input bytes, seed)` space, so a larger per-run `n`
-reduces the chance of missing a rare port divergence
-(`P(miss) ≈ e^(-n p)` for fail rate `p` on the random suffix). Every
-language port consumes the identical corpus (including both JavaScript
-engines and Haskell); the MIPS assembly port is not in the nightly matrix and
-relies on the shared known-answer vectors instead. The logged PRNG
-seed or the failure artifact reproduces a run exactly; the workflow
-can also be dispatched manually with a chosen seed. See
-[`tests/differential/`](../tests/differential/) for local replay
-commands.
+Pull requests run a 406-case C-reference differential corpus. Nightly runs
+expand this to 32,768 cases: lengths 0–384, fixed boundary cases, and random
+bytes and seeds at boundary-biased lengths through the 128 KiB edge. All
+high-level language ports consume the same corpus. MIPS64 assembly uses
+shared vectors and is outside the differential matrix.
+
+The logged PRNG seed or failure artifact reproduces a run. See
+[local replay commands](../tests/differential/).
 
 ## Endianness and ABI coverage
 
-Endianness is tested in CI: the shared KAT is also produced on s390x
-(big-endian, via `zig cc` + qemu-user) and must match the
-little-endian reference. wasm32 covers the ILP32 case; MSVC x64 covers
-the Windows ABI; the MIPS64 port runs under qemu-mips64el.
+CI checks big-endian s390x, wasm32 (ILP32), MSVC x64, and MIPS64 n64
+against the shared vectors. The s390x and MIPS64 jobs run under qemu.
 
 ## Structural arguments
 
-The absorb chain is a bijection on stripe sequences, the tail injections
-and all three finalizers are bijections, inputs of equal state and
-unequal length separate in the finalizer, and the short-input 128-bit
-digest is injective in both the message and the seed. These are local
-structural statements, not collision-resistance proofs for the complete
-hash; [`design.md`](design.md) states them and the
-[working paper](../paper/) proves them and delimits their scope.
+The [design notes](design.md) and [working paper](../paper/) describe local
+properties of the absorb chain, tail, finalizers, and short-input path.
+These do not prove collision resistance for the complete hash.
 
-hayahash is not a cryptographic hash or MAC; see
-[`SECURITY.md`](../SECURITY.md). Digest freeze criteria for 1.0 are in
-[`stability.md`](stability.md).
+See the [security policy](../SECURITY.md) and [1.0 freeze criteria](stability.md)
+before adopting hayahash.

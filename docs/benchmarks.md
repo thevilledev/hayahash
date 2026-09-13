@@ -1,18 +1,18 @@
 # Benchmarks
 
-Measured throughput at the current digest. These are point measurements on
-the named machines, compilers, and builds: useful for comparing
-implementations within a run, not for claiming a ranking across all hardware
-and workloads. Raw records with provenance are under
-[`paper/results/`](../paper/results/); the
-[SMHasher3 measurement guide](smhasher3.md#measuring-speed) documents the
-competitive sweep and its calibration corrections.
+**Both widths have similar bulk throughput; 128-bit costs more on short
+inputs.** These runs measure the current digest on the named hosts and
+builds. Compare results within a run, then measure your own workload.
 
-The design target behind these numbers is analytic rather than empirical:
-the bulk loop is shaped so that multiplier issue, not dependency latency,
-is the binding resource. That argument is in the
-[working paper](../paper/)'s cost model and needs no measurement; the tables
-here are the check on it.
+- [Native 64 vs 128 bits](#native-64--and-128-bit-cost)
+- [WebAssembly](#baseline-wasm32)
+- [ChibiHash](#chibihash-comparison)
+- [128-bit comparison](#smhasher3-128-bit-shootout)
+- [Coverage gaps](#what-is-not-measured-here)
+
+[Raw records](../paper/results/) include host, compiler, and source details.
+The [SMHasher3 guide](smhasher3.md#measuring-speed) covers reproduction and
+timing corrections.
 
 ## Native 64- and 128-bit cost
 
@@ -32,17 +32,14 @@ column allows overlap.
 <!-- markdownlint-enable MD013 -->
 
 The M1 and Ryzen runs are bare metal. The EPYC is a KVM guest without
-frequency control, so read its within-host ratio rather than its absolute
-rate. `hayahash128.lo` is identical to hayahash64 in every row; the extra
-work produces only the high word, and bulk throughput is at parity on all
-three hosts.
+frequency control; compare widths within its row, not absolute rates
+against other hosts. Both widths share one pass over the input.
 
 ## Baseline wasm32
 
-Baseline wasm32 is where the primitive-class constraint pays off most: no
-SIMD, no widening multiply, only `i64.mul`. This M1 Pro run used Zig 0.16 to
-compile one module with `-O3`; all timing loops ran inside wasm under
-Node 26 / V8.
+Zig 0.16 compiled one baseline wasm32 module with `-O3`: no SIMD or
+wide-multiply instruction. Timing loops ran inside wasm under Node 26 / V8
+on an M1 Pro, excluding the JS boundary.
 
 | hash | 8 B chained (ns/hash) | 1 MiB (GB/s) |
 |---|---:|---:|
@@ -53,10 +50,9 @@ Node 26 / V8.
 | XXH64 | **5.9** | 14.71 |
 | rapidhash v3 | 22.6 | 6.43 |
 
-rapidhash's 3.7x deficit against hayahash64 here is the primitive-class
-argument in one cell: its central mix needs a wide product that this target
-does not have. hayahash128 retains 99% of hayahash64's bulk rate in the same
-build while returning twice the output width. The other rows return 64 bits.
+hayahash128 retains 99% of hayahash64's bulk rate here. All other rows
+return 64 bits. Baseline wasm must emulate the wide multiplication used by
+rapidhash, so these rankings need not hold in native builds.
 
 The wasm benchmark and its native-equivalence check live in
 [`tests/wasm/`](../tests/wasm/). Competitor sources are fetched at pinned
@@ -64,11 +60,8 @@ upstream revisions.
 
 ## ChibiHash comparison
 
-[ChibiHash](https://github.com/N-R-K/ChibiHash) targets the same portable
-scalar class, which makes it the useful same-category baseline: differences
-are between design choices, not instruction sets. hayahash is its own design
-rather than a fork; borrowed techniques are attributed in the reference
-header.
+[ChibiHash](https://github.com/N-R-K/ChibiHash) uses the same portable
+arithmetic, making it a useful baseline.
 
 Measured on an Apple M1 P-core at about 3.2 GHz with Apple clang
 `-O3 -mcpu=native`, against the C reference implementations vendored in
@@ -106,23 +99,15 @@ Small-input throughput (ns/hash, independent hashes, lower is better):
 | 64 | 8.38 | 6.38 | **4.92** | 6.15 |
 | 128 | 11.69 | 8.90 | **7.38** | 8.53 |
 
-ChibiHash v1's 8- and 16-byte latency wins come from special-cased paths that
-are also part of why it fails SMHasher3. Among the 64-bit functions that
-pass, hayahash64 is fastest at every size in this table, with about 1.6x
-ChibiHash v2's bulk rate — the ratio the cost model predicts from dependency
-placement alone, since the two loops spend the same five operations per
-8-byte stripe. The 32..128-byte rows reflect the compact dispatch clang
-targets take: it gives up 5..9% at these fixed sizes to run 2..10% faster on
-mixed-size workloads, which single-size tables cannot show.
+hayahash64 is faster than ChibiHash v2 at every size shown. ChibiHash v1
+wins some short-input timings but fails SMHasher3. The compact clang
+dispatch trades 5–9% at fixed 32–128-byte sizes for 2–10% on mixed-size
+workloads, which these tables do not show.
 
-The same comparison on native x86-64 (AMD Zen 5, GCC 16, `-march=native`)
-puts hayahash64 ahead of both ChibiHash versions at every measured size: 128
-byte keys take 5.2 vs 6.6 ns independently and stream at 24.3 vs 19.8 GB/s,
-512-byte keys at 42.1 vs 29.3 GB/s, and sustained bulk reaches 61.6 vs
-31.3 GB/s at 1 MiB where GCC auto-vectorizes the bulk loop for AVX-512DQ.
-Builds without AVX-512DQ get about 35 GB/s from the same portable source.
-hayahash128 reaches 6.06 ns at 128 bytes and 61.3 GB/s at 1 MiB there,
-99.7% of hayahash64's sustained rate.
+On AMD Zen 5 with GCC 16 (`-march=native`), 1 MiB throughput reaches
+61.6 GB/s for hayahash64 and 61.3 GB/s for hayahash128, versus 31.3 GB/s for
+ChibiHash v2. GCC auto-vectorizes the bulk loop for AVX-512DQ. Without it,
+the same portable source reaches about 35 GB/s for hayahash64.
 
 Which shape a target compiles is documented in
 [`implementation.md`](implementation.md#compiled-shapes); every shape
@@ -138,7 +123,7 @@ suite was run separately on an EPYC 9655 with 128-bit-wide expectations.
 
 <!-- markdownlint-disable MD013 -->
 
-| 128-bit hash | M1 small | M1 bulk | Zen 5 small | Zen 5 bulk | full suite | peak-performance requirement |
+| 128-bit hash | M1 small (cy) | M1 bulk (B/cy) | Zen 5 small (cy) | Zen 5 bulk (B/cy) | full suite | peak-performance requirement |
 |---|---:|---:|---:|---:|---|---|
 | **hayahash128** | 38.53 | 9.77 | 13.71 | 31.02 | pass | ordinary scalar source; auto-vectorized Zen 5 bulk |
 | MuseAir-128 | 24.26 | 8.65 | 7.44 | 22.80 | pass | 64x64-to-128-bit multiply |
@@ -159,29 +144,18 @@ call-overhead calibration shifts the whole 1-31-byte average; the archived
 records contain every process value and the exact calculation. MeowHash has
 no M1 row because the tested implementation requires x86 AES.
 
-Reading the table:
-
-- XXH3-128 is the bulk leader on both hosts and fails 26 of 188 test groups.
-- Among passers, small-key latency favors the wide-multiply pair (a5hash,
-  MuseAir) on both hosts.
-- In Zen 5 bulk, hayahash128 reaches 31.02 B/cy without a wide-result
-  multiply or AES — past every wide-multiply passer and within 4% of
-  AES-based MeowHash — because the outlined dispatch lets GCC auto-vectorize
-  the 128-bit bulk walk. On M1 it reaches 9.77 B/cy, behind a5hash's 10.92.
-- The passing ordinary-scalar rows are hayahash128, prvhash-128, and FarmHash
-  CC. hayahash128 leads FarmHash in bulk by 1.73x on M1 and 1.89x on Zen 5,
-  with lower small-key latency on both. prvhash exposes 187 applicable test
-  groups in this registration and passes all 187.
-
-That supports "the fastest passing portable-scalar 128-bit hash measured
-here," not a claim that no fast portable-scalar 128-bit predecessor exists.
+- XXH3-128 has the highest bulk throughput and fails 26 of 188 test groups.
+- Among hashes that pass, a5hash has the lowest small-key latency.
+- hayahash128's Zen 5 bulk result uses compiler auto-vectorization.
+- hayahash128 leads the passing ordinary-scalar implementations in this
+  comparison. prvhash has 187 applicable groups; the others have 188.
 
 Reproduce the adapter with `make -C tests/smhasher3 run`; the sweep procedure
 and the calibration correction are in [`smhasher3.md`](smhasher3.md).
 
 ## What is not measured here
 
-- **A 64-bit competitive sweep at the current digest.** hayahash64's position
+- **A native 64-bit competitive sweep at the current digest.** hayahash64's position
   against rapidhash, wyhash, komihash, XXH3-64, gxhash, and mx3 has not been
   re-measured since the digest changed. Until it is, this page makes no
   64-bit competitive claim beyond the ChibiHash baseline above.

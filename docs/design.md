@@ -1,8 +1,13 @@
 # Design
 
-The complete algorithm, stated compactly. The authoritative commentary is
-the top of [`hayahash.h`](../hayahash.h), where every decision sits next to
-the code it explains; the proofs are in the [working paper](../paper/).
+Short inputs use a dedicated path. Larger inputs are mixed across four or
+eight parallel lanes, then combined into a digest. Both widths share one
+pass over the input; the 128-bit result adds a second output word.
+
+This page is the full specification. For a guided introduction, use the
+[interactive simulator](https://hayaha.sh/design.html#simulator).
+[`hayahash.h`](../hayahash.h) is the authoritative reference; proofs are in
+the [working paper](../paper/).
 
 ## Notation
 

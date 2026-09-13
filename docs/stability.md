@@ -4,20 +4,17 @@ hayahash is experimental while its major version is `0`. The algorithm,
 constants, and digest values may change between releases. Do not persist
 hayahash digests across versions until 1.0 freezes them.
 
-This document is the adoption contract for when digests become immutable.
-
 ## Current status
 
 | Item | Status |
 |---|---|
 | Public API surface (64/128 one-shot) | Present in every maintained port |
-| Streaming API (init/update/digest) | C reference and every maintained port |
+| Streaming API (init/update/digest) | C and all high-level ports; MIPS64 is one-shot only |
 | SMHasher3 default suite (both widths) | 188/188 on recorded hosts |
 | Cross-port bit-exactness | Required in CI + nightly differential |
 | Digest freeze | **Not yet** — pre-1.0 |
 
-Pre-1.0 digest changes remain allowed when quality, streaming, or API goals
-require them. Each one adds a `DIGEST` entry to
+Digest changes add a `DIGEST` entry to
 [`CHANGELOG.md`](../CHANGELOG.md) and a new file under
 [`test_vectors/`](../test_vectors/).
 
@@ -39,8 +36,7 @@ documentation may ship in minor/patch releases of a frozen major line.
 
 ## Criteria to cut 1.0.0
 
-All of the following must hold on a release candidate before the digests
-are declared frozen:
+A release candidate must meet all five criteria:
 
 1. **Quality**
    - hayahash64 and hayahash128 each pass all applicable SMHasher3 default
@@ -57,7 +53,7 @@ are declared frozen:
    - One-shot and streaming APIs for both widths are considered final for
      1.x; any remaining breaking API rename happens before 1.0.
    - A versioned known-answer artifact for the frozen digest is published
-     in-tree (see `test_vectors/` when present) or an equivalent release
+     in-tree under `test_vectors/` or as an equivalent release
      asset.
 4. **Threat-model documentation**
    - [`SECURITY.md`](../SECURITY.md) remains accurate: non-cryptographic
@@ -66,15 +62,11 @@ are declared frozen:
    - At least one minor 0.x release after the last intentional digest
      change has shipped with no further digest-affecting fixes required.
 
-## Out of scope for the 1.0 freeze
+## What can still change after 1.0
 
-These may keep evolving after digests freeze:
-
-- throughput-oriented dispatch (tiers, unrolling, auto-vectorization), as
-  long as outputs stay bit-identical
-- new language ports and packaging
-- benchmark methodology and website tooling
-- optional wider or keyed variants published under different names/APIs
+Dispatch optimizations, new ports, packaging, benchmarks, and website
+tooling can evolve while preserving digests. Wider or keyed variants may
+ship under separate names and APIs.
 
 ## If a frozen digest must change
 
@@ -83,5 +75,3 @@ Only a new major version may change digests. The release notes must:
 - mark the break explicitly
 - publish new known-answer vectors
 - re-run the SMHasher3 and conformance gates above
-
-There is no silent digest fix on a frozen major line.

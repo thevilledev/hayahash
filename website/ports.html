@@ -9,7 +9,7 @@
     >
     <meta name="theme-color" content="#ffffff">
     <meta property="og:type" content="article">
-    <meta property="og:title" content="hayahash64 ports">
+    <meta property="og:title" content="hayahash language ports">
     <meta
       property="og:description"
       content="The C reference and ten bit-exact ports. Each port is packaged and tested."
@@ -17,7 +17,7 @@
     <meta property="og:url" content="https://hayaha.sh/ports.html">
     <link rel="canonical" href="https://hayaha.sh/ports.html">
     <link rel="stylesheet" href="styles.css">
-    <title>hayahash64 ports</title>
+    <title>hayahash language ports</title>
   </head>
   <body>
     <a class="skip-link" href="#content">Skip to content</a>
@@ -34,31 +34,25 @@
       <h1>Ports</h1>
 
       <p>
-        The reference implementation is
-        <a href="https://github.com/thevilledev/hayahash/blob/main/hayahash.h"><code>hayahash.h</code></a>.
-        It is one C99 header. The repository contains ten bit-exact
-        ports. All eleven implementations share one version number, now
-        v0.5.0. One version is the same algorithm in each language.
+        Choose your language for installation and examples. All implementations
+        at the same version produce the same hash for the same bytes and
+        seed. The 128-bit result contains <code>lo</code> and <code>hi</code>;
+        <code>lo</code> equals the 64-bit hash.
       </p>
-
+      <p><strong>Experimental:</strong> hash values can change between
+        releases. <a href="https://github.com/thevilledev/hayahash/blob/main/docs/stability.md">Pin your version and check the stability policy</a>.</p>
       <p>
-        We do not assume conformance. We test it. The test suite of each
-        port checks the SMHasher3 verification value
-        (<code>0x65F2AC15</code>). It checks a shared table of
-        known-answer vectors from the C reference. A nightly differential
-        fuzz makes a new random corpus from the C reference. The corpus
-        has all lengths from 0 to 384. It has boundary-biased lengths up
-        to 128&nbsp;KiB. Each port must return the same hash values as the
-        C reference. This includes the two JavaScript engines. The MIPS64
-        port is not in the nightly matrix. It uses the shared vectors.
+        <a href="#c">C / C++</a> &middot; <a href="#rust">Rust</a> &middot;
+        <a href="#go">Go</a> &middot; <a href="#zig">Zig</a> &middot;
+        <a href="#java">Java</a> &middot; <a href="#csharp">C#</a> &middot;
+        <a href="#python">Python</a> &middot; <a href="#swift">Swift</a> &middot;
+        <a href="#js">JS / TS</a> &middot; <a href="#haskell">Haskell</a> &middot;
+        <a href="#mips">MIPS64</a> &middot; <a href="#streaming">Streaming</a>
       </p>
+      <p>The snippets use <code>buf</code> for input bytes and
+        <code>seed</code> for a 64-bit seed.</p>
 
-      <p>
-        hayahash is experimental. Hash values can change between versions.
-        Pin your version.
-      </p>
-
-      <h2 id="c">C</h2>
+      <h2 id="c">C / C++</h2>
       <p>Copy the header into your project. It has no dependencies. Each
         release includes the header as an asset:</p>
       <pre><code>curl -LO https://github.com/thevilledev/hayahash/releases/latest/download/hayahash.h</code></pre>
@@ -129,22 +123,18 @@ h = hayahash64(buf, seed)
 h128 = hayahash128(buf, seed)  # (lo, hi)</code></pre>
 
       <h2 id="swift">Swift</h2>
-      <p>The port is a SwiftPM package. It needs Swift 5.9 or later. The
-        package is in a subdirectory of the repository. Use one of two
-        methods. Add the package as a local path dependency. Or use the
-        <code>hayahash-swift-0.5.0.tar.gz</code>
-        <a href="https://github.com/thevilledev/hayahash/releases/tag/v0.5.0">release asset</a>.
-        That archive has <code>Package.swift</code> at its root:</p>
+      <p>Requires Swift 5.9+. Use the
+        <a href="https://github.com/thevilledev/hayahash/tree/main/swift">SwiftPM package</a>
+        as a local dependency, or extract the Swift
+        <a href="https://github.com/thevilledev/hayahash/releases/tag/v0.5.0">release archive</a>.</p>
       <pre><code>import Hayahash
 
 let h = Hayahash.hash64(buf, seed: 0)
 let h128 = Hayahash.hash128(buf, seed: 0)</code></pre>
 
       <h2 id="js">JavaScript / TypeScript</h2>
-      <p>The <a href="https://www.npmjs.com/package/hayahash"><code>hayahash</code></a>
-        package is on npm. The fast path is the reference header compiled
-        to WebAssembly, approximately 3&nbsp;KB. A pure-JS fallback is
-        included. The tests and the nightly fuzz cover the two engines:</p>
+      <p>The <a href="https://www.npmjs.com/package/hayahash">npm package</a>
+        uses WebAssembly with a pure-JS fallback.</p>
       <pre><code>npm install hayahash</code></pre>
       <pre><code>import { hayahash128, hayahash64 } from "hayahash";
 
@@ -152,10 +142,9 @@ const h = hayahash64(buf, seed); // unsigned 64-bit BigInt
 const h128 = hayahash128(buf, seed); // { lo, hi }</code></pre>
 
       <h2 id="haskell">Haskell</h2>
-      <p>The pure Haskell port is a Cabal package for GHC 8.10 or later.
-        Build it from the repository's <code>haskell</code> subdirectory;
-        releases made after the port landed also contain a self-contained
-        Haskell archive:</p>
+      <p>Requires GHC 8.10+. Build the
+        <a href="https://github.com/thevilledev/hayahash/tree/main/haskell">Cabal package</a>
+        from the repository:</p>
       <pre><code>git clone https://github.com/thevilledev/hayahash.git
 cabal build ./hayahash/haskell</code></pre>
       <pre><code>import Data.Hash.Hayahash
@@ -164,31 +153,31 @@ h = hayahash64 buf seed
 h128 = hayahash128 buf seed</code></pre>
 
       <h2 id="mips">MIPS64 assembly</h2>
-      <p>The port is <code>hayahash.S</code>, written by hand for the n64
-        ABI. Copy
-        <a href="https://github.com/thevilledev/hayahash/tree/main/mips"><code>mips/hayahash.S</code></a>
-        and <code>mips/hayahash.h</code> into your build. The tests run it
-        under qemu-mips64el against the shared vectors:</p>
+      <p>Copy <a href="https://github.com/thevilledev/hayahash/tree/main/mips"><code>mips/hayahash.S</code>
+        and its header</a> into your build. Uses the n64 ABI.</p>
       <pre><code>#include "hayahash.h" /* mips/hayahash.h */
 
 uint64_t h = hayahash64(buf, len, seed);
 hayahash128_t h128 = hayahash128(buf, len, seed);</code></pre>
 
-      <h2 id="layout">Repository layout</h2>
+      <h2 id="streaming">Streaming</h2>
+      <p>Use streaming when input arrives in chunks. Any split produces the
+        same digest as hashing the complete input. Taking a digest leaves
+        the state available for more updates.</p>
+      <pre><code>hayahash64_state st;
+hayahash64_init(&amp;st, 0);
+hayahash64_update(&amp;st, "hel", 3);
+hayahash64_update(&amp;st, "lo", 2);
+uint64_t h = hayahash64_digest(&amp;st);
+hayahash128_t h128 = hayahash128_digest(&amp;st);</code></pre>
+      <p><a href="https://github.com/thevilledev/hayahash/blob/main/docs/ports.md#streaming">Streaming APIs by language</a>.
+        The MIPS64 assembly port has one-shot APIs only.</p>
 
-      <div class="table-scroll">
-        <table>
-          <tbody>
-            <tr><td><code>hayahash.h</code></td><td>The C99 reference. One header. Public domain.</td></tr>
-            <tr><td><code>rust/ go/ zig/ java/ csharp/ python/ swift/ js/ haskell/ mips/</code></td><td>One directory for each port. Each port has its own KAT test suite.</td></tr>
-            <tr><td><code>tests/</code></td><td>The quality and benchmark harnesses. The ChibiHash v1 and v2 sources are vendored here. So the comparisons are self-contained.</td></tr>
-            <tr><td><code>tests/smhasher3/</code></td><td>The SMHasher3 adapter and the pinned build harness. GPL-3.0-or-later. Not in release artifacts.</td></tr>
-            <tr><td><code>tests/differential/</code></td><td>The corpus generator for the nightly cross-port fuzz.</td></tr>
-            <tr><td><code>tests/wasm/</code></td><td>The wasm32 shootout and the wasm-against-native bit-exactness check.</td></tr>
-            <tr><td><code>docs/</code> <code>paper/</code></td><td>The design, quality, and port documents. The working paper, the evidence register, and the raw evaluation records.</td></tr>
-          </tbody>
-        </table>
-      </div>
+      <h2 id="layout">Source and tests</h2>
+      <p>See the <a href="https://github.com/thevilledev/hayahash/blob/main/docs/ports.md#layout">repository layout</a>
+        and <a href="https://github.com/thevilledev/hayahash/blob/main/docs/quality.md">conformance checks</a>.
+        <a href="https://github.com/thevilledev/hayahash/blob/main/hayahash.h"><code>hayahash.h</code></a>
+        is the authoritative reference.</p>
     </main>
 
     <footer>

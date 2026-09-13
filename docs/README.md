@@ -1,46 +1,33 @@
-# hayahash documentation
+# Documentation
 
-The top-level [`README.md`](../README.md) is the project overview and quick
-start. Details live here.
+Start with the [quick start](../README.md#usage), or
+[try hayahash in your browser](https://hayaha.sh/playground.html#try).
 
-**The algorithm**
+## Use hayahash
 
-- [`design.md`](design.md) - the complete algorithm: constants, dispatch,
-  absorb, tail, finalizers, both output widths, and the cancellation
-  channels the constants close
-- [`implementation.md`](implementation.md) - how the header compiles per
-  target, and the digest-changing ideas that were screened and rejected
-- [`../paper/`](../paper/) - the working paper: exact specification, proofs
-  of the structural properties, and the claim-by-claim evidence register
+- [Language ports](ports.md) — installation, examples, and streaming APIs
+- [Command-line tool](../cli/) — hash files and stdin with `hayasum`
+- [Stability](stability.md) — what can change before 1.0
+- [Security](../SECURITY.md) — suitable uses and vulnerability reporting
+- [Changelog](../CHANGELOG.md) — release history; `DIGEST` marks hash changes
 
-The authoritative commentary on the algorithm is
-[`hayahash.h`](../hayahash.h) itself: every structural decision is
-documented where it lives in the code.
+## Evaluate it
 
-**Evidence**
+- [Benchmarks](benchmarks.md) — measurements, comparisons, and limitations
+- [Quality](quality.md) — test coverage and conformance
+- [SMHasher3](smhasher3.md) — reproduce the test suite and speed comparisons
+- [Test vectors](../test_vectors/) — expected outputs for your implementation
 
-- [`quality.md`](quality.md) - what is tested and how: SMHasher3, the local
-  harness, differential fuzzing, endianness and ABI coverage
-- [`smhasher3.md`](smhasher3.md) - running and reproducing the suite and the
-  speed shootout, including the corrections the published numbers depend on
-- [`benchmarks.md`](benchmarks.md) - native and wasm measurements, ChibiHash
-  comparisons, and the 128-bit SMHasher3 shootout
-- [`../test_vectors/`](../test_vectors/) - versioned, language-agnostic
-  known-answer digests
+## Understand the design
 
-**Using it**
+- [Algorithm](design.md) — the specification and reasons for its constants
+- [Implementation](implementation.md) — compiler choices and optimization notes
+- [Working paper](../paper/) — proofs and supporting evidence
 
-- [`ports.md`](ports.md) - repository layout, per-language usage, and how
-  every port is verified against the C reference
-- [`stability.md`](stability.md) - experimental status and the 1.0
-  digest-freeze criteria
-- [`../SECURITY.md`](../SECURITY.md) - threat model and vulnerability
-  reporting
-- [`../CHANGELOG.md`](../CHANGELOG.md) - release history; digest-breaking
-  changes are marked `DIGEST`
+[`hayahash.h`](../hayahash.h) is the authoritative reference.
 
-**Project**
+## Contribute
 
-- [`roadmap.md`](roadmap.md) - how hayahash compares to established hash
-  repositories, what is missing, and the order for closing it
-- [`deployment.md`](deployment.md) - website Pages and Cloudflare setup
+- [Contributing](../CONTRIBUTING.md) — port sync rules and required checks
+- [Roadmap](roadmap.md) — priorities and remaining work
+- [Website deployment](deployment.md) — GitHub Pages and cache setup

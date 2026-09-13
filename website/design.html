@@ -5,14 +5,14 @@
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <meta
       name="description"
-      content="The hayahash64 and hayahash128 algorithm: constants, absorb chain, tail, finalizers, and the cancellation channels the rotation constants close. With a step-by-step simulator."
+      content="How hayahash works: short-input and bulk paths, streaming, and two output widths. Explore the algorithm with a step-by-step simulator."
     >
     <meta name="theme-color" content="#ffffff">
     <meta property="og:type" content="article">
     <meta property="og:title" content="hayahash design">
     <meta
       property="og:description"
-      content="One shared state walk, two digest widths. The complete algorithm plus the algebra behind the constants, and a simulator that runs it on your input."
+      content="How hayahash works, with an interactive simulator and links to the full specification."
     >
     <meta property="og:url" content="https://hayaha.sh/design.html">
     <link rel="canonical" href="https://hayaha.sh/design.html">
@@ -34,27 +34,20 @@
       <h1>Design</h1>
 
       <p>
-        The primitive set is exactly <code>+</code>, <code>^</code>,
-        <code>&lt;&lt;</code>, <code>&gt;&gt;</code>, <code>rotl</code>, and
-        <code>* mod 2<sup>64</sup></code> on 64-bit words. No wide product,
-        no SIMD, no AES. This page is the whole algorithm on one screen,
-        then the algebra behind the constants.
-        <a href="https://github.com/thevilledev/hayahash/blob/main/hayahash.h"><code>hayahash.h</code></a>
-        stays the authoritative commentary, and the
-        <a href="https://github.com/thevilledev/hayahash/tree/main/paper">working paper</a>
-        carries the proofs.
+        hayahash mixes input bytes using ordinary 64-bit arithmetic.
+        Short inputs take a dedicated path; larger inputs spread the work
+        across parallel lanes. Both output widths share one pass over the input.
+        <a href="https://github.com/thevilledev/hayahash/blob/main/docs/design.md">Full specification</a>
+        &middot; <a href="https://github.com/thevilledev/hayahash/tree/main/paper">Proofs</a>.
       </p>
 
       <h2 id="simulator">Watch it run</h2>
 
       <p>
-        The simulator runs the real algorithm on your input, one step at a
-        time. Type your own text or load a preset. In the byte strip: black
-        bytes are being read now, dark gray is the previous stripe whose
-        rotated copy rides along, light gray is already absorbed, and an
-        underline marks a byte read a second time by an overlapping tail
-        read. Every value is a true 64-bit state word. The end shows both
-        digests, and hayahash128's low word is exactly hayahash64.
+        Enter text or choose a preset, then press Play or Step to follow
+        the algorithm. Black bytes are being read, dark gray marks the
+        previous stripe, light gray marks absorbed bytes, and underlines
+        show overlapping reads. The final step shows both digests.
       </p>
 
       <p>
@@ -100,279 +93,49 @@
         <p id="sim-digest" class="status"></p>
       </div>
 
-      <h2 id="spec">The algorithm</h2>
+      <h2 id="spec">The algorithm at a glance</h2>
+      <ol>
+        <li><strong>Start from the seed.</strong> A 64-bit seed initializes
+          the state.</li>
+        <li><strong>Mix the input.</strong> Up to 16 bytes use a short path.
+          Larger inputs use four lanes, or eight from 320 bytes onward.</li>
+        <li><strong>Handle the remaining bytes.</strong> Reads from the end
+          cover the tail, sometimes overlapping earlier reads.</li>
+        <li><strong>Finish.</strong> Mix in the total length and combine the
+          state into a 64- or 128-bit result.</li>
+      </ol>
+      <p>The operations are addition, XOR, shifts, rotations, and ordinary
+        64-bit multiplication. No SIMD, AES, or wide multiply is required.
+        <a href="https://github.com/thevilledev/hayahash/blob/main/docs/design.md">Constants and formulas</a>;
+        <a href="https://github.com/thevilledev/hayahash/blob/main/hayahash.h">reference C header</a>.</p>
 
-      <p>Five constants, all odd. One of them, <code>K</code>, does all the
-        mixing; the other four only appear in finalizers.</p>
+      <h2 id="outputs">Two output widths, one pass</h2>
+      <p><code>hayahash128</code> returns two words, <code>lo</code> and
+        <code>hi</code>. The low word equals <code>hayahash64</code> for the
+        same bytes and seed. The high word comes from the same state through
+        a separate finalizer, so it does not require another pass over the input.</p>
 
-      <pre class="plain" aria-label="Constants"><code>K  = 0x9E3779B97F4A7C15   floor(2^64 / phi)       the one multiplier
-M1 = 0x3C79AC492BA7B653   moremur                 short path
-M2 = 0x1C69B3F74AC4AE35   moremur
-N1 = 0xFF51AFD7ED558CCD   MurmurHash3 finalizer   high word only
-N2 = 0xC4CEB9FE1A85EC53   MurmurHash3 finalizer   high word only
+      <h2 id="streaming">Hashing in chunks</h2>
+      <p>The total length is mixed in at the end, so it need not be known
+        up front. The streaming API keeps a bounded buffer and produces the
+        same digest for any split of the input. Taking a digest leaves the
+        state available for more updates.
+        <a href="ports.html#streaming">Streaming example</a>.</p>
 
-inj(w)  = w ^ rotl(w, 21) ^ rotl(w, 41)      bijective
-inj2(w) = w ^ rotl(w, 11) ^ rotl(w, 50)      bijective</code></pre>
+      <h2 id="channels">Why the constants matter</h2>
+      <p>The rotations and multipliers are chosen to prevent specific
+        cancellation patterns found during development. The
+        <a href="https://github.com/thevilledev/hayahash/blob/main/docs/design.md#cancellation-channels">design notes</a>
+        explain those choices; the
+        <a href="https://github.com/thevilledev/hayahash/blob/main/docs/quality.md">quality guide</a>
+        describes the regression tests. These properties do not make
+        hayahash a cryptographic hash.</p>
 
-      <p>
-        Any odd number of rotation terms is invertible over GF(2); any even
-        number is not. Every path starts the same way, and the length
-        appears nowhere else:
-      </p>
-
-      <pre class="plain" aria-label="Preamble"><code>s      = seed ^ K
-lenmix = n * K</code></pre>
-
-      <div class="table-scroll">
-        <table>
-          <caption>Length dispatch</caption>
-          <thead>
-            <tr><th scope="col">length</th><th scope="col">lanes</th><th scope="col">block</th></tr>
-          </thead>
-          <tbody>
-            <tr><td>n &le; 16</td><td>&mdash;</td><td>dedicated two-multiply path</td></tr>
-            <tr><td>17 &le; n &le; 319</td><td>4</td><td>32 bytes</td></tr>
-            <tr><td>n &ge; 320</td><td>8</td><td>64 bytes, then falls through to the 4-lane machinery</td></tr>
-          </tbody>
-        </table>
-      </div>
-
-      <h3 id="short">Short path, n &le; 16</h3>
-
-      <pre class="plain" aria-label="Short path"><code>n &gt;= 8:  a = load64le(B, 0)   b = load64le(B, n - 8)
-n &gt;= 4:  a = load32le(B, 0)   b = load32le(B, n - 4)
-n &gt;  0:  a = B[0]             b = (B[n/2] &lt;&lt; 8) | (B[n-1] &lt;&lt; 16)
-n == 0:  a = 0                b = 0
-
-x = (inj(a)  ^ s           ^ K)         * K
-y = (inj2(b) ^ rotl(s, 23) ^ (K &gt;&gt; 19)) * M1
-u = rotl(x, 27) ^ y ^ lenmix
-
-lo = fmix(u)                 hi = fmix128(x + rotl(u, 32))</code></pre>
-
-      <p>
-        The head and end reads overlap for some lengths; <code>lenmix</code>
-        is what separates those inputs. Each word gets a
-        <em>different</em> injection before its multiply, so a difference
-        confined to the top bits picks up low copies and no single key
-        difference can erase the seed from both multiply terms at once.
-        <code>(u, x)</code> is a bijection of the pre-image pair, so for a
-        fixed length this path is injective in the message and, separately,
-        in the seed. At exactly 16 bytes it is a permutation of the 128-bit
-        space.
-      </p>
-
-      <h3 id="absorb">The absorb chain</h3>
-
-      <p>
-        Longer inputs become 64-bit stripes. With <code>wp</code> the
-        previous stripe, initially zero:
-      </p>
-
-      <pre class="plain" aria-label="Absorb"><code>absorb(h, w):  h = (h ^ (w + rotl(wp, 27))) * K ;  wp = w</code></pre>
-
-      <p>
-        <code>wp</code> chains across lanes, across blocks, and across the
-        boundary between the eight-lane and four-lane loops. Two things
-        follow. The map from stripe sequence to absorbed sequence is a
-        bijection, so at the first stripe where two inputs differ, their
-        absorbed values differ &mdash; no difference pattern can cancel
-        inside the absorb. And each stripe's bits get a second, rotated life
-        in the <em>next</em> absorb, combined by addition rather than XOR.
-      </p>
-
-      <h3 id="lanes">Lane state</h3>
-
-      <p>
-        All eight initial values come from <code>s</code> and shifted copies
-        of <code>K</code>, so the code materializes no large per-lane
-        literal &mdash; on AArch64 a 64-bit literal costs four instructions
-        &mdash; and full-state seeding is free.
-      </p>
-
-      <pre class="plain" aria-label="Lane initial values"><code>h0 = s ^ K                      h4 = s + (K &gt;&gt; 27)
-h1 = rotl(s, 17) + (K &lt;&lt; 21)    h5 = rotl(s, 13) ^ (K &lt;&lt;  9)
-h2 = rotl(s, 34) ^ (K &gt;&gt; 13)    h6 = rotl(s, 26) + (K &gt;&gt; 40)
-h3 = rotl(s, 51) + (K &lt;&lt; 42)    h7 = rotl(s, 39) ^ (K &lt;&lt; 30)</code></pre>
-
-      <h3 id="bulk">Bulk block, n &ge; 320</h3>
-
-      <pre class="plain" aria-label="Bulk loop structure"><code>one 64-byte block = 8 stripes  w0 .. w7
-
-  t_i = w_i + rotl(w_(i-1), 27)      w_(-1) carries in from
-                                     the previous block
-   t0    t1    t2    t3    t4    t5    t6    t7
-   |     |     |     |     |     |     |     |
-   v     v     v     v     v     v     v     v
- lane0 lane1 lane2 lane3 lane4 lane5 lane6 lane7
-
- then: h0 += w7                      raw-word checkpoint
-
- per lane, per block: xor -&gt; mul     (~4-cycle carried path)
- cross-lane mixing:   none in the loop</code></pre>
-
-      <p>
-        After the last complete block the upper lanes fold into the lower,
-        then at most one four-lane block runs on the remainder:
-      </p>
-
-      <pre class="plain" aria-label="Fold"><code>h0 = (h0 ^ rotl(h4, 11)) * K      h2 = (h2 ^ rotl(h6, 31)) * K
-h1 = (h1 ^ rotl(h5, 19)) * K      h3 = (h3 ^ rotl(h7, 47)) * K</code></pre>
-
-      <h3 id="tail">Wall, tail, finalizer</h3>
-
-      <pre class="plain" aria-label="Wall, tail and finalizer"><code>h0 += rotl(wp, 27)                   wall; no-op if no complete stripe
-
-rho &gt; 16:  h0 = (h0 + inj(load64le(B, p + 0))) * K
-           h1 = (h1 + inj(load64le(B, p + 8))) * K
-rho &gt;  0:  h2 = (h2 + inj(load64le(B, n - 16))) * K
-           h3 = (h3 + inj(load64le(B, n -  8))) * K
-
-t0 = (h0 ^ rotl(h1, 13) ^ lenmix) * K
-t1 = (h2 ^ rotl(h3, 33)) * K
-z  = s ^ t0 ^ rotl(t1, 29)
-
-lo = lfmix(z)         hi = fmix128(rotl(s, 32) ^ (t1 + rotl(t0, 47)))</code></pre>
-
-      <p>
-        The last two reads always cover the final 16 bytes of the input and
-        may overlap bytes already absorbed. <code>lenmix</code> enters
-        <em>inside</em> the <code>t0</code> multiply: XOR-ing it after the
-        final multiplies also separates lengths, but leaves the difference
-        in a low-order subgroup that survives to the output as modular
-        structure across lengths.
-      </p>
-
-      <h2 id="outputs">Two compatible widths</h2>
-
-      <p>
-        Both functions perform the same loads and the same state walk.
-        hayahash128 returns the 64-bit result unchanged as <code>lo</code>,
-        then extracts <code>hi</code> from the same state through an
-        algebraically independent combine and a distinct bijective
-        finalizer. Existing 64-bit digests therefore migrate without
-        changing: for every input and seed,
-        <code>hayahash128(...).lo == hayahash64(...)</code>, and the second
-        word costs a finalizer rather than a second pass.
-      </p>
-
-      <p>
-        The high word combines the fold words with <em>addition</em> where
-        the low word uses XOR, so one GF(2)-linear cancellation cannot erase
-        a difference from both output paths.
-      </p>
-
-      <h2 id="channels">Why these constants</h2>
-
-      <p>
-        Multiplication mod 2<sup>64</sup> is the only nonlinear operation
-        this primitive class offers, and it is weakest exactly where a
-        difference wants to hide. Three cancellation channels exist. Each is
-        closed by a specific constant, and each has a deterministic
-        regression test in
-        <a href="https://github.com/thevilledev/hayahash/blob/main/tests/quality.c"><code>tests/quality.c</code></a>.
-      </p>
-
-      <h3 id="topwindow">Top-window invariance</h3>
-
-      <p>
-        For any odd <code>c</code>, <code>c * 2<sup>63</sup> =
-        2<sup>63</sup></code>. When <code>c = 1 (mod 4)</code> &mdash; true
-        of <code>K</code> &mdash; the whole four-element subgroup
-        <code>{0, 2<sup>62</sup>, 2<sup>63</sup>, 2<sup>62</sup> +
-        2<sup>63</sup>}</code> is fixed pointwise. A difference planted
-        there survives every multiply unchanged, so an XOR-linked absorb
-        could cancel it with a matching later difference in the same lane.
-        The chained rotated copy is the answer: the same difference also
-        shows up rotated, under addition, in the next absorb, and
-        <code>+</code> and <code>rotl</code> commute with neither GF(2) nor
-        mod-2<sup>64</sup> algebra. Cancelling both copies needs a carry
-        pattern, never an identity.
-      </p>
-
-      <h3 id="ladder">Ladder return distance</h3>
-
-      <p>
-        A carry-matched cancellation leaves a residual that walks
-        <code>r</code> bit positions per stripe. Since
-        <code>gcd(27, 64) = 1</code> it visits every position with period
-        64. Starting in the top window, the least <code>d &gt; 0</code> that
-        brings it back is
-        <code>min{ d &gt; 0 : rd = 0, 1, or -1 (mod 64) }</code>:
-      </p>
-
-      <pre class="plain" aria-label="Ladder return distance"><code>r = 21   ->   21 * 3  = 63 = -1 (mod 64)    D = 3
-r = 27   ->   27 * 19 = 513 = 1 (mod 64)    D = 19</code></pre>
-
-      <p>
-        That factor of six in the number of independent carry conditions a
-        ladder must satisfy is why the absorb rotation is 27 and not 21.
-        Returning <em>in the same lane</em> of an <code>L</code>-lane loop
-        additionally requires <code>L</code> to divide <code>d</code>.
-      </p>
-
-      <p>
-        Three structural bounds compose with this. The four-lane loop never
-        runs more than <code>4 * floor(319/32) = 36</code> chained stripes,
-        short of the rotation's 64-stripe orbit. The bulk checkpoint injects
-        a raw, unmultiplied stripe into lane 0 every 8 stripes, interrupting
-        an orbit before it can return to its starting lane &mdash; it is
-        also one reason the vectorized Zen&nbsp;5 bulk shape keeps lanes 0,
-        1, 6, and 7 scalar. And the wall absorbs the final stripe's dangling
-        rotated copy, so a ladder cannot be terminated by placing its last
-        difference past the end of the input.
-      </p>
-
-      <h3 id="resonance">Fold-rotation resonance</h3>
-
-      <p>
-        <code>rotl(&middot;, r')</code> inverts
-        <code>rotl(&middot;, r)</code> exactly when
-        <code>r + r' = 0 (mod 64)</code>. For <code>r = 27</code> that is
-        37 &mdash; which would realign a stripe difference in lane 2 with
-        its own rotated copy in lane 3 at the <code>t1</code> fold and allow
-        exact XOR cancellation. The finalizer uses 33. For the same reason
-        folds multiply rather than add: the absorb combines additively, so
-        an additive fold would put a difference and its copy in one algebra,
-        where cancellation is a linear condition instead of a carry
-        condition.
-      </p>
-
-      <h2 id="parameters">Fixed parameters, free shapes</h2>
-
-      <p>
-        The 320-byte bulk threshold, the absorb rotation 27, and the 64- and
-        32-byte block sizes are algorithm parameters, not tuning knobs. Hash
-        values change with them, and moving the threshold can push the
-        four-lane path past the 36-stripe bound above.
-      </p>
-
-      <p>
-        Dispatch <em>shape</em> is free: the length tiers, the loop
-        unrolling, whether the bulk path is outlined, and whether a compiler
-        vectorizes it are all chosen per CPU and compiler. Every shape is
-        required to produce the same hash values, and a conformance run
-        covers all of them at once.
-        <a href="https://github.com/thevilledev/hayahash/blob/main/docs/implementation.md">implementation.md</a>
-        lists the gates;
-        <a href="https://github.com/thevilledev/hayahash/blob/main/docs/smhasher3.md">smhasher3.md</a>
-        gives the build matrix.
-      </p>
-
-      <h2 id="streaming">Streaming</h2>
-
-      <p>
-        Because the lane state depends only on the seed and the bytes seen
-        so far &mdash; the length being absorbed at the finalizer &mdash; an
-        incremental API can produce one-shot-identical digests without
-        knowing the total up front. The state carries the eight lanes,
-        <code>wp</code>, the seed, the running total, and a 448-byte buffer
-        with a 128-byte retention floor. Bytes are consumed only in whole
-        64-byte blocks in one-shot order; the floor guarantees the buffered
-        suffix still holds the last 16 bytes the tail reads back; totals
-        below 448 bytes stay buffered and dispatch to the one-shot function.
-        Both widths match one-shot for every split of the same input.
-      </p>
+      <h2 id="parameters">What can be optimized</h2>
+      <p>Changing constants, block sizes, or the 320-byte threshold changes
+        hashes. Compiler choices such as loop unrolling and auto-vectorization
+        can improve speed while preserving the result.
+        <a href="https://github.com/thevilledev/hayahash/blob/main/docs/implementation.md">Implementation notes</a>.</p>
     </main>
 
     <footer>

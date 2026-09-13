@@ -1,64 +1,24 @@
-# Repository layout and language ports
+# Language ports
 
-## Layout
+Choose a language below for installation and examples. All implementations
+at the same version produce the same hash for the same bytes and seed.
+The 128-bit result contains `lo` and `hi` words; `lo` equals the 64-bit hash.
 
-- `hayahash.h` - reference implementation (C99, single header, public
-  domain)
-- `cli/` - `hayasum` file/stdin hashing utility (`make -C cli`)
-- `Makefile`, `hayahash.pc.in`, `VERSION` - optional system install of the
-  C header plus a `hayahash` pkg-config package (`make install`)
-- `test_vectors/` - versioned known-answer digests for external
-  implementers (`make -C test_vectors check`)
-- `CHANGELOG.md` - release history; `DIGEST` marks digest-breaking changes
-- `CONTRIBUTING.md` - how to change the reference, ports, and digests
-- `rust/` - Rust port (`hayahash` crate, `no_std` compatible)
-- `go/` - Go port (`github.com/thevilledev/hayahash/go` module)
-- `zig/` - Zig port (`hayahash` module, Zig 0.16)
-- `java/` - Java port (Maven module `io.github.thevilledev:hayahash`,
-  Java 17+)
-- `csharp/` - C# / .NET port (NuGet package `Hayahash`, .NET 8+)
-- `python/` - Python port (PyPI package `hayahash`, CPython C
-  extension over the reference header, CPython 3.9+)
-- `swift/` - Swift port (SwiftPM package `Hayahash`, Swift 5.9+)
-- `js/` - JavaScript/TypeScript port for npm (`hayahash` package): the
-  reference header compiled to WebAssembly, plus a pure-JS fallback
-- `haskell/` - pure Haskell port (`hayahash` Cabal package, GHC 8.10+)
-- `mips/` - MIPS64 assembly port (`hayahash.S`, n64 ABI); tested under
-  qemu-mips64el against the shared known-answer vectors
-- `tests/` - C quality and benchmark harnesses; ChibiHash v1/v2
-  reference sources are vendored there so the comparisons are
-  self-contained
-- `tests/smhasher3/` - SMHasher3 adapter and pinned build harness; the
-  suite is cloned at test time, never vendored. See
-  [`smhasher3.md`](smhasher3.md)
-- `tests/differential/` - reproducible randomized corpus generator for
-  nightly cross-port differential conformance against the C reference
-- `tests/wasm/` - baseline-wasm32 shootout and wasm-vs-native
-  bit-exactness check (zig cc + Node); run on demand in CI via the
-  "Wasm bench" workflow, or locally with `make -C tests/wasm run-kat
-  run-bench`. Competitor headers (rapidhash, xxHash) are fetched
-  pinned to exact upstream commits at build time
-- `docs/` - this documentation ([index](README.md))
-- `paper/` - working paper (specification and proofs), the claim-by-claim
-  evidence register ([`AUDIT.md`](../paper/AUDIT.md)), and the raw
-  evaluation records behind it
-- `scripts/` - release tooling (`bump-version.sh` sets the shared
-  version in root `VERSION` and every port manifest)
+**Experimental:** hash values can change between releases. Pin your version
+and read the [stability policy](stability.md) before storing hashes.
 
-Each port lives in its own top-level directory and is verified against
-the reference implementation via the SMHasher3 verification value and
-the shared known-answer vectors (see `rust/tests/kat.rs`,
-`go/kat_test.go`, `zig/tests/kat.zig`, the Java `KatTest` under
-`java/src/test`, the C# `KatTests` under `csharp/tests`,
-`python/tests`, `swift/Tests`, `js/test/hayahash.test.mjs`,
-`haskell/test/Main.hs`, and `make -C mips test`).
-All ports share one version number, so a given version denotes the
-same algorithm everywhere.
+[C / C++](#c--c) · [Rust](#rust) · [Go](#go) · [Zig](#zig) ·
+[Java](#java) · [C#](#c--net) · [Python](#python) · [Swift](#swift) ·
+[JS / TS](#javascript--typescript) · [Haskell](#haskell) ·
+[MIPS64](#mips64-assembly) · [Streaming](#streaming)
 
 ## Usage per language
 
-C - copy `hayahash.h` into your project, or install it for pkg-config
-consumers:
+The snippets use `buf` for input bytes and `seed` for a 64-bit seed.
+
+### C / C++
+
+Copy [`hayahash.h`](../hayahash.h) into your project. No dependencies.
 
 ```c
 #include "hayahash.h"
@@ -72,7 +32,7 @@ make install PREFIX=/usr/local
 cc $(pkg-config --cflags hayahash) main.c -o main
 ```
 
-CMake consumers can use the same install, or `find_package`:
+For CMake, install the package config and link the exported target:
 
 ```sh
 cmake -S . -B build && cmake --install build --prefix /usr/local
@@ -83,28 +43,132 @@ find_package(hayahash 0.5 REQUIRED)
 target_link_libraries(app PRIVATE hayahash::hayahash)
 ```
 
-Both paths install the same two files to the same locations, and CI
-diffs one against the other so they cannot drift. CMake adds a package
-config under `lib/cmake/hayahash` on top. The version request is checked
-`SameMinorVersion` rather than `SameMajorVersion`, because pre-1.0
-digests may change between minor releases; see
-[`stability.md`](stability.md).
+CMake also installs a package config under `lib/cmake/hayahash`. Version
+matching uses `SameMinorVersion` while pre-1.0 digests can change between
+minor releases. See [stability](stability.md).
 
-`make check-install` stages into a temporary DESTDIR and verifies the
-`.pc` file resolves. Embedding by copying the header remains fully
-supported; the install target is for distro and system packaging.
+### Rust
 
-Every language port exposes both widths. Each 128-bit result has `lo`
-and `hi` words in that order, and `lo` is exactly hayahash64 for the
-same input and seed. In C, the streaming `hayahash128_state`, init, and
-update names are zero-cost aliases for the shared hayahash64 state.
+[`hayahash`](../rust/) supports `no_std`. Install with `cargo add hayahash`.
+
+```rust
+let h = hayahash::hayahash64(buf, seed);
+let h128 = hayahash::hayahash128(buf, seed);
+```
+
+### Go
+
+Install with `go get github.com/thevilledev/hayahash/go`. [Source](../go/).
+
+```go
+import hayahash "github.com/thevilledev/hayahash/go"
+
+h := hayahash.Hash64(buf, seed)
+h128 := hayahash.Hash128(buf, seed)
+```
+
+### Zig
+
+Requires Zig 0.16. [Package and build setup](../zig/).
+
+```zig
+const hayahash = @import("hayahash");
+
+const h = hayahash.hayahash64(buf, seed);
+const h128 = hayahash.hayahash128(buf, seed);
+```
+
+### Java
+
+Requires Java 17+. Maven: `io.github.thevilledev:hayahash`. [Source](../java/).
+
+```java
+import io.github.thevilledev.hayahash.Hayahash;
+
+long h = Hayahash.hash64(buf, seed);
+Hayahash.Hash128 h128 = Hayahash.hash128(buf, seed);
+```
+
+### C# / .NET
+
+Requires .NET 8+. Install with `dotnet add package Hayahash`.
+[Package details](../csharp/).
+
+```csharp
+using Hayahash;
+
+ulong h = Hayahash.Hash64(buf, seed);
+Digest128 h128 = Hayahash.Hash128(buf, seed);
+```
+
+### Python
+
+Requires CPython 3.9+. Install with `pip install hayahash`.
+[C extension and wheels](../python/).
+
+```python
+from hayahash import hayahash128, hayahash64
+
+h = hayahash64(buf, seed)
+h128 = hayahash128(buf, seed)  # (lo, hi)
+```
+
+### Swift
+
+Requires Swift 5.9+. Use the [SwiftPM package](../swift/) as a local
+dependency or extract the Swift release archive.
+
+```swift
+import Hayahash
+
+let h = Hayahash.hash64(buf, seed: 0)
+let h128 = Hayahash.hash128(buf, seed: 0)
+```
+
+### JavaScript / TypeScript
+
+Install with `npm install hayahash`. Uses WebAssembly with a pure-JS
+fallback. [Package details](../js/).
+
+```js
+import { hayahash128, hayahash64 } from "hayahash";
+
+const h = hayahash64(buf, seed); // unsigned 64-bit bigint
+const h128 = hayahash128(buf, seed); // { lo, hi }
+```
+
+### Haskell
+
+Requires GHC 8.10+. The [Cabal package](../haskell/) hashes strict
+`ByteString` values.
+
+```haskell
+import Data.Hash.Hayahash
+
+h = hayahash64 buf seed
+h128 = hayahash128 buf seed
+```
+
+Use it as a local package, from the Haskell release archive, or pin the
+repository and `subdir: haskell` in a `source-repository-package` stanza.
+
+### MIPS64 assembly
+
+Copy [`mips/hayahash.S`](../mips/hayahash.S) and its header into your build.
+Uses the n64 ABI. [Build instructions](../mips/).
+
+```c
+#include "hayahash.h" /* mips/hayahash.h */
+
+uint64_t h = hayahash64(buf, len, seed);
+hayahash128_t h128 = hayahash128(buf, len, seed);
+```
 
 ## Streaming
 
-Every port also absorbs input incrementally, producing the same digest
-as the one-shot function over the concatenation of every update, for any
-split. Digesting never consumes the state, so hashing can continue
-afterwards.
+Use streaming when input arrives in chunks. Any split produces the same
+digest as hashing the complete input. Taking a digest leaves the state
+available for more updates.
 
 | language | type | absorb | finish |
 |---|---|---|---|
@@ -119,121 +183,40 @@ afterwards.
 | JS/TS | `Hasher` | `update` | `digest64` / `digest128` |
 | Haskell | `Hasher` | `update` | `digest64` / `digest128` |
 
-The Swift hasher is nested under `Hayahash` rather than declared at the
-top level so it cannot collide with the standard library's `Hasher`. It
-is also a value type, so copying one forks its state - the Swift
-spelling of Python's explicit `copy()`.
-
-Each port checks streaming against its own one-shot output over every
-length through 640 and a set of chunk sizes that straddle the 448-byte
-buffer, the 128-byte keep floor and the 64-byte block, and pins the
-published streaming vectors in [`test_vectors/`](../test_vectors/).
-
-Rust - the `hayahash` crate lives in [`rust/`](../rust/):
-
-```rust
-let h = hayahash::hayahash64(buf, seed);
-let h128 = hayahash::hayahash128(buf, seed);
-```
-
-Go - the module lives in [`go/`](../go/):
-
-```go
-import hayahash "github.com/thevilledev/hayahash/go"
-
-h := hayahash.Hash64(buf, seed)
-h128 := hayahash.Hash128(buf, seed)
-```
-
-Zig - the package lives in [`zig/`](../zig/):
-
-```zig
-const hayahash = @import("hayahash");
-
-const h = hayahash.hayahash64(buf, seed);
-const h128 = hayahash.hayahash128(buf, seed);
-```
-
-Java - the Maven module lives in [`java/`](../java/):
-
-```java
-import io.github.thevilledev.hayahash.Hayahash;
-
-long h = Hayahash.hash64(buf, seed);
-Hayahash.Hash128 h128 = Hayahash.hash128(buf, seed);
-```
-
-C# / .NET - the NuGet package lives in [`csharp/`](../csharp/):
-
-```csharp
-using Hayahash;
-
-ulong h = Hayahash.Hash64(buf, seed);
-Digest128 h128 = Hayahash.Hash128(buf, seed);
-```
-
-Python - the PyPI package lives in [`python/`](../python/); a CPython C
-extension wraps `hayahash.h` directly:
-
-```python
-from hayahash import hayahash128, hayahash64
-
-h = hayahash64(buf, seed)
-h128 = hayahash128(buf, seed)  # (lo, hi)
-```
-
-Swift - the SwiftPM package lives in [`swift/`](../swift/):
-
-```swift
-import Hayahash
-
-let h = Hayahash.hash64(buf, seed: 0)
-let h128 = Hayahash.hash128(buf, seed: 0)
-```
-
-JavaScript/TypeScript - the npm package lives in [`js/`](../js/); the
-fast path is `hayahash.h` itself, compiled to a ~6 KB WebAssembly
-module, with a pure-JS fallback:
-
-```js
-import { hayahash128, hayahash64 } from "hayahash";
-
-const h = hayahash64(buf, seed); // unsigned 64-bit bigint
-const h128 = hayahash128(buf, seed); // { lo, hi }
-```
-
-Haskell - the Cabal package lives in [`haskell/`](../haskell/) and hashes
-strict `ByteString` values:
-
-```haskell
-import Data.Hash.Hayahash
-
-h = hayahash64 buf seed
-h128 = hayahash128 buf seed
-```
-
-Use it as a local package, from the Haskell release archive, or pin the
-repository and `subdir: haskell` in a `source-repository-package` stanza.
-
-MIPS64 assembly - the port lives in [`mips/`](../mips/):
-
 ```c
-#include "hayahash.h" /* mips/hayahash.h */
-
-uint64_t h = hayahash64(buf, len, seed);
-hayahash128_t h128 = hayahash128(buf, len, seed);
+hayahash64_state st;
+hayahash64_init(&st, 0);
+hayahash64_update(&st, "hel", 3);
+hayahash64_update(&st, "lo", 2);
+uint64_t h = hayahash64_digest(&st);
+hayahash128_t h128 = hayahash128_digest(&st);
 ```
+
+Swift's hasher is a value type: copying it forks its state. Python provides
+an explicit `copy()` method. The MIPS64 assembly port has one-shot APIs only.
+
+## Layout
+
+| Path | Purpose |
+|---|---|
+| `hayahash.h` | Authoritative C reference |
+| `rust/`, `go/`, `zig/`, `java/`, `csharp/`, `python/`, `swift/`, `js/`, `haskell/`, `mips/` | Language ports and their tests |
+| `cli/` | `hayasum` file and stdin utility |
+| `Makefile`, `CMakeLists.txt`, `hayahash.pc.in`, `VERSION` | C packaging and version |
+| `test_vectors/` | Versioned known-answer digests |
+| `tests/` | Quality and benchmark harnesses |
+| `tests/smhasher3/` | Pinned SMHasher3 adapter and harness |
+| `tests/differential/` | Cross-port conformance corpus |
+| `tests/wasm/` | WebAssembly benchmarks and native-equivalence checks |
+| `docs/`, `paper/` | Guides, specification, proofs, and raw results |
+| `scripts/` | Build and release tooling |
+
+See [Contributing](../CONTRIBUTING.md) for port sync rules and checks, and
+[the changelog](../CHANGELOG.md) for release history.
 
 ## Related project
 
-[`haya32x64`](https://github.com/thevilledev/haya32x64) provides a 64-bit
-digest using strictly 32-bit state and arithmetic while retaining the full
-result of each 32x32 multiply. It targets 32-bit processors, pure JavaScript
-without `BigInt`, CSP-constrained runtimes, and similar environments; its
-JavaScript package is
-[`haya32x64` on npm](https://www.npmjs.com/package/haya32x64).
-
-hayahash and haya32x64 are different algorithms, not interchangeable
-backends. Switching between them changes persisted hashes and must be treated
-as a data migration. They have separate reference implementations,
-known-answer vectors, compatibility guarantees, versions, and releases.
+[`haya32x64`](https://github.com/thevilledev/haya32x64) produces a 64-bit hash
+using 32-bit arithmetic. It targets 32-bit processors and JavaScript without
+`BigInt`. It is a separate algorithm: switching changes hashes and requires
+a data migration.
