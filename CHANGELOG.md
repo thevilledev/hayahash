@@ -16,6 +16,8 @@ Known-answer vectors for the current digest live under
 
 ## [Unreleased]
 
+## [0.6.0] - 2026-09-13
+
 ### Added
 
 - Bit-exact pure Haskell port (`haskell/`) over strict `ByteString`, with
@@ -272,7 +274,8 @@ Known-answer vectors for the current digest live under
   ports (Rust, Go, Zig, Java, Python, JavaScript/WebAssembly).
 - Local quality harness and benchmark tooling under `tests/`.
 
-[Unreleased]: https://github.com/thevilledev/hayahash/compare/v0.5.0...HEAD
+[Unreleased]: https://github.com/thevilledev/hayahash/compare/v0.6.0...HEAD
+[0.6.0]: https://github.com/thevilledev/hayahash/compare/v0.5.0...v0.6.0
 [0.5.0]: https://github.com/thevilledev/hayahash/compare/v0.4.6...v0.5.0
 [0.4.6]: https://github.com/thevilledev/hayahash/compare/v0.4.5...v0.4.6
 [0.4.5]: https://github.com/thevilledev/hayahash/compare/v0.4.4...v0.4.5
