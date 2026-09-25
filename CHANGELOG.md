@@ -20,6 +20,10 @@ Known-answer vectors for the current digest live under
 
 - CMake consumer test follows the root `VERSION` instead of requesting
   0.5 after a minor-version bump. CMake usage examples now request 0.6.
+- Java `Hasher.update(byte[], int, int)` no longer throws
+  `ArrayIndexOutOfBoundsException` when a chunk close to
+  `Integer.MAX_VALUE` bytes follows buffered input. The buffering check
+  `nbuf + n < BUF_CAP` overflowed `int` and took the buffered branch.
 
 ## [0.6.0] - 2026-09-13
 
