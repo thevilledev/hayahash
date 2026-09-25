@@ -110,7 +110,7 @@ func (d *Digest) Write(p []byte) (int, error) {
 	if !d.bulk {
 		// Undecided between the one-shot finish and the bulk path:
 		// totals up to bufCap-1 stay buffered.
-		if d.nbuf+n < bufCap {
+		if n < bufCap-d.nbuf {
 			copy(d.buf[d.nbuf:], p)
 			d.nbuf += n
 			return n, nil

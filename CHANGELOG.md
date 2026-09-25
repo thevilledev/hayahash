@@ -20,6 +20,10 @@ Known-answer vectors for the current digest live under
 
 - CMake consumer test follows the root `VERSION` instead of requesting
   0.5 after a minor-version bump. CMake usage examples now request 0.6.
+- Go `Digest.Write` no longer corrupts its state on 32-bit targets
+  (`386`, `arm`) when a slice close to 2 GiB follows buffered input. The
+  buffering check `d.nbuf+n < bufCap` overflowed `int`, truncated the
+  copy, and later panicked.
 
 ## [0.6.0] - 2026-09-13
 
