@@ -20,6 +20,10 @@ Known-answer vectors for the current digest live under
 
 - CMake consumer test follows the root `VERSION` instead of requesting
   0.5 after a minor-version bump. CMake usage examples now request 0.6.
+- Swift `Hasher.update` no longer traps on 32-bit platforms (watchOS
+  `arm64_32` / `armv7k`) when a chunk close to `Int.max` bytes follows
+  buffered input. The buffering check `nbuf + remaining < bufCap`
+  overflowed `Int`.
 
 ## [0.6.0] - 2026-09-13
 
