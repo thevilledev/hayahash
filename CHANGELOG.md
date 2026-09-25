@@ -20,6 +20,9 @@ Known-answer vectors for the current digest live under
 
 - CMake consumer test follows the root `VERSION` instead of requesting
   0.5 after a minor-version bump. CMake usage examples now request 0.6.
+- `hayasum --seed` / `-s` rejects a doubled hex prefix such as `0x0x10`.
+  `strtoull` in base 16 skips its own optional `0x`, so the strict parse
+  accepted the second prefix and hashed with seed 16.
 
 ## [0.6.0] - 2026-09-13
 
