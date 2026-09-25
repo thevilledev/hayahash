@@ -20,6 +20,10 @@ Known-answer vectors for the current digest live under
 
 - CMake consumer test follows the root `VERSION` instead of requesting
   0.5 after a minor-version bump. CMake usage examples now request 0.6.
+- C# `Hasher.Update` no longer throws when a span close to `int.MaxValue`
+  bytes follows buffered input. The buffering check
+  `_nbuf + data.Length < BufCap` wrapped negative and tried to copy the
+  whole span into the 448-byte buffer.
 
 ## [0.6.0] - 2026-09-13
 
