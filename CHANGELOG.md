@@ -35,6 +35,10 @@ Known-answer vectors for the current digest live under
   `arm64_32` / `armv7k`) when a chunk close to `Int.max` bytes follows
   buffered input. The buffering check `nbuf + remaining < bufCap`
   overflowed `Int`.
+- Go `Digest.Write` no longer corrupts its state on 32-bit targets
+  (`386`, `arm`) when a slice close to 2 GiB follows buffered input. The
+  buffering check `d.nbuf+n < bufCap` overflowed `int`, truncated the
+  copy, and later panicked.
 
 ## [0.6.0] - 2026-09-13
 
