@@ -132,7 +132,7 @@ public final class Hasher {
     if (!bulk) {
       // Undecided between the one-shot finish and the bulk path:
       // totals up to BUF_CAP-1 stay buffered.
-      if (nbuf + n < BUF_CAP) {
+      if (n < BUF_CAP - nbuf) {
         System.arraycopy(data, p, buf, nbuf, n);
         nbuf += n;
         return;

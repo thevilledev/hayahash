@@ -120,7 +120,8 @@ static void hayasum_quote(char *dst, size_t dstsz, const char *src)
 // and a leading '-' (silently wrapping "-1" to 2^64-1), and would read
 // a leading zero as octal. A seed that quietly means something other
 // than what was typed changes every digest, so screen the text first
-// and pick the base explicitly.
+// and pick the base explicitly. Base 16 also takes its own optional
+// 0x, so a second prefix ("0x0x10") has to be refused here as well.
 static int hayasum_parse_u64(const char *s, uint64_t *out)
 {
 	const char *digits = s;
@@ -132,6 +133,8 @@ static int hayasum_parse_u64(const char *s, uint64_t *out)
 		base = 16;
 		digits = s + 2;
 		if (!hayasum_is_hexdigit((unsigned char)digits[0]))
+			return 0;
+		if (digits[0] == '0' && (digits[1] == 'x' || digits[1] == 'X'))
 			return 0;
 	} else if (!hayasum_is_digit((unsigned char)digits[0])) {
 		return 0;
