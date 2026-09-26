@@ -39,6 +39,10 @@ Known-answer vectors for the current digest live under
   (`386`, `arm`) when a slice close to 2 GiB follows buffered input. The
   buffering check `d.nbuf+n < bufCap` overflowed `int`, truncated the
   copy, and later panicked.
+- C# `Hasher.Update` no longer throws when a span close to `int.MaxValue`
+  bytes follows buffered input. The buffering check
+  `_nbuf + data.Length < BufCap` wrapped negative and tried to copy the
+  whole span into the 448-byte buffer.
 
 ## [0.6.0] - 2026-09-13
 

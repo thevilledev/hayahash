@@ -96,7 +96,7 @@ public sealed class Hasher
         {
             // Undecided between the one-shot finish and the bulk path:
             // totals up to BufCap-1 stay buffered.
-            if (_nbuf + data.Length < BufCap)
+            if (data.Length < BufCap - _nbuf)
             {
                 data.CopyTo(_buf.AsSpan(_nbuf));
                 _nbuf += data.Length;
