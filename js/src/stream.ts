@@ -39,6 +39,17 @@ const BUF_CAP = 448;
 const KEEP = 128;
 
 /**
+ * Rounds `n` down to a whole number of 64-byte blocks. Plain Number
+ * arithmetic: `n & ~63` truncates to int32 and goes negative once a
+ * single chunk reaches 2 GiB.
+ *
+ * @internal Exported for tests.
+ */
+export function wholeBlocks(n: number): number {
+	return n - (n % 64);
+}
+
+/**
  * Streaming hayahash state, pure-BigInt implementation.
  *
  * Prefer {@link "index".Hasher}, which uses the wasm engine when it is
@@ -124,7 +135,7 @@ export class PureHasher {
 			// then stream whole blocks straight from the caller's array,
 			// leaving a [KEEP, KEEP+63]-byte remainder for the buffer.
 			if (this.#nbuf === KEEP && p.length > BUF_CAP) {
-				const direct = (p.length - KEEP) & ~63;
+				const direct = wholeBlocks(p.length - KEEP);
 				this.#blocks(this.#view, 0, KEEP);
 				const dv = new DataView(p.buffer, p.byteOffset, p.byteLength);
 				this.#blocks(dv, 0, direct);
@@ -139,7 +150,7 @@ export class PureHasher {
 				break;
 			}
 			// Buffer full: consume whole blocks down to the keep floor.
-			const consume = (this.#nbuf - KEEP) & ~63;
+			const consume = wholeBlocks(this.#nbuf - KEEP);
 			this.#blocks(this.#view, 0, consume);
 			this.#nbuf -= consume;
 			this.#buf.copyWithin(0, consume, consume + this.#nbuf);

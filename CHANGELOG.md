@@ -20,6 +20,17 @@ Known-answer vectors for the current digest live under
 
 - CMake consumer test follows the root `VERSION` instead of requesting
   0.5 after a minor-version bump. CMake usage examples now request 0.6.
+- JS `PureHasher.update` (the pure fallback behind `Hasher`) no longer
+  produces a wrong digest for a single chunk of 2 GiB plus 128 bytes or
+  more. The direct-block count was rounded with int32 bitwise ops, which
+  wrapped negative.
+- `hayasum --seed` / `-s` rejects a doubled hex prefix such as `0x0x10`.
+  `strtoull` in base 16 skips its own optional `0x`, so the strict parse
+  accepted the second prefix and hashed with seed 16.
+- Java `Hasher.update(byte[], int, int)` no longer throws
+  `ArrayIndexOutOfBoundsException` when a chunk close to
+  `Integer.MAX_VALUE` bytes follows buffered input. The buffering check
+  `nbuf + n < BUF_CAP` overflowed `int` and took the buffered branch.
 - Swift `Hasher.update` no longer traps on 32-bit platforms (watchOS
   `arm64_32` / `armv7k`) when a chunk close to `Int.max` bytes follows
   buffered input. The buffering check `nbuf + remaining < bufCap`
