@@ -177,6 +177,8 @@ usage_error "space-padded seed" -s " 1"
 usage_error "empty seed" -s ""
 usage_error "bare 0x seed" -s 0x
 usage_error "0x with a sign" -s 0x-1
+usage_error "doubled 0x prefix" -s 0x0x10
+usage_error "doubled mixed-case prefix" -s 0X0x1f
 usage_error "trailing garbage in seed" -s 1x
 usage_error "hex digits without the prefix" -s deadbeef
 usage_error "seed above 2^64-1" -s 18446744073709551616
