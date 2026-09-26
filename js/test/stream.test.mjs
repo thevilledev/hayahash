@@ -16,6 +16,7 @@ import {
 	hayahash64,
 	hayahash64Pure,
 } from "../dist/index.js";
+import { wholeBlocks } from "../dist/stream.js";
 
 const K = 0x9e3779b97f4a7c15n;
 const MASK64 = 0xffffffffffffffffn;
@@ -190,4 +191,15 @@ test("one-shot still works after streaming (shared scratch)", () => {
 	h.update(data.subarray(1000));
 	assert.equal(h.digest64(), hayahash64(data, 5n));
 	assert.equal(getEngine() === "wasm" || getEngine() === "js", true);
+});
+
+test("block rounding holds past 2 GiB chunks", () => {
+	// A single update() of 2^31 + KEEP bytes or more must not wrap the
+	// direct-block count through int32 bitwise ops.
+	const sizes = [0, 63, 64, 320, 2 ** 31 - 1, 2 ** 31, 2 ** 31 + 872, 2 ** 32 + 65, 2 ** 40 + 127];
+	for (const n of sizes) {
+		const got = wholeBlocks(n);
+		assert.equal(got, Math.floor(n / 64) * 64, `n=${n}`);
+		assert.ok(got >= 0 && got <= n && n - got < 64, `n=${n}`);
+	}
 });
