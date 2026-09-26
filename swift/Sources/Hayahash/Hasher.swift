@@ -117,7 +117,7 @@ extension Hayahash {
             if !bulk {
                 // Undecided between the one-shot finish and the bulk
                 // path: totals up to bufCap-1 stay buffered.
-                if nbuf + remaining < Self.bufCap {
+                if remaining < Self.bufCap - nbuf {
                     // `at:` is read into a local first: passing a
                     // property of `self` to a mutating method of `self`
                     // is an overlapping access.

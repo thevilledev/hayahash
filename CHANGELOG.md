@@ -31,6 +31,10 @@ Known-answer vectors for the current digest live under
   `ArrayIndexOutOfBoundsException` when a chunk close to
   `Integer.MAX_VALUE` bytes follows buffered input. The buffering check
   `nbuf + n < BUF_CAP` overflowed `int` and took the buffered branch.
+- Swift `Hasher.update` no longer traps on 32-bit platforms (watchOS
+  `arm64_32` / `armv7k`) when a chunk close to `Int.max` bytes follows
+  buffered input. The buffering check `nbuf + remaining < bufCap`
+  overflowed `Int`.
 
 ## [0.6.0] - 2026-09-13
 
