@@ -20,6 +20,10 @@ Known-answer vectors for the current digest live under
 
 - CMake consumer test follows the root `VERSION` instead of requesting
   0.5 after a minor-version bump. CMake usage examples now request 0.6.
+- JS `PureHasher.update` (the pure fallback behind `Hasher`) no longer
+  produces a wrong digest for a single chunk of 2 GiB plus 128 bytes or
+  more. The direct-block count was rounded with int32 bitwise ops, which
+  wrapped negative.
 
 ## [0.6.0] - 2026-09-13
 
