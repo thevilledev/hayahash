@@ -27,6 +27,10 @@ Known-answer vectors for the current digest live under
 - `hayasum --seed` / `-s` rejects a doubled hex prefix such as `0x0x10`.
   `strtoull` in base 16 skips its own optional `0x`, so the strict parse
   accepted the second prefix and hashed with seed 16.
+- Java `Hasher.update(byte[], int, int)` no longer throws
+  `ArrayIndexOutOfBoundsException` when a chunk close to
+  `Integer.MAX_VALUE` bytes follows buffered input. The buffering check
+  `nbuf + n < BUF_CAP` overflowed `int` and took the buffered branch.
 
 ## [0.6.0] - 2026-09-13
 
