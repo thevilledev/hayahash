@@ -24,6 +24,9 @@ Known-answer vectors for the current digest live under
   produces a wrong digest for a single chunk of 2 GiB plus 128 bytes or
   more. The direct-block count was rounded with int32 bitwise ops, which
   wrapped negative.
+- `hayasum --seed` / `-s` rejects a doubled hex prefix such as `0x0x10`.
+  `strtoull` in base 16 skips its own optional `0x`, so the strict parse
+  accepted the second prefix and hashed with seed 16.
 
 ## [0.6.0] - 2026-09-13
 
