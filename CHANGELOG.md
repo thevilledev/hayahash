@@ -18,6 +18,10 @@ Known-answer vectors for the current digest live under
 
 ### Fixed
 
+- Go lint CI under go1.27.2: golangci-lint v2.13.1 bundles
+  `golang.org/x/tools` v0.49.0, which cannot decode go1.27.2's export
+  data version 5, so every stdlib import failed to typecheck. Bumped to
+  v2.15.0.
 - CMake consumer test follows the root `VERSION` instead of requesting
   0.5 after a minor-version bump. CMake usage examples now request 0.6.
 - JS `PureHasher.update` (the pure fallback behind `Hasher`) no longer

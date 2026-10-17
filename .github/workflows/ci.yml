@@ -424,8 +424,11 @@ jobs:
           # `go-version: stable` resolves to: golangci-lint typechecks the
           # standard library with the parser it was compiled against, so an
           # older binary fails on newer stdlib sources. v2.12.2 (go1.26.2)
-          # could not typecheck the go1.27 `internal/poll` package.
-          version: v2.13.1
+          # could not typecheck the go1.27 `internal/poll` package. The
+          # bundled golang.org/x/tools must also decode the toolchain's
+          # export data: v2.13.x (x/tools v0.49.0) cannot read go1.27.2's
+          # export data version 5.
+          version: v2.15.0
           install-only: true
           verify: true
           working-directory: go
